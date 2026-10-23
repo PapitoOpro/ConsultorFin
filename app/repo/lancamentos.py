@@ -181,3 +181,22 @@ def reabrir_pendentes_quitados_da_importacao(con: sqlite3.Connection, importacao
 
 def apagar_chaves_quitadas_da_importacao(con: sqlite3.Connection, importacao_id: int) -> None:
     con.execute("DELETE FROM chaves_quitadas WHERE importacao_id = ?", (importacao_id,))
+
+
+def saidas_pendentes_entre(
+    con: sqlite3.Connection, inicio_iso: str | None, fim_iso: str | None
+) -> list[sqlite3.Row]:
+    """Saídas pendentes (valor < 0) com inicio <= data <= fim (limites None = abertos), por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE compensado = 0 AND valor_centavos < 0"
+        " AND (? IS NULL OR data >= ?) AND (? IS NULL OR data <= ?) ORDER BY data, id",
+        (inicio_iso, inicio_iso, fim_iso, fim_iso),
+    ).fetchall()
+
+
+def pendentes_ate(con: sqlite3.Connection, fim_iso: str) -> list[sqlite3.Row]:
+    """Todos os pendentes (entradas e saídas) com data <= fim_iso, por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE compensado = 0 AND data <= ? ORDER BY data, id",
+        (fim_iso,),
+    ).fetchall()

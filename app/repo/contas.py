@@ -38,3 +38,9 @@ def saldo_inicial_da_conta(con: sqlite3.Connection, conta_id: int) -> tuple[int,
     if row is None:
         raise ValueError(f"Conta {conta_id} não encontrada.")
     return int(row["saldo_inicial_centavos"]), row["data_saldo_inicial"]
+
+
+def ids_nao_cartao(con: sqlite3.Connection) -> list[int]:
+    """Ids das contas cujo tipo não é 'cartao'."""
+    rows = con.execute("SELECT id FROM contas WHERE tipo <> 'cartao' ORDER BY id").fetchall()
+    return [int(r["id"]) for r in rows]
