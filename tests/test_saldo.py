@@ -45,7 +45,7 @@ def test_saldo_antes_da_data_inicial_levanta_erro(con) -> None:
     conta, _ = _preparar(con)
     with pytest.raises(ValueError, match="anterior"):
         saldo_em(con, conta, "2026-07-23")
-    assert saldo_em(con, conta, "2026-07-24") >= -10**9
+    assert saldo_em(con, conta, "2026-07-24") == 214808
 
 
 def test_dias_anteriores_ao_saldo_inicial_sao_ignorados(con) -> None:
@@ -68,3 +68,14 @@ def test_conciliar_ignora_nao_importados(con) -> None:
 def test_conta_inexistente(con) -> None:
     with pytest.raises(ValueError, match="não encontrada"):
         saldo_em(con, 999, "2026-10-22")
+
+
+def test_conta_sem_data_saldo_inicial(con) -> None:
+    conta = criar_conta(con, "Sem data", "corrente", saldo_inicial_centavos=1000)
+    assert saldo_em(con, conta, "1999-01-01") == 1000
+    assert saldo_atual(con, conta, HOJE) == 1000
+
+
+def test_saldo_atual_antes_da_data_inicial_retorna_saldo_inicial(con) -> None:
+    conta, _ = _preparar(con)
+    assert saldo_atual(con, conta, date(2026, 7, 1)) == 214808

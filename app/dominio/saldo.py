@@ -1,5 +1,5 @@
 """Saldo por data e conciliação com os saldos do extrato."""
-import sqlite3
+from typing import Any
 from dataclasses import dataclass
 from datetime import date
 
@@ -14,7 +14,7 @@ class Conciliacao:
     calculado_centavos: int | None
 
 
-def saldo_em(con: sqlite3.Connection, conta_id: int, data_iso: str) -> int:
+def saldo_em(con: Any, conta_id: int, data_iso: str) -> int:
     """Saldo inicial + lançamentos compensados com data_compensacao <= data_iso.
 
     Levanta ValueError se data_iso for anterior à data do saldo inicial
@@ -28,7 +28,7 @@ def saldo_em(con: sqlite3.Connection, conta_id: int, data_iso: str) -> int:
     return inicial + lancamentos.soma_compensados_ate(con, conta_id, data_iso)
 
 
-def saldo_atual(con: sqlite3.Connection, conta_id: int, hoje: date) -> int:
+def saldo_atual(con: Any, conta_id: int, hoje: date) -> int:
     """Saldo em `hoje`; se `hoje` for anterior ao saldo inicial, retorna o saldo inicial."""
     inicial, data_inicial = contas.saldo_inicial_da_conta(con, conta_id)
     if data_inicial is not None and hoje.isoformat() < data_inicial:
@@ -37,7 +37,7 @@ def saldo_atual(con: sqlite3.Connection, conta_id: int, hoje: date) -> int:
 
 
 def conciliar(
-    con: sqlite3.Connection, conta_id: int, saldos_dia: dict[str, int]
+    con: Any, conta_id: int, saldos_dia: dict[str, int]
 ) -> Conciliacao:
     """Compara cada saldo do extrato (ordem crescente) com o calculado só dos importados."""
     inicial, data_inicial = contas.saldo_inicial_da_conta(con, conta_id)
