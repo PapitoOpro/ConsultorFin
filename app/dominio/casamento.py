@@ -1,9 +1,12 @@
 """Casamento de lançamentos pendentes com linhas importadas do extrato."""
+import bisect
 import difflib
+import heapq
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
+from functools import lru_cache
 from typing import Any
 
 from app.db import transacao
@@ -24,6 +27,7 @@ class Casamento:
     pontuacao: float
 
 
+@lru_cache(maxsize=65536)
 def _normalizar(texto: str) -> str:
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9 ]+", " ", sem_acento.lower())
@@ -38,6 +42,16 @@ def _similaridade(a: str, b: str) -> float:
     return max(difflib.SequenceMatcher(None, na, nb).ratio(), contido)
 
 
+def _similaridade_teto(a: str, b: str) -> float:
+    """Limite superior de _similaridade (difflib.quick_ratio no lugar de ratio)."""
+    na, nb = _normalizar(a), _normalizar(b)
+    ta, tb = set(na.split()), set(nb.split())
+    if not ta or not tb:
+        return 0.0
+    contido = len(ta & tb) / min(len(ta), len(tb))
+    return max(difflib.SequenceMatcher(None, na, nb).quick_ratio(), contido)
+
+
 def _pago_a_mao(row: Any) -> bool:
     """Compensado pelo usuário (não importado e ainda não casado com o extrato)."""
     return bool(row["compensado"]) and row["origem"] != "importado" and row["importacao_id"] is None
@@ -48,47 +62,94 @@ def _data_efetiva(row: Any) -> str:
     return str(row["data_compensacao"] or row["data"]) if row["compensado"] else str(row["data"])
 
 
-def _pontuar(pendente: Any, linha: Any) -> float | None:
+def _parte_sem_texto(pendente: Any, linha: Any) -> tuple[float, float] | None:
+    """Parcelas de data e de valor da pontuação; None se o par não é elegível."""
     vp, vl = int(pendente["valor_centavos"]), int(linha["valor_centavos"])
     if (vp < 0) != (vl < 0) or vp == 0 or vl == 0:
         return None
     tolerancia = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
     dif_valor = abs(vl - vp)
+    if dif_valor > tolerancia:  # barato primeiro: evita o parse de datas
+        return None
     dias = abs((date.fromisoformat(linha["data"])
                 - date.fromisoformat(_data_efetiva(pendente))).days)
-    if dif_valor > tolerancia or dias > JANELA_DIAS:
+    if dias > JANELA_DIAS:
         return None
-    return round(
-        0.4 * (1 - dias / (JANELA_DIAS + 1))
-        + 0.3 * (1 - dif_valor / (tolerancia + 1))
-        + 0.3 * _similaridade(pendente["descricao"], linha["descricao"]),
-        6,
-    )
+    return 0.4 * (1 - dias / (JANELA_DIAS + 1)), 0.3 * (1 - dif_valor / (tolerancia + 1))
+
+
+def _pontuar(pendente: Any, linha: Any) -> float | None:
+    partes = _parte_sem_texto(pendente, linha)
+    if partes is None:
+        return None
+    return round(partes[0] + partes[1] + 0.3 * _similaridade(pendente["descricao"],
+                                                             linha["descricao"]), 6)
 
 
 def propor_casamentos(con: Any, conta_id: int, importacao_id: int | None = None) -> list[Casamento]:
     """Propõe pares candidato×linha; cada candidato e cada linha aparece em no máximo um par.
     Candidatos: pendentes e pagos à mão (compensados sem importação) da conta. Linhas: as
-    importadas livres da importação dada, ou de todas as importações da conta (None)."""
+    importadas livres da importação dada, ou de todas as importações da conta (None).
+    Só pares com datas a até JANELA_DIAS são comparados (busca binária por data) e a
+    similaridade de texto, a parte cara, é calculada sob demanda: cada par entra numa fila
+    com o teto da pontuação (similaridade 1) e só é pontuado de fato se chegar ao topo com
+    ambos os lados ainda livres. O resultado é o mesmo da varredura completa."""
     pendentes = lancamentos.candidatos_casamento_da_conta(con, conta_id)
-    linhas = (lancamentos.importados_da_conta(con, conta_id) if importacao_id is None
+    if not pendentes:
+        return []
+    # Valor zero nunca casa: nem a data é lida (como no algoritmo antigo).
+    datas = [None if int(p["valor_centavos"]) == 0 else date.fromisoformat(_data_efetiva(p))
+             for p in pendentes]
+    validas = [d for d in datas if d is not None]
+    if not validas:
+        return []
+    janela = timedelta(days=JANELA_DIAS)
+    minimo, maximo = (min(validas) - janela).isoformat(), (max(validas) + janela).isoformat()
+    linhas = (lancamentos.importados_da_conta(con, conta_id, minimo, maximo)
+              if importacao_id is None
               else lancamentos.importados_da_importacao(con, importacao_id))
-    candidatos: list[Casamento] = []
-    for p in pendentes:
-        for l in linhas:
-            pont = _pontuar(p, l)
-            if pont is not None:
-                candidatos.append(Casamento(int(p["id"]), int(l["id"]), pont))
-    candidatos.sort(key=lambda c: (-c.pontuacao, c.pendente_id, c.lancamento_id))
+    linhas = sorted(linhas, key=lambda l: str(l["data"]))
+    chaves = [str(l["data"]) for l in linhas]
+    valores = [int(l["valor_centavos"]) for l in linhas]
+    # (-pontuação ou teto, pendente_id, lancamento_id, parcelas sem texto | None se já exata)
+    fila: list[tuple[float, int, int, tuple[float, float] | None, int, int, int]] = []
+    for pi, (p, dia) in enumerate(zip(pendentes, datas, strict=True)):
+        vp = int(p["valor_centavos"])
+        if vp == 0 or dia is None:
+            continue
+        tol = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
+        ini = bisect.bisect_left(chaves, (dia - janela).isoformat())
+        fim = bisect.bisect_right(chaves, (dia + janela).isoformat())
+        for li in range(ini, fim):
+            vl = valores[li]
+            if abs(vl - vp) > tol or (vl < 0) != (vp < 0):  # pré-filtro barato
+                continue
+            partes = _parte_sem_texto(p, linhas[li])
+            if partes is not None:
+                teto = round(partes[0] + partes[1] + 0.3 * 1.0, 6)
+                fila.append((-teto, int(p["id"]), int(linhas[li]["id"]), partes, pi, li, 0))
+    heapq.heapify(fila)
     usados_p: set[int] = set()
     usadas_l: set[int] = set()
     propostas: list[Casamento] = []
-    for c in candidatos:
-        if c.pendente_id in usados_p or c.lancamento_id in usadas_l:
+    while fila:
+        neg, pid, lid, partes, pi, li, refinado = heapq.heappop(fila)
+        if pid in usados_p or lid in usadas_l:
             continue
-        usados_p.add(c.pendente_id)
-        usadas_l.add(c.lancamento_id)
-        propostas.append(c)
+        if partes is not None:  # ainda é só um teto: refina (teto justo, depois exato)
+            dp, dl = pendentes[pi]["descricao"], linhas[li]["descricao"]
+            if refinado == 0:
+                sim = _similaridade_teto(dp, dl)
+                nxt = 1
+            else:
+                sim = _similaridade(dp, dl)
+                nxt = 2
+            novo = round(partes[0] + partes[1] + 0.3 * sim, 6)
+            heapq.heappush(fila, (-novo, pid, lid, partes if nxt == 1 else None, pi, li, nxt))
+            continue
+        usados_p.add(pid)
+        usadas_l.add(lid)
+        propostas.append(Casamento(pid, lid, -neg))
     return propostas
 
 

@@ -419,3 +419,231 @@ def test_casar_item_sem_recorrente_nao_mexe_nas_estimativas(con) -> None:
     confirmar_casamento(con, pid, _linha_id(con, "MERCADO"))
     assert imp
     assert _valores_futuros(con, ids) == [-21000, -21000, -21000, -21000]
+
+
+# --- Equivalência com o algoritmo antigo (N×M) e desempenho -------------------------------
+
+# Referência independente: cópia do algoritmo da main (pontuação + pareamento guloso sobre
+# TODO o produto candidato×linha), usando só as constantes do módulo e SQL simples.
+def _ref_normalizar(texto: str) -> str:
+    import re
+    import unicodedata
+    sem = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9 ]+", " ", sem.lower())
+
+
+def _ref_sim(a: str, b: str) -> float:
+    import difflib
+    na, nb = _ref_normalizar(a), _ref_normalizar(b)
+    ta, tb = set(na.split()), set(nb.split())
+    if not ta or not tb:
+        return 0.0
+    return max(difflib.SequenceMatcher(None, na, nb).ratio(),
+               len(ta & tb) / min(len(ta), len(tb)))
+
+
+def _ref_pontuar(p, l) -> float | None:
+    from app.dominio.casamento import JANELA_DIAS, TOLERANCIA_MINIMA_CENTAVOS, TOLERANCIA_PERCENTUAL
+    vp, vl = int(p["valor_centavos"]), int(l["valor_centavos"])
+    if (vp < 0) != (vl < 0) or vp == 0 or vl == 0:
+        return None
+    tol = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
+    dif = abs(vl - vp)
+    ef = str(p["data_compensacao"] or p["data"]) if p["compensado"] else str(p["data"])
+    dias = abs((date.fromisoformat(l["data"]) - date.fromisoformat(ef)).days)
+    if dif > tol or dias > JANELA_DIAS:
+        return None
+    return round(0.4 * (1 - dias / (JANELA_DIAS + 1)) + 0.3 * (1 - dif / (tol + 1))
+                 + 0.3 * _ref_sim(p["descricao"], l["descricao"]), 6)
+
+
+def _referencia_antiga(con, conta_id: int, importacao_id: int | None = None) -> list[Casamento]:
+    pendentes = con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND (compensado = 0 OR (compensado = 1"
+        " AND origem <> 'importado' AND importacao_id IS NULL)) ORDER BY id", (conta_id,)).fetchall()
+    if importacao_id is None:
+        linhas = con.execute("SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'importado'"
+                             " ORDER BY id", (conta_id,)).fetchall()
+    else:
+        linhas = con.execute("SELECT * FROM lancamentos WHERE importacao_id = ? AND"
+                             " origem = 'importado' ORDER BY id", (importacao_id,)).fetchall()
+    cands = []
+    for p in pendentes:
+        for l in linhas:
+            pont = _ref_pontuar(p, l)
+            if pont is not None:
+                cands.append(Casamento(int(p["id"]), int(l["id"]), pont))
+    cands.sort(key=lambda c: (-c.pontuacao, c.pendente_id, c.lancamento_id))
+    up: set[int] = set()
+    ul: set[int] = set()
+    out = []
+    for c in cands:
+        if c.pendente_id in up or c.lancamento_id in ul:
+            continue
+        up.add(c.pendente_id)
+        ul.add(c.lancamento_id)
+        out.append(c)
+    return out
+
+
+def _popular_aleatorio(con, rng, n_contas: int = 3) -> tuple[list[int], None]:
+    from datetime import timedelta
+    contas = [criar_conta(con, f"C{i}", "corrente", saldo_inicial_centavos=0,
+                          data_saldo_inicial="2026-01-01") for i in range(n_contas)]
+    base = date(2026, 6, 1)
+    nomes = ["LUZ ENEL", "AGUA SABESP", "ALUGUEL", "MERCADO X", "NETFLIX", "INTERNET VIVO"]
+    for c in contas:
+        for i in range(rng.randint(15, 40)):
+            d = base + timedelta(days=rng.randint(0, 120))
+            v = rng.choice([-1, 1]) * rng.choice([5000, 21000, 23000, 100000, 100500, 7777])
+            v += rng.randint(-3000, 3000)
+            if v == 0:
+                v = 100
+            pid = _pend(con, c, d.isoformat(), rng.choice(nomes), v)
+            kind = rng.random()
+            if kind < 0.3:  # pago à mão
+                dc = d + timedelta(days=rng.randint(-3, 3))
+                con.execute("UPDATE lancamentos SET compensado = 1, data_compensacao = ?"
+                            " WHERE id = ?", (dc.isoformat(), pid))
+            elif kind < 0.4:  # já casado com extrato (não é candidato)
+                con.execute("UPDATE lancamentos SET compensado = 1, data_compensacao = data,"
+                            " importacao_id = NULL, origem = 'importado' WHERE id = ?", (pid,))
+        for i in range(rng.randint(30, 90)):
+            d = base + timedelta(days=rng.randint(-15, 135))
+            v = rng.choice([-1, 1]) * rng.choice([5000, 21000, 23000, 100000, 104000, 7777])
+            v += rng.randint(-3000, 3000)
+            if v == 0:
+                v = -100
+            desc = rng.choice(nomes) + f" {i}"
+            con.execute(
+                "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+                " chave_deduplicacao, origem, data_compensacao, compensado)"
+                " VALUES (?,?,?,?,?,?,?,'importado',?,1)",
+                (f"u{c}-{i}-{rng.random()}", c, d.isoformat(), desc, v,
+                 "saida" if v < 0 else "entrada", f"imp:{c}:{i}", d.isoformat()))
+    con.commit()
+    return contas, None
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4, 5, 6])
+def test_propor_casamentos_igual_ao_algoritmo_antigo(con, seed: int) -> None:
+    import random
+    rng = random.Random(seed)
+    contas, _ = _popular_aleatorio(con, rng)
+    total = 0
+    for c in contas:
+        novo = propor_casamentos(con, c)
+        ref = _referencia_antiga(con, c)
+        total += len(ref)
+        assert [(n.pendente_id, n.lancamento_id) for n in novo] == \
+               [(r.pendente_id, r.lancamento_id) for r in ref]
+        assert [n.pontuacao for n in novo] == [r.pontuacao for r in ref]
+    assert total > 0
+
+
+def _popular_dificil(con, rng) -> tuple[list[int], list[int]]:
+    """Empates frequentes (descrições e valores idênticos), candidatos ±3000 dias, valor zero,
+    duas importações por conta. Devolve (contas, ids de importações)."""
+    from datetime import timedelta
+    contas = [criar_conta(con, f"D{i}", "corrente", saldo_inicial_centavos=0,
+                          data_saldo_inicial="2026-01-01") for i in range(2)]
+    imps: list[int] = []
+    base = date(2026, 6, 1)
+    for c in contas:
+        ids = []
+        for k in range(2):
+            cur = con.execute("INSERT INTO importacoes (arquivo_nome, arquivo_hash, conta_id,"
+                              " criado_em) VALUES (?,?,?, '2026-10-23')", (f"f{c}{k}", f"h{c}{k}", c))
+            ids.append(int(cur.lastrowid))
+        imps += ids
+        for i in range(rng.randint(20, 40)):
+            off = rng.choice([rng.randint(0, 30), rng.randint(0, 30), -3000, 3000])
+            d = base + timedelta(days=off)
+            v = rng.choice([0, -10000, -10000, 10000, -10400, -9700, 300, -300])
+            pid = _pend(con, c, d.isoformat(), rng.choice(["LUZ", "LUZ", "AGUA"]), v)
+            if rng.random() < 0.3:
+                con.execute("UPDATE lancamentos SET compensado = 1, data_compensacao = ?"
+                            " WHERE id = ?", ((d + timedelta(days=rng.randint(-2, 2))).isoformat(), pid))
+        for i in range(rng.randint(40, 80)):
+            d = base + timedelta(days=rng.randint(-12, 42))
+            v = rng.choice([0, -10000, -10000, 10000, -10400, -9700, 300, -300, -9500])
+            con.execute(
+                "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+                " chave_deduplicacao, origem, importacao_id, data_compensacao, compensado)"
+                " VALUES (?,?,?,?,?,?,?,'importado',?,?,1)",
+                (f"x{c}-{i}", c, d.isoformat(), rng.choice(["LUZ", "LUZ", "AGUA", "LUZ ENEL"]), v,
+                 "saida" if v < 0 else "entrada", f"imp:{c}:{i}", rng.choice(ids), d.isoformat()))
+    con.commit()
+    return contas, imps
+
+
+@pytest.mark.parametrize("seed", range(10, 18))
+def test_propor_casamentos_igual_ao_antigo_com_empates_e_importacao(con, seed: int) -> None:
+    import random
+    contas, imps = _popular_dificil(con, random.Random(seed))
+    total = 0
+    for c in contas:
+        novo, ref = propor_casamentos(con, c), _referencia_antiga(con, c)
+        total += len(ref)
+        assert novo == ref
+    for i in imps:
+        c = con.execute("SELECT conta_id FROM importacoes WHERE id = ?", (i,)).fetchone()[0]
+        novo, ref = propor_casamentos(con, c, i), _referencia_antiga(con, c, i)
+        total += len(ref)
+        assert novo == ref
+    assert total > 0
+
+
+def test_propor_casamentos_desempenho_limitado(con, monkeypatch) -> None:
+    import app.dominio.casamento as casamento_mod
+    import time
+    from datetime import timedelta
+    conta = _conta(con)
+    ini = date(2024, 10, 23)
+    linhas = []
+    for i in range(8000):
+        d = (ini + timedelta(days=i * 730 // 8000)).isoformat()
+        linhas.append((f"u{i}", conta, d, f"LINHA {i}", -(1000 + (i * 37) % 49000), "saida",
+                       f"imp:{i}", d))
+    con.executemany(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, data_compensacao, compensado)"
+        " VALUES (?,?,?,?,?,?,?,'importado',?,1)", linhas)
+    fut = date(2026, 10, 24)
+    pend = [(f"p{i}", conta, (fut + timedelta(days=i)).isoformat(), f"PEND {i}",
+             -(1000 + (i * 91) % 49000), "saida", f"manual:{i}") for i in range(300)]
+    con.executemany(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, compensado) VALUES (?,?,?,?,?,?,?,'manual',0)", pend)
+    maos = [(f"m{i}", conta, (ini + timedelta(days=i % 700)).isoformat(), f"MAO {i}",
+             -(1000 + (i * 53) % 49000), "saida", f"manual:m{i}",
+             (ini + timedelta(days=i % 700)).isoformat()) for i in range(600)]
+    con.executemany(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, data_compensacao, compensado)"
+        " VALUES (?,?,?,?,?,?,?,'manual',?,1)", maos)
+    con.commit()
+    chamadas = {"sim": 0}
+    original = casamento_mod._similaridade
+
+    def contada(a: str, b: str) -> float:
+        chamadas["sim"] += 1
+        return original(a, b)
+
+    monkeypatch.setattr(casamento_mod, "_similaridade", contada)
+    t = time.perf_counter()
+    propor_casamentos(con, conta)
+    dt = time.perf_counter() - t
+    # Guarda só contra o comportamento quadrático antigo (~20 s); folgado para CI lenta.
+    assert dt < 3.0
+    # Determinístico: o algoritmo antigo fazia ~N×M = 900×8000 comparações (e 1 similaridade por
+    # par elegível, ~10^4 aqui). O novo refina sob demanda: medido: 255 chamadas; bound 2×N = 1.800.
+    assert chamadas["sim"] < 2 * 900
+
+
+def test_candidato_de_valor_zero_nao_le_a_data(con) -> None:
+    conta = _conta(con)
+    pid = _pend(con, conta, "2026-10-10", "Zero", -100)
+    con.execute("UPDATE lancamentos SET valor_centavos = 0, data = 'lixo' WHERE id = ?", (pid,))
+    con.commit()
+    assert propor_casamentos(con, conta) == []

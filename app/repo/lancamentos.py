@@ -134,11 +134,16 @@ def candidatos_casamento_da_conta(con: sqlite3.Connection, conta_id: int) -> lis
     ).fetchall()
 
 
-def importados_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
-    """Linhas importadas livres (ainda não casadas) da conta, de todas as importações."""
+def importados_da_conta(
+    con: sqlite3.Connection, conta_id: int, data_min: str | None = None,
+    data_max: str | None = None,
+) -> list[sqlite3.Row]:
+    """Linhas importadas livres (ainda não casadas) da conta, de todas as importações.
+    `data_min`/`data_max` (ISO, inclusivos) limitam a janela de datas."""
     return con.execute(
-        "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'importado' ORDER BY id",
-        (conta_id,),
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'importado'"
+        " AND (? IS NULL OR data >= ?) AND (? IS NULL OR data <= ?) ORDER BY id",
+        (conta_id, data_min, data_min, data_max, data_max),
     ).fetchall()
 
 

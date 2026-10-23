@@ -135,7 +135,7 @@ class ParserExcel:
                 valor = _centavos(val)
             except ValueError as exc:
                 motivo = "muito alto" if isinstance(exc, ValorMuitoAlto) else "inválido"
-                res.erros.append(ErroLeitura(num, f"Linha {num}: valor {motivo} '{str(val).strip()}'"))
+                res.erros.append(ErroLeitura(num, f"Linha {num}: valor {motivo} '{eco(val)}'"))
                 continue
             res.linhas.append(LinhaImportada(data=data, descricao=str(desc).strip(), valor_centavos=valor))
         return res
