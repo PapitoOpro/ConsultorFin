@@ -128,7 +128,7 @@ def conectar(caminho: Path | str | None = None) -> sqlite3.Connection:
     destino = config.DB_PATH if caminho is None else caminho
     if destino != ":memory:":
         Path(destino).parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(destino))
+    con = sqlite3.connect(str(destino), check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con

@@ -83,5 +83,33 @@ def test_get_con_commit_e_rollback(tmp_path: Path) -> None:
     assert chaves == {"a"}
 
 
-def test_create_app_nao_toca_data(tmp_path: Path) -> None:
-    assert isinstance(create_app(tmp_path / "x.db"), FastAPI)
+def test_create_app_nao_toca_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.main as main
+    from app import config
+
+    monkeypatch.chdir(tmp_path)
+    assert not hasattr(main, "app")
+    with TestClient(create_app(tmp_path / "x.db")) as c:
+        assert c.get("/").status_code == 200
+    assert not (tmp_path / "data").exists()
+    assert not config.DB_PATH.parent.exists() or not config.DB_PATH.exists()
+
+
+def test_get_con_concorrente(tmp_path: Path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    app = create_app(tmp_path / "t.db")
+
+    @app.get("/_conc/{n}")
+    def conc(n: int, con: Any = Depends(deps.get_con)) -> dict[str, int]:
+        con.execute("INSERT INTO configuracoes (chave, valor) VALUES (?, '1')", (f"k{n}",))
+        return {"n": con.execute("SELECT count(*) FROM categorias").fetchone()[0]}
+
+    with TestClient(app) as c:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            codigos = list(ex.map(lambda n: c.get(f"/_conc/{n}").status_code, range(40)))
+    assert codigos == [200] * 40
+    con = conectar(tmp_path / "t.db")
+    total = con.execute("SELECT count(*) FROM configuracoes WHERE chave LIKE 'k%'").fetchone()[0]
+    con.close()
+    assert total == 40
