@@ -38,6 +38,7 @@
 
 {% set token = none %}{% set sugestao = none %}
 {% include "importar/_form_conta.html" %}
+{% if contas %}{% include "importar/_form_saldo.html" %}{% endif %}
 
 <div class="bloco">
   <h2>Histórico de importações</h2>

@@ -9,13 +9,45 @@ from app.db import transacao
 from app.dominio.categorias import PADROES_FATURA_PADRAO, aplicar_regras, classificar_tipo
 from app.dominio.lancamentos import chave_deduplicacao
 from app.dominio.casamento import propor_casamentos
-from app.dominio.dinheiro import iso_para_br
-from app.importacao.base import ErroLeitura, LinhaImportada, Parser
+from app.dominio.dinheiro import formatar_brl, iso_para_br
+from app.importacao.base import ErroLeitura, LinhaImportada, Parser, ResultadoLeitura
 from app.repo import configuracoes, contas, importacoes, lancamentos
 
 
 class ArquivoJaImportado(Exception):
     """Mesmo arquivo (hash) já importado e não desfeito para a conta."""
+
+
+class LancamentosAnterioresAoSaldoInicial(ValueError):
+    """O arquivo tem lançamentos anteriores à data do saldo inicial da conta (nada é importado)."""
+
+    def __init__(self, quantidade: int, data_saldo_inicial: str, primeira_data: str,
+                 saldo_anterior: tuple[str, int] | None) -> None:
+        self.quantidade = quantidade
+        self.data_saldo_inicial = data_saldo_inicial
+        self.primeira_data = primeira_data
+        self.saldo_anterior = saldo_anterior
+        qtd = "1 lançamento" if quantidade == 1 else f"{quantidade} lançamentos"
+        msg = (f"O arquivo tem {qtd} com data anterior à data do saldo inicial da conta "
+               f"({iso_para_br(data_saldo_inicial)}); o primeiro é de {iso_para_br(primeira_data)}. "
+               "Nada foi importado.")
+        if saldo_anterior is not None:
+            msg += (f" O extrato informa saldo anterior de {formatar_brl(saldo_anterior[1])} "
+                    f"em {iso_para_br(saldo_anterior[0])}.")
+        msg += (" Use \"Ajustar saldo inicial da conta\" para informar o saldo do início do "
+                "extrato e importe de novo.")
+        super().__init__(msg)
+
+
+def _exigir_datas_validas(con: Any, conta_id: int, leitura: ResultadoLeitura) -> None:
+    """Recusa o arquivo se algum lançamento for anterior à data do saldo inicial da conta."""
+    _, data_inicial = contas.saldo_inicial_da_conta(con, conta_id)
+    if data_inicial is None:
+        return
+    anteriores = [l.data for l in leitura.linhas if l.data < data_inicial]
+    if anteriores:
+        raise LancamentosAnterioresAoSaldoInicial(len(anteriores), data_inicial, min(anteriores),
+                                                  leitura.saldo_anterior)
 
 
 @dataclass
@@ -83,6 +115,7 @@ def simular_importacao(con: Any, conta_id: int, nome_arquivo: str, conteudo: byt
             "Desfaça a importação anterior para importá-lo de novo."
         )
     leitura = parser.ler(conteudo)
+    _exigir_datas_validas(con, conta_id, leitura)
     novos = ignorados = 0
     for _, chave in _com_chaves(conta_uuid, leitura.linhas):
         if lancamentos.chave_existe(con, chave):
@@ -133,6 +166,7 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
             "Desfaça a importação anterior para importá-lo de novo."
         )
     leitura = parser.ler(conteudo)
+    _exigir_datas_validas(con, conta_id, leitura)
     titular = configuracoes.obter(con, "nome_titular")
     padroes = _padroes_fatura(con)
     novos = ignorados = 0

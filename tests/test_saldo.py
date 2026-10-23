@@ -25,7 +25,7 @@ def test_aceite_saldo_e_conciliacao(con) -> None:
     assert saldo_em(con, conta, "2026-10-22") == 140914
     assert saldo_atual(con, conta, HOJE) == 140914
     r = conciliar(con, conta, saldos)
-    assert r == Conciliacao(True, None, None, None)
+    assert r == Conciliacao(True, None, None, None, dias_comparados=17)
 
 
 def test_divergencia_aponta_primeiro_dia_errado(con) -> None:
@@ -79,3 +79,40 @@ def test_conta_sem_data_saldo_inicial(con) -> None:
 def test_saldo_atual_antes_da_data_inicial_retorna_saldo_inicial(con) -> None:
     conta, _ = _preparar(con)
     assert saldo_atual(con, conta, date(2026, 7, 1)) == 214808
+
+
+def test_conciliar_sem_dias_comparaveis_nao_e_ok(con) -> None:
+    conta = criar_conta(con, "Itaú", "corrente", saldo_inicial_centavos=140914,
+                        data_saldo_inicial="2026-10-23")
+    saldos = ParserItauCsv().ler(FIXTURE.read_bytes()).saldos_dia
+    r = conciliar(con, conta, saldos)
+    assert r.ok is False
+    assert r.dias_comparados == 0
+    assert r.primeira_divergencia is None
+
+
+def test_conciliar_divergencia_conta_dias_comparados(con) -> None:
+    conta, saldos = _preparar(con)
+    dia = sorted(saldos)[2]
+    r = conciliar(con, conta, {**saldos, dia: saldos[dia] + 1})
+    assert (r.ok, r.primeira_divergencia, r.dias_comparados) == (False, dia, 3)
+
+
+def test_conciliacao_construtor_antigo_tem_zero_dias() -> None:
+    assert Conciliacao(True, None, None, None).dias_comparados == 0
+
+
+def test_ajustar_saldo_inicial(con) -> None:
+    from app.dominio.saldo import ajustar_saldo_inicial
+    from app.repo.contas import saldo_inicial_da_conta
+    conta = criar_conta(con, "Itaú", "corrente", saldo_inicial_centavos=140914,
+                        data_saldo_inicial="2026-10-23")
+    ajustar_saldo_inicial(con, conta, 214808, "2026-07-24")
+    assert saldo_inicial_da_conta(con, conta) == (214808, "2026-07-24")
+    with pytest.raises(ValueError, match="Data do saldo inicial inválida"):
+        ajustar_saldo_inicial(con, conta, 1, "2026-02-30")
+    with pytest.raises(ValueError, match="Valor muito alto"):
+        ajustar_saldo_inicial(con, conta, 10**12 + 1, "2026-07-24")
+    with pytest.raises(ValueError, match="Conta não encontrada"):
+        ajustar_saldo_inicial(con, 999, 1, "2026-07-24")
+    assert saldo_inicial_da_conta(con, conta) == (214808, "2026-07-24")

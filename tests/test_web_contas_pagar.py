@@ -445,3 +445,8 @@ def test_erro_inesperado_vira_mensagem_amigavel(cliente: TestClient, db: Path, c
     assert r.status_code == 500
     assert "Não foi possível concluir a operação. Nada foi alterado." in r.text
     assert "segredo interno" not in r.text
+
+
+def test_formulario_de_conta_tem_dica_do_saldo_inicial(cliente: TestClient) -> None:
+    contas_html = _secao(cliente.get(URL).text, "contas")
+    assert "Informe o saldo na data do primeiro lançamento que você vai importar." in contas_html

@@ -288,6 +288,77 @@ def test_criar_conta_invalida(cliente: TestClient) -> None:
     assert r.status_code == 400 and "Tipo de conta inválido." in r.text
 
 
+HDR_ITAU = ("Itaú Unibanco;;;;\nExtrato conta corrente;;;;\nagência: 0000     conta: 00000-0;;;;\n"
+            "data;lançamento;ag./origem;valor (R$);saldos (R$)\n")
+
+
+def _texto(html: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+
+
+def test_saldo_de_hoje_bloqueia_importacao_e_ajuste_resolve(db: Path) -> None:
+    app = create_app(db)
+    app.state.hoje_fn = lambda: date(2026, 10, 23)
+    with TestClient(app) as c:
+        c.post("/contas-a-pagar/conta", data={
+            "nome": "Itaú", "tipo": "corrente", "instituicao": "", "final_numero": "00000-0",
+            "saldo_inicial": "1.409,14", "data_saldo_inicial": "2026-10-23"})
+        conta = _consulta(db, "SELECT id FROM contas")[0][0]
+        prev = _upload(c, "extrato.csv", FIXTURE.read_bytes())
+        t = _texto(prev.text)
+        assert "18 lançamentos com data anterior à data do saldo inicial da conta (23/10/2026)" in t
+        assert "25/07/2026" in t and "R$ 2.148,08" in t
+        assert 'action="/importar/confirmar"' not in prev.text
+        assert "Ajustar saldo inicial da conta" in prev.text
+        assert 'value="2026-07-24"' in prev.text and 'value="R$ 2.148,08"' in prev.text
+        direto = _confirmar(c, prev.text, conta)
+        assert direto.status_code == 400 and "Nada foi importado" in direto.text
+        assert _total(db) == 0
+        assert _consulta(db, "SELECT COUNT(*) FROM importacoes")[0][0] == 0
+        ajuste = c.post("/importar/conta/saldo", data={
+            "conta_id": str(conta), "saldo_inicial": "R$ 2.148,08",
+            "data_saldo_inicial": "2026-07-24", "token": _token(prev.text)})
+        assert ajuste.status_code == 200
+        assert "Saldo inicial da conta atualizado." in ajuste.text
+        assert "18 novos" in ajuste.text and 'action="/importar/confirmar"' in ajuste.text
+        r = _confirmar(c, ajuste.text, conta)
+        assert "Saldo confere com o banco" in r.text
+        assert "R$ 1.409,14" in c.get("/").text
+
+
+def test_ajustar_saldo_inicial_invalido(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    base = {"conta_id": str(conta), "saldo_inicial": "1,00", "data_saldo_inicial": "2026-07-24"}
+    r = cliente.post("/importar/conta/saldo", data={**base, "saldo_inicial": "abc"})
+    assert r.status_code == 400 and "Saldo inicial inválido." in r.text
+    r = cliente.post("/importar/conta/saldo", data={**base, "data_saldo_inicial": "x"})
+    assert r.status_code == 400 and "Data do saldo inicial inválida." in r.text
+    r = cliente.post("/importar/conta/saldo", data={**base, "conta_id": "999"})
+    assert r.status_code == 400 and "Conta não encontrada." in r.text
+    r = cliente.post("/importar/conta/saldo", data=base)
+    assert r.status_code == 200 and "Saldo inicial da conta atualizado." in r.text
+    assert _consulta(db, "SELECT saldo_inicial_centavos FROM contas")[0][0] == 100
+
+
+def test_pagina_importar_oferece_ajuste_de_saldo(cliente: TestClient, db: Path) -> None:
+    assert "Ajustar saldo inicial da conta" not in cliente.get("/importar").text
+    _conta(db)
+    assert "Ajustar saldo inicial da conta" in cliente.get("/importar").text
+
+
+def test_resultado_sem_dias_comparaveis_mostra_aviso(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=100000, data="2026-10-23")
+    csv = (HDR_ITAU + "23/10/2026;PIX X;;-10,00;\n"
+           "22/10/2026;SALDO TOTAL DISPONÍVEL DIA;;;1.000,00\n").encode("latin-1")
+    prev = _upload(cliente, "x.csv", csv, conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert r.status_code == 200
+    assert "1 novos" in r.text
+    assert ("Não foi possível conferir o saldo: nenhum saldo do extrato é posterior à data do "
+            "saldo inicial da conta (23/10/2026).") in r.text
+    assert "Saldo confere com o banco" not in r.text
+
+
 def test_nome_do_arquivo_escapado(cliente: TestClient, db: Path) -> None:
     conta = _conta(db)
     r = _upload(cliente, "<b>x.csv", FIXTURE.read_bytes(), conta)

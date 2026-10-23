@@ -8,14 +8,14 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.dominio.casamento import confirmar_casamento
-from app.dominio.dinheiro import para_centavos
-from app.dominio.saldo import conciliar
+from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
+from app.dominio.saldo import ajustar_saldo_inicial, conciliar
 from app.importacao.base import Parser, ResultadoLeitura
 from app.importacao.deteccao import detectar
 from app.importacao.excel import ArquivoIlegivel, ParserExcel, listar_colunas
 from app.importacao.servico import (
-    ArquivoJaImportado, conta_detectada, desfazer_importacao, importar,
-    propostas_com_detalhes, simular_importacao,
+    ArquivoJaImportado, LancamentosAnterioresAoSaldoInicial, conta_detectada,
+    desfazer_importacao, importar, propostas_com_detalhes, simular_importacao,
 )
 from app.repo import contas, importacoes
 from app.web.deps import get_con
@@ -101,7 +101,7 @@ def _conta_id(con: Any, texto: str) -> int | None:
 
 
 def _previa(request: Request, con: Any, token: str, envio: Envio, conta_txt: str,
-            mapa: dict[str, str] | None) -> HTMLResponse:
+            mapa: dict[str, str] | None, aviso: str | None = None) -> HTMLResponse:
     parser = _parser(envio.nome, envio.conteudo, mapa)
     lista_contas = contas.listar(con)
     base: dict[str, Any] = {"token": token, "nome": envio.nome, "mapa": mapa,
@@ -122,13 +122,15 @@ def _previa(request: Request, con: Any, token: str, envio: Envio, conta_txt: str
         conta_id = int(lista_contas[0]["id"])
     ctx = {**base, "conta_id": conta_id, "detectada": detectada is not None and detectada == conta_id,
            "leitura": leitura, "amostra": leitura.linhas[:LINHAS_PREVIA], "resumo": None,
-           "ja_importado": None, "sugestao": leitura.saldo_anterior}
+           "ja_importado": None, "bloqueio": None, "sugestao": leitura.saldo_anterior}
     if conta_id is not None:
         try:
             ctx["resumo"] = simular_importacao(con, conta_id, envio.nome, envio.conteudo, parser)
         except ArquivoJaImportado as exc:
             ctx["ja_importado"] = str(exc)
-    return _render(request, "previa.html", ctx)
+        except LancamentosAnterioresAoSaldoInicial as exc:
+            ctx["bloqueio"] = str(exc)
+    return _render(request, "previa.html", {**ctx, "aviso": aviso})
 
 
 @router.get("/importar", response_class=HTMLResponse)
@@ -184,6 +186,36 @@ def criar_conta_rota(request: Request, con: Any = Depends(get_con), nome: str = 
         return _pagina_inicial(request, con, erro=e.mensagem, status=e.status)
 
 
+@router.post("/importar/conta/saldo", response_class=HTMLResponse)
+def ajustar_saldo(request: Request, con: Any = Depends(get_con), conta_id: str = Form(""),
+                  saldo_inicial: str = Form(""), data_saldo_inicial: str = Form(""),
+                  token: str = Form(""), mapa_data: str = Form(""), mapa_descricao: str = Form(""),
+                  mapa_valor: str = Form("")) -> HTMLResponse:
+    """Ajusta saldo inicial/data da conta; com envio pendente, volta à prévia."""
+    try:
+        conta = _conta_id(con, conta_id)
+        if conta is None:
+            raise ErroImportacao("Conta não encontrada.")
+        try:
+            saldo = para_centavos(saldo_inicial)
+        except ValorMuitoAlto as exc:
+            raise ErroImportacao("Valor muito alto. O máximo é R$ 10.000.000.000,00.") from exc
+        except ValueError as exc:
+            raise ErroImportacao("Saldo inicial inválido.") from exc
+        try:
+            ajustar_saldo_inicial(con, conta, saldo, data_saldo_inicial.strip())
+        except ValueError as exc:
+            raise ErroImportacao(str(exc)) from exc
+        aviso = "Saldo inicial da conta atualizado."
+        envio = request.app.state.uploads.obter(token) if token else None
+        if envio is not None:
+            return _previa(request, con, token, envio, str(conta),
+                           _mapa(mapa_data, mapa_descricao, mapa_valor), aviso=aviso)
+        return _pagina_inicial(request, con, aviso=aviso)
+    except ErroImportacao as e:
+        return _pagina_inicial(request, con, erro=e.mensagem, status=e.status)
+
+
 @router.post("/importar/confirmar", response_class=HTMLResponse)
 def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form(""),
               conta_id: str = Form(""), mapa_data: str = Form(""), mapa_descricao: str = Form(""),
@@ -201,7 +233,7 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
             raise ErroImportacao("Nenhuma linha válida encontrada no arquivo; nada foi importado.")
         try:
             resumo = importar(con, conta, envio.nome, envio.conteudo, parser, date.today())
-        except ArquivoJaImportado as exc:
+        except (ArquivoJaImportado, LancamentosAnterioresAoSaldoInicial) as exc:
             raise ErroImportacao(str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - transacao() já fez rollback
             log.error("event=importacao_falhou erro=%s", type(exc).__name__)
@@ -210,6 +242,7 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
         return _render(request, "resultado.html", {
             "nome": envio.nome, "resumo": resumo, "tem_saldos": bool(leitura.saldos_dia),
             "conciliacao": conciliar(con, conta, leitura.saldos_dia),
+            "data_saldo_inicial": contas.saldo_inicial_da_conta(con, conta)[1],
             "propostas": propostas_com_detalhes(con, conta, resumo.importacao_id)})
     except ErroImportacao as e:
         return _pagina_inicial(request, con, erro=e.mensagem, status=e.status)

@@ -133,6 +133,35 @@ def test_simular_importacao_nao_escreve_e_bate_com_importar(con):
     assert (real.novos, real.ignorados) == (sim.novos, sim.ignorados)
 
 
+def test_recusa_lancamentos_anteriores_ao_saldo_inicial(con):
+    from app.importacao.servico import LancamentosAnterioresAoSaldoInicial, simular_importacao
+
+    conta = criar_conta(con, "Itaú", "corrente", saldo_inicial_centavos=140914,
+                        data_saldo_inicial="2026-10-23")
+    for chamada in (lambda: _importar_fixture(con, conta),
+                    lambda: simular_importacao(con, conta, "extrato.csv", FIXTURE.read_bytes(),
+                                               ParserItauCsv())):
+        with pytest.raises(LancamentosAnterioresAoSaldoInicial) as exc:
+            chamada()
+        msg = str(exc.value)
+        assert isinstance(exc.value, ValueError)
+        assert "18 lançamentos" in msg and "23/10/2026" in msg and "25/07/2026" in msg
+        assert "R$ 2.148,08" in msg and "24/07/2026" in msg
+    assert _total(con) == 0
+    assert con.execute("SELECT COUNT(*) FROM importacoes").fetchone()[0] == 0
+
+
+def test_lancamento_na_data_do_saldo_inicial_e_aceito(con):
+    conta = criar_conta(con, "Itaú", "corrente", data_saldo_inicial="2026-10-01")
+    r = importar(con, conta, "a.csv", b"a", ParserFalso([LinhaImportada("2026-10-01", "PIX", -1)]), HOJE)
+    assert r.novos == 1
+
+
+def test_conta_sem_data_saldo_inicial_importa(con):
+    r = _importar_fixture(con, _conta(con))
+    assert r.novos == 18
+
+
 def test_simular_importacao_conta_ignorados_e_arquivo_repetido(con):
     from app.importacao.servico import simular_importacao
 

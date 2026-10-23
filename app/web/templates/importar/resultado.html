@@ -15,6 +15,8 @@
     <p class="secundario">Este arquivo não traz saldos para conciliar.</p>
   {% elif conciliacao.ok %}
     <p class="entrada">Saldo confere com o banco</p>
+  {% elif conciliacao.dias_comparados == 0 %}
+    <div class="alerta">Não foi possível conferir o saldo: nenhum saldo do extrato é posterior à data do saldo inicial da conta{% if data_saldo_inicial %} ({{ data_saldo_inicial | data_br }}){% endif %}.</div>
   {% else %}
     <div class="alerta">
       <strong>Saldo não confere com o banco.</strong>
