@@ -32,3 +32,22 @@ def finalizar(con: sqlite3.Connection, importacao_id: int, periodo_inicio: str |
 def marcar_desfeita(con: sqlite3.Connection, importacao_id: int) -> bool:
     cur = con.execute("UPDATE importacoes SET desfeita = 1 WHERE id = ?", (importacao_id,))
     return cur.rowcount > 0
+
+
+def criada_em_da_ativa_com_hash(con: sqlite3.Connection, conta_id: int,
+                                arquivo_hash: str) -> str | None:
+    """ISO de criação da importação ativa com o hash, ou None."""
+    row = con.execute(
+        "SELECT criado_em FROM importacoes WHERE conta_id = ? AND arquivo_hash = ?"
+        " AND desfeita = 0 ORDER BY id DESC LIMIT 1",
+        (conta_id, arquivo_hash),
+    ).fetchone()
+    return None if row is None else str(row["criado_em"])
+
+
+def listar_com_conta(con: sqlite3.Connection, limite: int = 50) -> list[sqlite3.Row]:
+    return con.execute(
+        "SELECT i.*, c.nome AS conta_nome FROM importacoes i"
+        " LEFT JOIN contas c ON c.id = i.conta_id ORDER BY i.id DESC LIMIT ?",
+        (limite,),
+    ).fetchall()

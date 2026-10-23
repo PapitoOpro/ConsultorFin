@@ -118,3 +118,28 @@ def test_erros_de_leitura_sao_devolvidos(con):
     conteudo = FIXTURE.read_bytes() + b"xx;lixo;;1,00;\r\n"
     r = importar(con, conta, "e.csv", conteudo, ParserItauCsv(), HOJE)
     assert r.novos == 18 and len(r.erros) == 1
+
+
+def test_simular_importacao_nao_escreve_e_bate_com_importar(con):
+    from app.importacao.servico import simular_importacao
+
+    conta = _conta(con)
+    antes = _total(con)
+    sim = simular_importacao(con, conta, "extrato.csv", FIXTURE.read_bytes(), ParserItauCsv())
+    assert (sim.total_lidos, sim.novos, sim.ignorados, sim.erros) == (18, 18, 0, [])
+    assert _total(con) == antes
+    assert con.execute("SELECT COUNT(*) FROM importacoes").fetchone()[0] == 0
+    real = _importar_fixture(con, conta)
+    assert (real.novos, real.ignorados) == (sim.novos, sim.ignorados)
+
+
+def test_simular_importacao_conta_ignorados_e_arquivo_repetido(con):
+    from app.importacao.servico import simular_importacao
+
+    conta = _conta(con)
+    l = LinhaImportada("2026-10-01", "PIX", -1000)
+    importar(con, conta, "a.csv", b"a", ParserFalso([l]), HOJE)
+    sim = simular_importacao(con, conta, "b.csv", b"b", ParserFalso([l, l, LinhaImportada("2026-10-02", "X", 5)]))
+    assert (sim.total_lidos, sim.novos, sim.ignorados) == (3, 2, 1)
+    with pytest.raises(ArquivoJaImportado, match="Este arquivo já foi importado em 23/10/2026"):
+        simular_importacao(con, conta, "a.csv", b"a", ParserFalso([l]))

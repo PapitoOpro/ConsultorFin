@@ -1,6 +1,7 @@
 """Parser do extrato CSV do Itaú (Latin-1, ';', ordem decrescente)."""
 
 import csv
+import re
 
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
 from app.importacao.base import ErroLeitura, LinhaImportada, ResultadoLeitura
@@ -25,6 +26,10 @@ def tem_cabecalho_itau(conteudo: bytes) -> bool:
 
 
 class ParserItauCsv:
+    @staticmethod
+    def final_numero(conteudo: bytes) -> str | None:
+        return extrair_final_conta(conteudo)
+
     def ler(self, conteudo: bytes) -> ResultadoLeitura:
         res = ResultadoLeitura()
         if not conteudo.strip():
@@ -72,3 +77,9 @@ class ParserItauCsv:
             res.erros.append(ErroLeitura(num, f"Linha {num}: valor inválido '{valor_txt}'"))
             return
         res.linhas.append(LinhaImportada(data=data, descricao=desc, valor_centavos=valor))
+
+
+def extrair_final_conta(conteudo: bytes) -> str | None:
+    """Número da conta no cabeçalho do extrato ('conta: 00000-0'), se houver."""
+    m = re.search(r"conta:\s*([0-9][0-9\-]*)", decodificar(conteudo)[:2000], re.IGNORECASE)
+    return m.group(1) if m else None

@@ -7,3 +7,4 @@ openpyxl
 pytest
 httpx
 httpx2
+xlrd

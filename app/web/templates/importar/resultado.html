@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Importação concluída{% endblock %}
+{% block conteudo %}
+<h1>Importação concluída</h1>
+<p class="secundario">Arquivo: {{ nome }}</p>
+<div class="bloco">
+  <h2>Resultado</h2>
+  <p>{{ resumo.novos }} novos · {{ resumo.ignorados }} ignorados (já existiam) · {{ resumo.erros | length }} com erro</p>
+  {% for e in resumo.erros %}<div class="alerta">{{ e.mensagem }}</div>{% endfor %}
+</div>
+
+<div class="bloco">
+  <h2>Conciliação de saldo</h2>
+  {% if not tem_saldos %}
+    <p class="secundario">Este arquivo não traz saldos para conciliar.</p>
+  {% elif conciliacao.ok %}
+    <p class="entrada">Saldo confere com o banco</p>
+  {% else %}
+    <div class="alerta">
+      <strong>Saldo não confere com o banco.</strong>
+      Primeira divergência em {{ conciliacao.primeira_divergencia | data_br }}:
+      Esperado <span class="valor">{{ conciliacao.esperado_centavos | brl }}</span>,
+      Calculado <span class="valor">{{ conciliacao.calculado_centavos | brl }}</span>.
+    </div>
+  {% endif %}
+</div>
+
+{% if propostas %}
+<div class="bloco">
+  <h2>Propostas de casamento</h2>
+  <p class="secundario">Lançamentos pendentes que parecem corresponder a linhas do extrato. Nada é confirmado automaticamente.</p>
+  {% for p in propostas %}
+  <div class="bloco proposta">
+    <div class="grade">
+      <div><div class="rotulo">Pendente</div>{{ p.pendente_descricao }}<br>
+        <span class="secundario">{{ p.pendente_data | data_br }}</span> <span class="valor">{{ p.pendente_valor | brl }}</span></div>
+      <div><div class="rotulo">Extrato</div>{{ p.linha_descricao }}<br>
+        <span class="secundario">{{ p.linha_data | data_br }}</span> <span class="valor">{{ p.linha_valor | brl }}</span></div>
+    </div>
+    <form hx-post="/importar/casamento/confirmar" hx-target="closest .proposta" hx-swap="outerHTML"
+          method="post" action="/importar/casamento/confirmar">
+      <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
+      <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
+      <button type="submit">Confirmar</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<a href="/importar" class="botao secundario">Voltar</a>
+{% endblock %}

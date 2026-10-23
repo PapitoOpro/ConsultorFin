@@ -44,3 +44,20 @@ def ids_nao_cartao(con: sqlite3.Connection) -> list[int]:
     """Ids das contas cujo tipo não é 'cartao'."""
     rows = con.execute("SELECT id FROM contas WHERE tipo <> 'cartao' ORDER BY id").fetchall()
     return [int(r["id"]) for r in rows]
+
+
+def listar(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    return con.execute("SELECT * FROM contas ORDER BY nome, id").fetchall()
+
+
+def obter(con: sqlite3.Connection, conta_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM contas WHERE id = ?", (conta_id,)).fetchone()
+
+
+def ids_por_final_numero(con: sqlite3.Connection) -> list[tuple[int, str]]:
+    """(id, final_numero) das contas que têm final_numero preenchido."""
+    rows = con.execute(
+        "SELECT id, final_numero FROM contas WHERE final_numero IS NOT NULL AND final_numero <> ''"
+        " ORDER BY id"
+    ).fetchall()
+    return [(int(r["id"]), str(r["final_numero"])) for r in rows]

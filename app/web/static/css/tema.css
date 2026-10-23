@@ -72,5 +72,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 input[type="number"], input.valor { font-family: var(--fonte-dados); text-align: right; }
 .campo { margin-bottom: 12px; }
 
+/* Importar */
+.dropzone { display: block; text-align: center; padding: 32px 16px; margin-bottom: 12px; border: 1px dashed var(--borda); border-radius: 4px; color: var(--texto); cursor: pointer; }
+.dropzone span { display: block; font-size: 12px; margin-top: 4px; }
+.dropzone.ativa { border-color: var(--primaria); }
+input[type="file"] { display: block; margin-bottom: 12px; color: var(--texto-secundario); }
+.proposta { margin-bottom: 8px; }
+p.entrada { color: var(--entrada); }
+
 /* alerta (âmbar) */
 .alerta { color: var(--alerta); background: var(--superficie); border: 1px solid var(--alerta); border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; }
