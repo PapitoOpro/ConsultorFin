@@ -141,7 +141,7 @@
       return r.json();
     })
     .then(function (d) {
-      rosca(d.rosca);
+      if (d.rosca.length) { rosca(d.rosca); }
       colunas("graf-parcelas", d.parcelas, function () { return C.primaria; });
       colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.alerta : C.primaria; });
       barras(d.maiores);

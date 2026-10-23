@@ -167,6 +167,19 @@ def _ponto(chave: str, rotulo: str, centavos: int) -> dict[str, Any]:
             "valor_fmt": formatar_brl(centavos)}
 
 
+def comparativo_mensal(con: Any, ano: int, mes: int) -> list[dict[str, Any]]:
+    """[mês anterior, mês selecionado] com entradas e saídas (centavos + formatado)."""
+    anterior = somar_meses(date(ano, mes, 1), -1)
+    saida: list[dict[str, Any]] = []
+    for a, m in ((anterior.year, anterior.month), (ano, mes)):
+        chave = f"{a:04d}-{m:02d}"
+        e, s = entradas_do_mes(con, a, m), despesas_do_mes(con, a, m)
+        saida.append({
+            "mes": chave, "rotulo": rotulo_mes(chave), "entradas_centavos": e,
+            "saidas_centavos": s, "entradas_fmt": formatar_brl(e), "saidas_fmt": formatar_brl(s)})
+    return saida
+
+
 def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict[str, Any]:
     """Estrutura serializável para os gráficos (centavos inteiros + rótulos pt-BR)."""
     reais = [(c.nome, c.total_centavos) for c in resumo.categorias]
@@ -175,14 +188,7 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
     maiores = [{"nome": n, "valor_centavos": v, "valor_fmt": formatar_brl(v)}
                for n, v in sorted(reais, key=lambda i: -i[1])[:TOP_BARRAS]]
     pontos = projetar(con, hoje, horizonte)
-    anterior = somar_meses(date(resumo.ano, resumo.mes, 1), -1)
-    comparativo = []
-    for a, m in ((anterior.year, anterior.month), (resumo.ano, resumo.mes)):
-        chave = f"{a:04d}-{m:02d}"
-        e, s = entradas_do_mes(con, a, m), despesas_do_mes(con, a, m)
-        comparativo.append({
-            "mes": chave, "rotulo": rotulo_mes(chave), "entradas_centavos": e,
-            "saidas_centavos": s, "entradas_fmt": formatar_brl(e), "saidas_fmt": formatar_brl(s)})
+    comparativo = comparativo_mensal(con, resumo.ano, resumo.mes)
     return {
         "mes": resumo.mes_iso, "horizonte": horizonte, "rosca": rosca, "maiores": maiores,
         "parcelas": [_ponto(p.mes, rotulo_mes(p.mes), p.parcelas_centavos) for p in pontos],

@@ -10,7 +10,7 @@
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
 {% endblock %}
 {% macro link_lanc(resumo, cat_id) -%}
-/lancamentos?{{ {'de': resumo.de_iso, 'ate': resumo.ate_iso, 'categoria_id': ('sem' if cat_id is none else cat_id), 'status': 'compensados'}|urlencode }}
+/lancamentos?{{ {'de': resumo.de_iso, 'ate': resumo.ate_iso, 'categoria_id': ('sem' if cat_id is none else cat_id), 'tipo': 'saida', 'status': 'compensados'}|urlencode }}
 {%- endmacro %}
 {% macro classe(v) %}{{ 'entrada' if v >= 0 else 'saida' }}{% endmacro %}
 {% block conteudo %}
@@ -75,9 +75,10 @@
 
   <section class="bloco" aria-label="Gastos por categoria">
     <div class="rotulo">Gastos por categoria</div>
-    <div id="graf-rosca" class="grafico" role="img" aria-label="Rosca de gastos por categoria"></div>
+    {% if dados.rosca %}<div id="graf-rosca" class="grafico" role="img" aria-label="Rosca de gastos por categoria"></div>{% else %}<p class="secundario">Sem gastos neste mês</p>{% endif %}
     <table class="sr-only"><caption>Gastos por categoria</caption>
-      <tbody>{% for f in dados.rosca %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table>
+      <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
+      <tbody>{% for f in dados.rosca %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% else %}<tr><td>Sem gastos neste mês</td><td></td></tr>{% endfor %}</tbody></table>
   </section>
 </div>
 
@@ -86,25 +87,28 @@
     <div class="rotulo">Parcelas · próximos {{ horizonte }} meses</div>
     <div id="graf-parcelas" class="grafico pequeno" role="img" aria-label="Colunas de parcelas por mês"></div>
     <table class="sr-only"><caption>Parcelas por mês</caption>
+      <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
       <tbody>{% for p in dados.parcelas %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}</td></tr>{% endfor %}</tbody></table>
   </section>
   <section class="bloco" aria-label="Saldo projetado">
-    <div class="rotulo">Saldo projetado</div>
-    <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês"></div>
+    <div class="rotulo">Saldo projetado · a partir de {{ dados.saldo_projetado[0].rotulo }}</div>
+    <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês, a partir de {{ dados.saldo_projetado[0].rotulo }}"></div>
     <table class="sr-only"><caption>Saldo projetado por mês</caption>
+      <thead><tr><th>Mês</th><th>Saldo</th></tr></thead>
       <tbody>{% for p in dados.saldo_projetado %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}{{ ' (negativo)' if p.negativo }}</td></tr>{% endfor %}</tbody></table>
   </section>
   <section class="bloco" aria-label="Maiores categorias">
     <div class="rotulo">Maiores categorias</div>
     <div id="graf-maiores" class="grafico pequeno" role="img" aria-label="Barras das maiores categorias"></div>
     <table class="sr-only"><caption>Maiores categorias</caption>
+      <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
       <tbody>{% for f in dados.maiores %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table>
   </section>
 </div>
 
 <section class="bloco" aria-label="Entradas e saídas">
   <div class="rotulo">Entradas × saídas · mês anterior e mês selecionado</div>
-  <div id="graf-comparativo" class="grafico pequeno" role="img" aria-label="Entradas e saídas, mês atual e anterior"></div>
+  <div id="graf-comparativo" class="grafico pequeno" role="img" aria-label="Entradas e saídas: {{ dados.comparativo[1].rotulo }} comparado a {{ dados.comparativo[0].rotulo }}"></div>
   <table class="sr-only"><caption>Entradas e saídas por mês</caption>
     <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th></tr></thead>
     <tbody>{% for p in dados.comparativo %}<tr><td>{{ p.rotulo }}</td><td>{{ p.entradas_fmt }}</td><td>{{ p.saidas_fmt }}</td></tr>{% endfor %}</tbody></table>
@@ -124,7 +128,11 @@
         <tr><td>{{ l.data|data_br }}</td><td>{{ l.descricao }}</td><td class="valor saida">{{ l.valor_centavos|brl }}</td></tr>
         {% endfor %}
       </tbody></table>
-      <p><a href="{{ link_lanc(resumo, sub.id if sub.id is not none else cat.id) }}">{% if sub.n > sub.lancamentos|length %}Ver todos os {{ sub.n }} lançamentos{% else %}Ver no extrato{% endif %}</a></p>
+      {% if sub.n > sub.lancamentos|length %}<p class="secundario">Mostrando {{ sub.lancamentos|length }} de {{ sub.n }} lançamentos.</p>{% endif %}
+      {% if sub.id is not none or cat.id is none %}
+      <p><a href="{{ link_lanc(resumo, sub.id if sub.id is not none else cat.id) }}">Ver no extrato</a>
+        <span class="secundario">(filtro aproximado por data e categoria; pode diferir do painel)</span></p>
+      {% endif %}
     </details>
     {% endfor %}
   </details>

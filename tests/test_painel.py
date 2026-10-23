@@ -5,7 +5,7 @@ import pytest
 
 from app.dominio.categorias import criar_subcategoria, despesas_do_mes
 from app.dominio.lancamentos import ErroLancamento, criar_lancamento_manual
-from app.dominio.painel import gastos_por_categoria, interpretar_mes, top_com_outros
+from app.dominio.painel import comparativo_mensal, gastos_por_categoria, interpretar_mes, top_com_outros
 from app.repo import contas
 
 
@@ -35,3 +35,12 @@ def test_gastos_por_categoria_soma_subcategorias_no_pai(con: sqlite3.Connection)
     g = gastos_por_categoria(con, 2026, 10)
     assert [(x.nome, x.total_centavos) for x in g] == [("Lazer", 500)]
     assert g[0].total_centavos == despesas_do_mes(con, 2026, 10)
+
+
+def test_comparativo_mensal_janeiro(con: sqlite3.Connection) -> None:
+    cid = contas.criar_conta(con, "C", "corrente", saldo_inicial_centavos=0,
+                             data_saldo_inicial="2025-01-01")
+    criar_lancamento_manual(con, conta_id=cid, data=date(2025, 12, 31), descricao="x",
+                            valor_centavos=-5000, compensado=True)
+    c = comparativo_mensal(con, 2026, 1)
+    assert [(p["mes"], p["saidas_centavos"]) for p in c] == [("2025-12", 5000), ("2026-01", 0)]

@@ -3,6 +3,8 @@ from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 from typing import Any
+from html import unescape
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -278,7 +280,13 @@ def test_tabela_expansivel_categoria_subcategoria_lancamentos(
     assert "Feira do Zé" in tab and "09/10/2026" in tab and "R$ 100,00" in tab
     assert "Sem categoria" in tab
     assert re.search(r'Total</td>\s*<td class="valor saida">R\$ 3\.333,29<', tab)
-    assert f"categoria_id={sub}" in tab and "de=2026-10-01" in tab and "ate=2026-10-31" in tab
+    assert "filtro aproximado por data e categoria; pode diferir do painel" in tab
+    hrefs = [unescape(h) for h in re.findall(r'href="(/lancamentos\?[^"]+)"', tab)]
+    qs = next(parse_qs(urlparse(h).query) for h in hrefs if f"categoria_id={sub}&" in h)
+    assert qs["de"] == ["2026-10-01"] and qs["ate"] == ["2026-10-31"]
+    assert qs["tipo"] == ["saida"] and qs["status"] == ["compensados"]
+    sem = next(parse_qs(urlparse(h).query) for h in hrefs if "categoria_id=sem" in h)
+    assert sem["tipo"] == ["saida"]
 
 
 def test_tabela_limita_lancamentos_por_subcategoria(
@@ -288,4 +296,84 @@ def test_tabela_limita_lancamentos_por_subcategoria(
         _manual(db, conta, date(2026, 10, 3), f"Item{i:02d}", -100, True, lazer)
     tab = _bloco(cliente.get("/?mes=2026-10").text, "Detalhamento por categoria")
     assert tab.count("Item") == 50
-    assert "Ver todos os 55 lançamentos" in tab
+    assert "Mostrando 50 de 55 lançamentos" in tab
+    assert f"categoria_id={lazer}" not in tab  # '(sem subcategoria)' não linka com o id do pai
+
+
+def _saidas_e_tabela(cliente: TestClient, mes: str = "2026-10") -> tuple[str, str, dict[str, Any]]:
+    html_ = cliente.get(f"/?mes={mes}").text
+    resumo = _bloco(html_, "Resumo do mês")
+    tab = _bloco(html_, "Detalhamento por categoria")
+    return resumo, tab, cliente.get(f"/inicio/dados.json?mes={mes}").json()
+
+
+def test_cartao_nao_altera_saidas_rosca_nem_tabela(cliente: TestClient, conta: int, db: Path) -> None:
+    con = conectar(db)
+    cartao = contas.criar_conta(con, "Nubank", "cartao", saldo_inicial_centavos=0,
+                                data_saldo_inicial="2026-01-01")
+    con.close()
+    _manual(db, conta, date(2026, 10, 12), "Gasto cartão", -99900, True)
+    con = conectar(db)
+    con.execute("UPDATE lancamentos SET conta_id = ? WHERE descricao = 'Gasto cartão'", (cartao,))
+    con.commit()
+    con.close()
+    resumo, tab, d = _saidas_e_tabela(cliente)
+    assert "R$ 3.233,29" in resumo and "Gasto cartão" not in tab
+    assert re.search(r'Total</td>\s*<td class="valor saida">R\$ 3\.233,29<', tab)
+    assert sum(f["valor_centavos"] for f in d["rosca"]) == 323329
+    assert d["comparativo"][1]["saidas_centavos"] == 323329
+
+
+def test_transferencia_excluida(cliente: TestClient, conta: int, db: Path) -> None:
+    lid = _manual(db, conta, date(2026, 10, 12), "Mov interno", -50000, True)
+    con = conectar(db)
+    con.execute("UPDATE lancamentos SET tipo = 'transferencia' WHERE id = ?", (lid,))
+    con.commit()
+    con.close()
+    resumo, tab, d = _saidas_e_tabela(cliente)
+    assert "R$ 3.233,29" in resumo and "R$ 400,00" in resumo and "Mov interno" not in tab
+    assert sum(f["valor_centavos"] for f in d["rosca"]) == 323329
+
+
+def test_pagamento_fatura_sem_categoria_conta_como_saida(cliente: TestClient, conta: int) -> None:
+    resumo, tab, d = _saidas_e_tabela(cliente)
+    assert "R$ 3.233,29" in resumo  # inclui os R$ 2.500,00 da fatura
+    sem = tab[tab.index("Sem categoria"):]
+    assert "PAGAMENTO FATURA CARTAO" in sem and "R$ 2.500,00" in sem
+    assert {f["nome"]: f["valor_centavos"] for f in d["rosca"]}["Sem categoria"] == 323329
+
+
+def test_limites_do_mes_31_e_01(cliente: TestClient, conta: int, db: Path) -> None:
+    _manual(db, conta, date(2026, 10, 31), "Fim de outubro", -1000, True)
+    _manual(db, conta, date(2026, 11, 1), "Início de novembro", -2000, True)
+    out, tab_out, _ = _saidas_e_tabela(cliente, "2026-10")
+    assert "R$ 3.243,29" in out and "Fim de outubro" in tab_out and "Início de novembro" not in tab_out
+    nov, tab_nov, d = _saidas_e_tabela(cliente, "2026-11")
+    assert "R$ 20,00" in nov and "Início de novembro" in tab_nov and "Fim de outubro" not in tab_nov
+    assert d["comparativo"][0]["saidas_centavos"] == 324329  # outubro, mês anterior
+
+
+def test_janeiro_compara_com_dezembro_do_ano_anterior(cliente: TestClient, conta: int, db: Path) -> None:
+    _manual(db, conta, date(2025, 12, 31), "Dez saída", -5000, True)
+    _manual(db, conta, date(2025, 12, 15), "Dez entrada", 7000, True)
+    _manual(db, conta, date(2026, 1, 1), "Jan saída", -300, True)
+    c = cliente.get("/inicio/dados.json?mes=2026-01").json()["comparativo"]
+    assert [p["mes"] for p in c] == ["2025-12", "2026-01"]
+    assert [p["rotulo"] for p in c] == ["dez/25", "jan/26"]
+    assert (c[0]["entradas_centavos"], c[0]["saidas_centavos"]) == (7000, 5000)
+    assert (c[1]["entradas_centavos"], c[1]["saidas_centavos"]) == (0, 300)
+    assert c[0]["saidas_fmt"] == "R$ 50,00"
+
+
+def test_rotulos_dos_graficos(cliente: TestClient, conta: int) -> None:
+    html_ = cliente.get("/?mes=2026-10").text
+    assert "Saldo projetado · a partir de out/26" in html_
+    assert "Colunas de saldo projetado por mês, a partir de out/26" in html_
+    assert "Entradas e saídas: out/26 comparado a set/26" in html_
+    assert "<thead>" in _bloco(html_, "Parcelas")
+
+
+def test_rosca_vazia_mostra_texto(cliente: TestClient, conta: int) -> None:
+    html_ = cliente.get("/?mes=2026-05").text
+    bloco = _bloco(html_, "Gastos por categoria")
+    assert "Sem gastos neste mês" in bloco and 'id="graf-rosca"' not in bloco
