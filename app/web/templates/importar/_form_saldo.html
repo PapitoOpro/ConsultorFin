@@ -1,0 +1,21 @@
+<form method="post" action="/importar/conta/saldo" class="bloco">
+  <h2>Ajustar saldo inicial da conta</h2>
+  {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+  {% if mapa %}
+  <input type="hidden" name="mapa_data" value="{{ mapa.data }}">
+  <input type="hidden" name="mapa_descricao" value="{{ mapa.descricao }}">
+  <input type="hidden" name="mapa_valor" value="{{ mapa.valor }}">
+  {% endif %}
+  <div class="grade">
+    <div class="campo"><label for="ajuste_conta">Conta</label>
+      <select id="ajuste_conta" name="conta_id">{% for c in contas %}<option value="{{ c.id }}"{% if c.id == conta_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}</select></div>
+    <div class="campo"><label for="ajuste_saldo">Saldo inicial</label>
+      <input id="ajuste_saldo" name="saldo_inicial" class="valor" required
+             value="{% if sugestao %}{{ sugestao[1] | brl }}{% endif %}"></div>
+    <div class="campo"><label for="ajuste_data">Data do saldo inicial</label>
+      <input id="ajuste_data" name="data_saldo_inicial" type="date" required
+             value="{% if sugestao %}{{ sugestao[0] }}{% endif %}"></div>
+  </div>
+  {% if sugestao %}<p class="secundario">Sugestão baseada no saldo anterior do arquivo ({{ sugestao[0] | data_br }}).</p>{% endif %}
+  <button type="submit">Ajustar saldo inicial</button>
+</form>

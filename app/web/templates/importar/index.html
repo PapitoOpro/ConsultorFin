@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block titulo %}Importar{% endblock %}
+{% block mensagens %}
+  {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
+  {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
+{% endblock %}
+{% block conteudo %}
+<h1>Importar extrato</h1>
+<form method="post" action="/importar/previa" enctype="multipart/form-data" class="bloco">
+  <label id="area" class="dropzone" for="arquivo">
+    <strong>Arraste o extrato aqui</strong> ou clique para escolher
+    <span class="secundario">CSV ou Excel (.csv, .xlsx), até 5 MB</span>
+  </label>
+  <input id="arquivo" name="arquivo" type="file" accept=".csv,.xlsx" required>
+  <div class="campo">
+    <label for="conta_id">Conta de destino</label>
+    <select id="conta_id" name="conta_id">
+      <option value="">Detectar pelo arquivo / escolher depois</option>
+      {% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+    </select>
+  </div>
+  <button type="submit">Ver prévia</button>
+</form>
+<script>
+  (function () {
+    var area = document.getElementById("area"), input = document.getElementById("arquivo");
+    ["dragenter", "dragover"].forEach(function (ev) {
+      area.addEventListener(ev, function (e) { e.preventDefault(); area.classList.add("ativa"); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      area.addEventListener(ev, function (e) { e.preventDefault(); area.classList.remove("ativa"); });
+    });
+    area.addEventListener("drop", function (e) {
+      if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; }
+    });
+  })();
+</script>
+
+{% set token = none %}{% set sugestao = none %}
+{% include "importar/_form_conta.html" %}
+{% if contas %}{% include "importar/_form_saldo.html" %}{% endif %}
+
+<div class="bloco">
+  <h2>Histórico de importações</h2>
+  {% if historico %}
+  <table>
+    <thead><tr><th>Arquivo</th><th>Conta</th><th>Período</th><th class="valor">Novos</th><th class="valor">Ignorados</th><th>Situação</th><th></th></tr></thead>
+    <tbody>
+    {% for i in historico %}
+      <tr>
+        <td>{{ i.arquivo_nome }}</td>
+        <td>{{ i.conta_nome or "—" }}</td>
+        <td>{% if i.periodo_inicio %}{{ i.periodo_inicio | data_br }} a {{ i.periodo_fim | data_br }}{% else %}—{% endif %}</td>
+        <td class="valor">{{ i.total_novos if i.total_novos is not none else 0 }}</td>
+        <td class="valor">{{ i.total_ignorados if i.total_ignorados is not none else 0 }}</td>
+        <td>{{ "Desfeita" if i.desfeita else "Ativa" }}</td>
+        <td>{% if not i.desfeita and i.id in desfaziveis %}
+          <form method="post" action="/importar/{{ i.id }}/desfazer" onsubmit="return confirm('Desfazer esta importação? Os lançamentos importados por ela serão removidos e os casamentos, desfeitos.')"><button type="submit" class="secundario">Desfazer</button></form>
+        {% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhuma importação ainda.</p>
+  {% endif %}
+</div>
+{% endblock %}

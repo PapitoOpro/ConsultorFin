@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% from "contas_pagar/_linhas.html" import tabela %}
+{% block titulo %}Contas a pagar{% endblock %}
+{% block mensagens %}
+  {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
+  {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
+{% endblock %}
+{% block conteudo %}
+<h1>Contas a pagar</h1>
+
+<form method="get" action="/contas-a-pagar" class="bloco acoes-barra">
+  <div class="campo" style="margin-bottom:0"><label for="horizonte">Horizonte</label>
+    <select id="horizonte" name="horizonte">
+      {% for h in horizontes %}<option value="{{ h }}"{{ " selected" if h == horizonte }}>{{ h }} meses</option>{% endfor %}
+    </select></div>
+  <button type="submit">Atualizar</button>
+</form>
+
+<section id="vencidas" class="bloco" style="margin-top:12px">
+  <h2>Vencidas</h2>
+  {% if painel.vencidas %}
+  <div class="alerta">{{ painel.vencidas | length }} vencida{{ "s" if painel.vencidas | length != 1 }} · total {{ painel.total_vencidas_centavos | brl }}</div>
+  {% endif %}
+  {{ tabela(painel.vencidas, horizonte, hoje, "Nenhuma conta vencida.") }}
+</section>
+
+<section id="a-vencer" class="bloco" style="margin-top:12px">
+  <h2>A vencer (7 dias)</h2>
+  {% if painel.a_vencer %}<p class="secundario">Total {{ painel.total_a_vencer_centavos | brl }}</p>{% endif %}
+  {{ tabela(painel.a_vencer, horizonte, hoje, "Nada a vencer nos próximos 7 dias.") }}
+</section>
+
+<section id="proximos" class="bloco" style="margin-top:12px">
+  <h2>Próximos vencimentos</h2>
+  {% if painel.proximos %}<p class="secundario">Total {{ painel.total_proximos_centavos | brl }} · até o fim de {{ horizonte }} meses</p>{% endif %}
+  {{ tabela(painel.proximos, horizonte, hoje, "Nenhum vencimento além dos próximos 7 dias no horizonte escolhido.") }}
+</section>
+
+<section id="receitas" class="bloco" style="margin-top:12px">
+  <h2>Receitas previstas</h2>
+  {% if painel.receitas %}<p class="secundario">Total {{ painel.total_receitas_centavos | brl }}</p>{% endif %}
+  {{ tabela(painel.receitas, horizonte, hoje, "Nenhuma receita pendente no horizonte escolhido.") }}
+</section>
+
+<section id="correspondencias" class="bloco" style="margin-top:12px">
+  <h2>Possíveis correspondências no extrato</h2>
+  {% if correspondencias %}
+  <p class="secundario">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>
+  <table>
+    <thead><tr><th>Conta</th><th>Item</th><th class="valor">Valor</th><th>Linha do extrato</th><th class="valor">Valor</th><th></th></tr></thead>
+    <tbody>
+    {% for conta_nome, p in correspondencias %}
+      <tr>
+        <td>{{ conta_nome }}</td>
+        <td>{{ p.pendente_descricao }} <span class="secundario">{{ p.pendente_data | data_br }}</span></td>
+        <td class="valor">{{ p.pendente_valor | brl }}</td>
+        <td>{{ p.linha_descricao }} <span class="secundario">{{ p.linha_data | data_br }}</span></td>
+        <td class="valor">{{ p.linha_valor | brl }}</td>
+        <td>
+          <form method="post" action="/contas-a-pagar/casamento/confirmar">
+            <input type="hidden" name="horizonte" value="{{ horizonte }}">
+            <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
+            <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
+            <button type="submit">Confirmar</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhuma correspondência pendente com o extrato.</p>
+  {% endif %}
+</section>
+
+<section id="parcelamentos" class="bloco" style="margin-top:12px">
+  <h2>Parcelamentos</h2>
+  {% if parcelamentos %}
+  <table>
+    <thead><tr><th>Descrição</th><th>Progresso</th><th>Próximo vencimento</th><th class="valor">Total / restante</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for g in parcelamentos %}
+      <tr>
+        <td>{{ g.descricao }}</td>
+        <td>{{ g.pagas }}/{{ g.n }} pagas · {{ g.pendentes }} pendente{{ "s" if g.pendentes != 1 }}</td>
+        <td>{% if g.proxima_data %}{{ g.proxima_data | data_br }}{% else %}—{% endif %}</td>
+        <td class="valor">Total {{ g.total_centavos | brl }} · restante {{ g.restante_centavos | brl }}</td>
+        <td>
+          {% if g.pendentes %}
+          <details class="linha-acoes"><summary>Ações</summary>
+            <form method="post" action="/contas-a-pagar/grupo/{{ g.grupo }}/editar">
+              <input type="hidden" name="horizonte" value="{{ horizonte }}">
+              <input class="valor" name="valor_total" placeholder="Novo total das pendentes" aria-label="Novo total das parcelas pendentes">
+              <input name="n_parcelas" inputmode="numeric" placeholder="Nº de pendentes" aria-label="Nova quantidade de parcelas pendentes" size="6">
+              <button type="submit" class="secundario">Editar pendentes</button>
+            </form>
+            <form method="post" action="/contas-a-pagar/grupo/{{ g.grupo }}/excluir" onsubmit="return confirm('Excluir as parcelas pendentes deste parcelamento?')">
+              <input type="hidden" name="horizonte" value="{{ horizonte }}">
+              <button type="submit" class="secundario">Excluir pendentes</button>
+            </form>
+          </details>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhum parcelamento cadastrado.</p>
+  {% endif %}
+  <details style="margin-top:12px">
+    <summary>Novo parcelamento</summary>
+    <form method="post" action="/contas-a-pagar/parcelamento" style="margin-top:12px">
+      <input type="hidden" name="horizonte" value="{{ horizonte }}">
+      <div class="filtros">
+        <div class="campo"><label for="p-desc">Descrição</label><input id="p-desc" name="descricao" maxlength="200" required></div>
+        <div class="campo"><label for="p-valor">Valor total</label><input id="p-valor" class="valor" name="valor_total" inputmode="decimal" placeholder="0,00" required></div>
+        <div class="campo"><label for="p-n">Nº de parcelas</label><input id="p-n" name="n_parcelas" inputmode="numeric" value="1" required></div>
+        <div class="campo"><label for="p-venc">Primeiro vencimento</label><input id="p-venc" type="date" name="primeiro_vencimento" value="{{ hoje }}" required></div>
+        <div class="campo"><label for="p-conta">Conta</label>
+          <select id="p-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
+        <div class="campo"><label for="p-cat">Categoria</label>
+          <select id="p-cat" name="categoria_id"><option value="">Sem categoria</option>
+            {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+      </div>
+      <button type="submit">Criar parcelamento</button>
+    </form>
+  </details>
+</section>
+
+<section id="recorrentes" class="bloco" style="margin-top:12px">
+  <h2>Contas fixas e receitas recorrentes</h2>
+  {% if recorrentes %}
+  <table>
+    <thead><tr><th>Nome</th><th>Tipo</th><th>Dia</th><th>Conta</th><th class="valor">Valor estimado</th><th class="valor">Último valor real</th><th>Situação</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for r in recorrentes %}
+      <tr>
+        <td>{{ r.nome }}</td>
+        <td>{{ "Receita" if r.tipo == "entrada" else "Conta fixa" }}</td>
+        <td>{{ r.dia }}</td>
+        <td>{{ r.conta_nome or "—" }}</td>
+        <td class="valor">{{ r.valor_estimado_centavos | brl }}</td>
+        <td class="valor">{% if r.ultimo_real_centavos is none %}—{% else %}{{ r.ultimo_real_centavos | brl }}{% endif %}</td>
+        <td>{{ "ativa" if r.ativa else "inativa" }}</td>
+        <td>
+          {% if r.ativa %}
+          <form method="post" action="/contas-a-pagar/recorrente/{{ r.id }}/desativar" onsubmit="return confirm('Desativar? Os pendentes futuros serão removidos.')">
+            <input type="hidden" name="horizonte" value="{{ horizonte }}">
+            <button type="submit" class="secundario">Desativar</button>
+          </form>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhuma conta fixa ou receita recorrente cadastrada.</p>
+  {% endif %}
+  <details style="margin-top:12px">
+    <summary>Nova conta fixa ou receita recorrente</summary>
+    <form method="post" action="/contas-a-pagar/recorrente" style="margin-top:12px">
+      <input type="hidden" name="horizonte" value="{{ horizonte }}">
+      <div class="filtros">
+        <div class="campo"><label for="r-nome">Nome</label><input id="r-nome" name="nome" maxlength="80" required></div>
+        <div class="campo"><label for="r-tipo">Tipo</label>
+          <select id="r-tipo" name="tipo"><option value="saida">Conta fixa (saída)</option><option value="entrada">Receita (entrada)</option></select></div>
+        <div class="campo"><label for="r-dia">Dia do mês (1-31)</label><input id="r-dia" name="dia" inputmode="numeric" required></div>
+        <div class="campo"><label for="r-valor">Valor estimado</label><input id="r-valor" class="valor" name="valor_estimado" inputmode="decimal" placeholder="0,00" required></div>
+        <div class="campo"><label for="r-conta">Conta</label>
+          <select id="r-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
+        <div class="campo"><label for="r-cat">Categoria</label>
+          <select id="r-cat" name="categoria_id"><option value="">Sem categoria</option>
+            {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+      </div>
+      <button type="submit">Cadastrar</button>
+    </form>
+  </details>
+</section>
+
+<section id="contas" class="bloco" style="margin-top:12px">
+  <h2>Contas e cartões</h2>
+  {% if contas %}
+  <table>
+    <thead><tr><th>Nome</th><th>Tipo</th><th>Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
+    <tbody>
+    {% for c in contas %}
+      <tr>
+        <td>{{ c.nome }}{% if c.final_numero %} <span class="secundario">final {{ c.final_numero }}</span>{% endif %}</td>
+        <td>{{ tipos_conta.get(c.tipo, c.tipo) }}</td>
+        <td>{{ c.instituicao or "—" }}</td>
+        <td class="valor">{{ c.saldo_inicial_centavos | brl }}{% if c.data_saldo_inicial %} <span class="secundario">em {{ c.data_saldo_inicial | data_br }}</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhuma conta cadastrada. Cadastre uma para criar parcelamentos e contas fixas.</p>
+  {% endif %}
+  <details style="margin-top:12px">
+    <summary>Nova conta ou cartão</summary>
+    <form method="post" action="/contas-a-pagar/conta" style="margin-top:12px">
+      <input type="hidden" name="horizonte" value="{{ horizonte }}">
+      <div class="filtros">
+        <div class="campo"><label for="c-nome">Nome</label><input id="c-nome" name="nome" maxlength="80" required></div>
+        <div class="campo"><label for="c-tipo">Tipo</label>
+          <select id="c-tipo" name="tipo">{% for k, v in tipos_conta.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+        <div class="campo"><label for="c-inst">Instituição</label><input id="c-inst" name="instituicao" maxlength="80"></div>
+        <div class="campo"><label for="c-final">Final do cartão/conta</label><input id="c-final" name="final_numero" maxlength="20"></div>
+        <div class="campo"><label for="c-saldo">Saldo inicial</label><input id="c-saldo" class="valor" name="saldo_inicial" value="0,00" required></div>
+        <div class="campo"><label for="c-data">Data do saldo inicial</label><input id="c-data" type="date" name="data_saldo_inicial" value="{{ hoje }}" required></div>
+      </div>
+      <p class="secundario">Informe o saldo na data do primeiro lançamento que você vai importar.</p>
+      <button type="submit">Cadastrar conta</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

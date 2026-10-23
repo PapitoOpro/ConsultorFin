@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block titulo %}Lançamentos{% endblock %}
+{% block mensagens %}
+  {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
+  {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
+{% endblock %}
+{% block conteudo %}
+<h1>Lançamentos</h1>
+
+<form method="get" action="/lancamentos" class="bloco filtros">
+  <div class="campo"><label for="f-de">De</label><input id="f-de" type="date" name="de" value="{{ filtros.de or '' }}"></div>
+  <div class="campo"><label for="f-ate">Até</label><input id="f-ate" type="date" name="ate" value="{{ filtros.ate or '' }}"></div>
+  <div class="campo"><label for="f-conta">Conta</label>
+    <select id="f-conta" name="conta_id"><option value="">Todas</option>
+      {% for c in contas %}<option value="{{ c.id }}"{{ " selected" if filtros.conta_id == c.id }}>{{ c.nome }}</option>{% endfor %}
+    </select></div>
+  <div class="campo"><label for="f-cat">Categoria</label>
+    <select id="f-cat" name="categoria_id"><option value="">Todas</option>
+      <option value="sem"{{ " selected" if filtros.sem_categoria }}>Sem categoria</option>
+      {% for cid, nome in categorias %}<option value="{{ cid }}"{{ " selected" if filtros.categoria_id == cid }}>{{ nome }}</option>{% endfor %}
+    </select></div>
+  <div class="campo"><label for="f-tipo">Tipo</label>
+    <select id="f-tipo" name="tipo"><option value="">Todos</option>
+      {% for chave, rotulo in tipos.items() %}<option value="{{ chave }}"{{ " selected" if filtros.tipo == chave }}>{{ rotulo }}</option>{% endfor %}
+    </select></div>
+  <div class="campo"><label for="f-status">Status</label>
+    <select id="f-status" name="status">
+      <option value="todos"{{ " selected" if filtros.status == "todos" }}>Todos</option>
+      <option value="pendentes"{{ " selected" if filtros.status == "pendentes" }}>Pendentes</option>
+      <option value="compensados"{{ " selected" if filtros.status == "compensados" }}>Compensados</option>
+    </select></div>
+  <div class="campo"><label for="f-texto">Buscar na descrição</label><input id="f-texto" type="search" name="texto" value="{{ filtros.texto }}" maxlength="100"></div>
+  <div class="campo"><button type="submit">Filtrar</button></div>
+</form>
+
+<div class="grade" style="margin-top:12px">
+  <div class="bloco"><div class="rotulo">Entradas</div><div class="numero valor entrada" id="total-entradas">{{ pagina.entradas_centavos | brl }}</div></div>
+  <div class="bloco"><div class="rotulo">Saídas</div><div class="numero valor saida" id="total-saidas">{{ pagina.saidas_centavos | brl }}</div></div>
+  <div class="bloco"><div class="rotulo">Resultado líquido</div><div class="numero valor {{ 'entrada' if pagina.liquido_centavos > 0 else ('saida' if pagina.liquido_centavos < 0) }}" id="total-liquido">{{ pagina.liquido_centavos | brl }}</div></div>
+  <div class="bloco"><div class="rotulo">Pendentes no filtro</div><div class="numero valor" id="total-pendentes">{{ pagina.pendentes_centavos | brl }}</div></div>
+</div>
+{% if pagina.conta_cartao %}<p class="secundario" id="rotulo-cartao">Totais desta conta: conta de cartão (fora dos totais do painel).</p>{% endif %}
+<p class="secundario">Totais consideram apenas lançamentos compensados; transferências ficam de fora e pagamentos de fatura contam como saída. Contas de cartão só entram nos totais ao filtrar por uma delas.</p>
+
+<details class="bloco">
+  <summary>Novo lançamento manual</summary>
+  <form method="post" action="/lancamentos/novo" style="margin-top:12px">
+    <input type="hidden" name="voltar" value="{{ voltar }}">
+    <div class="filtros">
+      <div class="campo"><label for="n-data">Data</label><input id="n-data" type="date" name="data" value="{{ hoje }}" required></div>
+      <div class="campo"><label for="n-desc">Descrição</label><input id="n-desc" name="descricao" maxlength="200" required></div>
+      <div class="campo"><label for="n-valor">Valor</label><input id="n-valor" class="valor" name="valor" inputmode="decimal" placeholder="0,00" required></div>
+      <div class="campo radios"><label>Sinal</label>
+        <label><input type="radio" name="sinal" value="saida" checked> Saída</label>
+        <label><input type="radio" name="sinal" value="entrada"> Entrada</label></div>
+      <div class="campo"><label for="n-conta">Conta</label>
+        <select id="n-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
+      <div class="campo"><label for="n-cat">Categoria</label>
+        <select id="n-cat" name="categoria_id"><option value="">Sem categoria</option>
+          {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+      <div class="campo"><label for="n-obs">Observação</label><input id="n-obs" name="observacao" maxlength="500"></div>
+      <div class="campo"><label><input type="checkbox" name="compensado" value="1"> Já compensado</label></div>
+    </div>
+    <button type="submit">Criar lançamento</button>
+  </form>
+</details>
+
+<form id="lote" method="post" action="/lancamentos/lote" class="bloco acoes-barra" style="margin-top:12px">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <div class="campo" style="margin-bottom:0"><label for="l-cat">Categorizar selecionados em</label>
+    <select id="l-cat" name="categoria_id" required>
+      {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+  <button type="submit">Aplicar às linhas marcadas</button>
+</form>
+
+<div class="bloco" style="margin-top:12px">
+  <p class="secundario">{{ pagina.total }} lançamentos · Página {{ pagina.pagina }} de {{ pagina.paginas }}</p>
+  {% if pagina.linhas %}
+  <table>
+    <thead><tr>
+      <th></th><th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
+      <th class="valor">Valor</th><th class="valor">Saldo</th><th>Tipo</th><th>Origem</th><th>Ações</th>
+    </tr></thead>
+    <tbody>
+    {% for l in pagina.linhas %}
+      <tr class="linha" id="lancamento-{{ l.id }}">
+        <td><input type="checkbox" form="lote" name="ids" value="{{ l.id }}" aria-label="Selecionar lançamento {{ l.id }}"></td>
+        <td>{{ l.data | data_br }}</td>
+        <td>{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}</td>
+        <td>{{ l.conta_nome }}</td>
+        <td class="categoria">{% include "lancamentos/_categoria.html" %}</td>
+        <td class="valor {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</td>
+        <td class="valor saldo">{% if l.saldo_acumulado_centavos is none %}—{% else %}{{ l.saldo_acumulado_centavos | brl }}{% endif %}</td>
+        <td>{{ tipos[l.tipo] }}</td>
+        <td><span class="origem {{ l.origem }}">{{ l.origem }}</span></td>
+        <td>
+          <details class="linha-acoes"><summary>Ações</summary>
+            <form method="post" action="/lancamentos/{{ l.id }}/tipo">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <select name="tipo" aria-label="Marcar como">
+                <option value="transferencia">Transferência</option>
+                <option value="pagamento_fatura">Pagamento de fatura</option>
+                <option value="auto">Entrada/Saída (pelo sinal)</option>
+              </select>
+              <button type="submit" class="secundario">Marcar tipo</button>
+            </form>
+            <form method="post" action="/lancamentos/{{ l.id }}/regra">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <input name="padrao" value="{{ l.descricao }}" maxlength="100" aria-label="Quando a descrição contiver">
+              <select name="categoria_id" aria-label="Categoria da regra">
+                {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select>
+              <button type="submit" class="secundario">Criar regra</button>
+            </form>
+            {% if not l.compensado %}
+            <form method="post" action="/lancamentos/{{ l.id }}/pagar">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <input class="valor" name="valor" value="{{ (l.valor_centavos | abs) | brl }}" aria-label="Valor real">
+              <input type="date" name="data" value="{{ hoje }}" aria-label="Data do pagamento" required>
+              <button type="submit" class="secundario">Marcar como pago</button>
+            </form>
+            {% endif %}
+            {% if l.origem == 'manual' %}
+            <form method="post" action="/lancamentos/{{ l.id }}/excluir">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <button type="submit" class="secundario">Excluir</button>
+            </form>
+            {% endif %}
+          </details>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhum lançamento encontrado para este filtro.</p>
+  {% endif %}
+  <div class="paginacao">
+    {% if anterior %}<a href="/lancamentos?{{ anterior }}">Anterior</a>{% endif %}
+    <span class="secundario">Página {{ pagina.pagina }} de {{ pagina.paginas }}</span>
+    {% if proxima %}<a href="/lancamentos?{{ proxima }}">Próxima</a>{% endif %}
+  </div>
+</div>
+{% endblock %}

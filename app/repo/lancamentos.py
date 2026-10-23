@@ -1,0 +1,362 @@
+"""Acesso a dados de lançamentos (sem commit: a transação é do chamador)."""
+import sqlite3
+import uuid
+
+from app.db import sem_acento
+
+
+def chave_existe(con: sqlite3.Connection, chave: str) -> bool:
+    row = con.execute(
+        "SELECT 1 FROM lancamentos WHERE chave_deduplicacao = ? "
+        "UNION ALL SELECT 1 FROM chaves_quitadas WHERE chave = ? LIMIT 1",
+        (chave, chave),
+    ).fetchone()
+    return row is not None
+
+
+def inserir_importado(
+    con: sqlite3.Connection, conta_id: int, importacao_id: int, data: str,
+    descricao: str, valor_centavos: int, tipo: str, chave: str,
+) -> int:
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, importacao_id, data_compensacao, compensado)"
+        " VALUES (?,?,?,?,?,?,?,'importado',?,?,1)",
+        (str(uuid.uuid4()), conta_id, data, descricao, valor_centavos, tipo, chave,
+         importacao_id, data),
+    )
+    return int(cur.lastrowid)
+
+
+def remover_importados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
+    cur = con.execute(
+        "DELETE FROM lancamentos WHERE importacao_id = ? AND origem = 'importado'",
+        (importacao_id,),
+    )
+    return cur.rowcount
+
+
+def soma_compensados_ate(con: sqlite3.Connection, conta_id: int, data_iso: str) -> int:
+    """Soma dos lançamentos compensados com data_compensacao <= data_iso."""
+    row = con.execute(
+        "SELECT COALESCE(SUM(valor_centavos), 0) AS s FROM lancamentos"
+        " WHERE conta_id = ? AND compensado = 1 AND data_compensacao <= ?",
+        (conta_id, data_iso),
+    ).fetchone()
+    return int(row["s"])
+
+
+# Conciliação (Ruling 2): importados + pendentes casados com o extrato (importacao_id definido).
+_FILTRO_CONCILIACAO = "origem = 'importado' OR importacao_id IS NOT NULL"
+
+
+def somas_diarias_conciliacao(
+    con: sqlite3.Connection, conta_id: int
+) -> list[tuple[str, int]]:
+    """(data_compensacao, soma) dos compensados que contam na conciliação, em ordem crescente."""
+    rows = con.execute(
+        "SELECT data_compensacao AS d, SUM(valor_centavos) AS s FROM lancamentos"
+        f" WHERE conta_id = ? AND compensado = 1 AND ({_FILTRO_CONCILIACAO})"
+        " AND data_compensacao IS NOT NULL GROUP BY data_compensacao ORDER BY data_compensacao",
+        (conta_id,),
+    ).fetchall()
+    return [(str(r["d"]), int(r["s"])) for r in rows]
+
+
+def inserir_manual(
+    con: sqlite3.Connection, *, conta_id: int, data: str, descricao: str,
+    valor_centavos: int, tipo: str, categoria_id: int | None, compensado: bool,
+    observacao: str | None, grupo_parcela_uuid: str | None = None,
+    parcela_atual: int | None = None, parcela_total: int | None = None,
+) -> int:
+    """Insere lançamento manual (sem commit). Chave: manual:<uuid>."""
+    novo = str(uuid.uuid4())
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " categoria_id, chave_deduplicacao, origem, observacao, data_compensacao, compensado,"
+        " grupo_parcela_uuid, parcela_atual, parcela_total)"
+        " VALUES (?,?,?,?,?,?,?,?,'manual',?,?,?,?,?,?)",
+        (novo, conta_id, data, descricao, valor_centavos, tipo, categoria_id,
+         f"manual:{novo}", observacao, data if compensado else None, int(compensado),
+         grupo_parcela_uuid, parcela_atual, parcela_total),
+    )
+    return int(cur.lastrowid)
+
+
+def obter(con: sqlite3.Connection, lancamento_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM lancamentos WHERE id = ?", (lancamento_id,)).fetchone()
+
+
+def marcar_compensado(
+    con: sqlite3.Connection, lancamento_id: int, data_iso: str, valor_centavos: int
+) -> None:
+    con.execute(
+        "UPDATE lancamentos SET compensado = 1, data_compensacao = ?, estimado = 0,"
+        " valor_centavos = ? WHERE id = ?",
+        (data_iso, valor_centavos, lancamento_id),
+    )
+
+
+def parcelas_do_grupo(
+    con: sqlite3.Connection, grupo_uuid: str, *, so_pendentes: bool = False
+) -> list[sqlite3.Row]:
+    filtro = " AND compensado = 0" if so_pendentes else ""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE grupo_parcela_uuid = ?" + filtro
+        + " ORDER BY parcela_atual",
+        (grupo_uuid,),
+    ).fetchall()
+
+
+def excluir_pendentes_do_grupo(con: sqlite3.Connection, grupo_uuid: str) -> int:
+    cur = con.execute(
+        "DELETE FROM lancamentos WHERE grupo_parcela_uuid = ? AND compensado = 0",
+        (grupo_uuid,),
+    )
+    return cur.rowcount
+
+
+def atualizar_parcela_total_do_grupo(
+    con: sqlite3.Connection, grupo_uuid: str, parcela_total: int
+) -> None:
+    con.execute(
+        "UPDATE lancamentos SET parcela_total = ? WHERE grupo_parcela_uuid = ?",
+        (parcela_total, grupo_uuid),
+    )
+
+
+def candidatos_casamento_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    """Pendentes e "pagos à mão" (compensados, não importados e sem importação) da conta."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND (compensado = 0"
+        " OR (compensado = 1 AND origem <> 'importado' AND importacao_id IS NULL)) ORDER BY id",
+        (conta_id,),
+    ).fetchall()
+
+
+def importados_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    """Linhas importadas livres (ainda não casadas) da conta, de todas as importações."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'importado' ORDER BY id",
+        (conta_id,),
+    ).fetchall()
+
+
+def importados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> list[sqlite3.Row]:
+    """Linhas importadas ainda existentes (as casadas já foram removidas)."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE importacao_id = ? AND origem = 'importado' ORDER BY id",
+        (importacao_id,),
+    ).fetchall()
+
+
+def quitar_pendente(
+    con: sqlite3.Connection, pendente_id: int, data_iso: str, valor_centavos: int,
+    importacao_id: int | None,
+) -> None:
+    con.execute(
+        "UPDATE lancamentos SET compensado = 1, data_compensacao = ?, estimado = 0,"
+        " valor_centavos = ?, importacao_id = ? WHERE id = ?",
+        (data_iso, valor_centavos, importacao_id, pendente_id),
+    )
+
+
+def excluir(con: sqlite3.Connection, lancamento_id: int) -> None:
+    con.execute("DELETE FROM lancamentos WHERE id = ?", (lancamento_id,))
+
+
+def registrar_chave_quitada(
+    con: sqlite3.Connection, chave: str, pendente_id: int, importacao_id: int | None,
+    valor_original_centavos: int | None = None, estimado_original: int | None = None,
+    compensado_original: int | None = None, data_compensacao_original: str | None = None,
+) -> None:
+    con.execute(
+        "INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id,"
+        " valor_original_centavos, estimado_original, compensado_original,"
+        " data_compensacao_original) VALUES (?,?,?,?,?,?,?)",
+        (chave, pendente_id, importacao_id, valor_original_centavos, estimado_original,
+         compensado_original, data_compensacao_original),
+    )
+
+
+_ORIGINAL = ("(SELECT c.{col} FROM chaves_quitadas c"
+             " WHERE c.pendente_id = lancamentos.id AND c.importacao_id = :imp)")
+
+
+def reabrir_pendentes_quitados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
+    """Desfaz os casamentos da importação, restaurando o estado guardado em chaves_quitadas:
+    pago à mão (compensado_original = 1) volta a pago com a data original; os demais voltam
+    a pendentes. valor/estimado NULL = sem original: mantém o atual."""
+    pago = f"COALESCE({_ORIGINAL.format(col='compensado_original')}, 0) = 1"
+    cur = con.execute(
+        f"UPDATE lancamentos SET compensado = CASE WHEN {pago} THEN 1 ELSE 0 END,"
+        f" data_compensacao = CASE WHEN {pago}"
+        f"   THEN {_ORIGINAL.format(col='data_compensacao_original')} ELSE NULL END,"
+        " importacao_id = NULL,"
+        f" valor_centavos = COALESCE({_ORIGINAL.format(col='valor_original_centavos')},"
+        "   valor_centavos),"
+        f" estimado = COALESCE({_ORIGINAL.format(col='estimado_original')}, estimado)"
+        " WHERE importacao_id = :imp AND origem <> 'importado'",
+        {"imp": importacao_id},
+    )
+    return cur.rowcount
+
+
+def apagar_chaves_quitadas_da_importacao(con: sqlite3.Connection, importacao_id: int) -> None:
+    con.execute("DELETE FROM chaves_quitadas WHERE importacao_id = ?", (importacao_id,))
+
+
+def saidas_pendentes_entre(
+    con: sqlite3.Connection, inicio_iso: str | None, fim_iso: str | None
+) -> list[sqlite3.Row]:
+    """Saídas pendentes (valor < 0) com inicio <= data <= fim (limites None = abertos), por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE compensado = 0 AND valor_centavos < 0"
+        " AND (? IS NULL OR data >= ?) AND (? IS NULL OR data <= ?) ORDER BY data, id",
+        (inicio_iso, inicio_iso, fim_iso, fim_iso),
+    ).fetchall()
+
+
+def pendentes_ate(con: sqlite3.Connection, fim_iso: str) -> list[sqlite3.Row]:
+    """Todos os pendentes (entradas e saídas) com data <= fim_iso, por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE compensado = 0 AND data <= ? ORDER BY data, id",
+        (fim_iso,),
+    ).fetchall()
+
+
+# --- Extrato (tela Lançamentos) -------------------------------------------------------------
+
+def _escapar_like(texto: str) -> str:
+    return texto.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+
+
+def _where(
+    *, de: str | None, ate: str | None, conta_id: int | None, categoria_id: int | None,
+    sem_categoria: bool, tipo: str | None, texto: str | None, compensado: bool | None,
+) -> tuple[str, list[object]]:
+    """WHERE montado só de fragmentos fixos; valores sempre como parâmetros."""
+    partes: list[str] = []
+    params: list[object] = []
+    if de is not None:
+        partes.append("l.data >= ?")
+        params.append(de)
+    if ate is not None:
+        partes.append("l.data <= ?")
+        params.append(ate)
+    if conta_id is not None:
+        partes.append("l.conta_id = ?")
+        params.append(conta_id)
+    if sem_categoria:
+        partes.append("l.categoria_id IS NULL")
+    elif categoria_id is not None:
+        partes.append("(l.categoria_id = ? OR l.categoria_id IN"
+                      " (SELECT id FROM categorias WHERE pai_id = ?))")
+        params.extend((categoria_id, categoria_id))
+    if tipo is not None:
+        partes.append("l.tipo = ?")
+        params.append(tipo)
+    if texto:
+        partes.append("sem_acento(l.descricao) LIKE ? ESCAPE '!'")
+        params.append("%" + _escapar_like(sem_acento(texto)) + "%")
+    if compensado is not None:
+        partes.append("l.compensado = ?")
+        params.append(int(compensado))
+    return (" WHERE " + " AND ".join(partes)) if partes else "", params
+
+
+_ACUMULADO = (
+    "WITH acumulado AS (SELECT a.id AS id, c.saldo_inicial_centavos + SUM(a.valor_centavos)"
+    " OVER (PARTITION BY a.conta_id ORDER BY a.data_compensacao, a.id) AS saldo"
+    " FROM lancamentos a JOIN contas c ON c.id = a.conta_id WHERE a.compensado = 1) "
+)
+
+
+def listar_extrato(
+    con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
+    categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
+    compensado: bool | None, limite: int, deslocamento: int,
+) -> list[sqlite3.Row]:
+    """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
+    (saldo inicial + compensados até a linha; NULL nos pendentes)."""
+    where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
+                           sem_categoria=sem_categoria, tipo=tipo, texto=texto,
+                           compensado=compensado)
+    return con.execute(
+        _ACUMULADO
+        + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
+        " LEFT JOIN acumulado ac ON ac.id = l.id"
+        + where + " ORDER BY l.data, l.id LIMIT ? OFFSET ?",
+        (*params, limite, deslocamento),
+    ).fetchall()
+
+
+def totais_extrato(
+    con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
+    categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
+    compensado: bool | None, excluir_cartao: bool = False,
+) -> sqlite3.Row:
+    """Contagem e somas do filtro. Entradas/saídas: só compensados (pagamento_fatura conta como
+    saída; transferência fora). Pendentes: soma dos não compensados, exceto transferências.
+    excluir_cartao: somas sem contas de tipo 'cartao' (a contagem inclui todas as linhas)."""
+    where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
+                           sem_categoria=sem_categoria, tipo=tipo, texto=texto,
+                           compensado=compensado)
+    cartao = " AND c.tipo <> 'cartao'" if excluir_cartao else ""
+    return con.execute(
+        "SELECT COUNT(*) AS total,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo = 'entrada'" + cartao
+        + "   THEN l.valor_centavos END), 0) AS entradas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo IN ('saida', 'pagamento_fatura')"
+        + cartao + "   THEN l.valor_centavos END), 0) AS saidas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'" + cartao
+        + "   THEN l.valor_centavos END), 0) AS pendentes"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id" + where,
+        params,
+    ).fetchone()
+
+
+def atualizar_categoria(
+    con: sqlite3.Connection, ids: list[int], categoria_id: int | None
+) -> int:
+    marcas = ",".join("?" for _ in ids)
+    cur = con.execute(
+        f"UPDATE lancamentos SET categoria_id = ? WHERE id IN ({marcas})",
+        (categoria_id, *ids),
+    )
+    return cur.rowcount
+
+
+def atualizar_tipo(con: sqlite3.Connection, lancamento_id: int, tipo: str) -> None:
+    con.execute("UPDATE lancamentos SET tipo = ? WHERE id = ?", (tipo, lancamento_id))
+
+
+def contar_existentes(con: sqlite3.Connection, ids: list[int]) -> int:
+    marcas = ",".join("?" for _ in ids)
+    row = con.execute(f"SELECT COUNT(*) AS n FROM lancamentos WHERE id IN ({marcas})", ids).fetchone()
+    return int(row["n"])
+
+
+def resumo_grupos_parcelas(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Uma linha por grupo de parcelas: contagens e totais (magnitudes positivas)."""
+    return con.execute(
+        "SELECT grupo_parcela_uuid AS grupo, MIN(descricao) AS descricao, COUNT(*) AS n,"
+        " SUM(compensado) AS pagas, COUNT(*) - SUM(compensado) AS pendentes,"
+        " -SUM(valor_centavos) AS total_centavos,"
+        " -COALESCE(SUM(CASE WHEN compensado = 0 THEN valor_centavos END), 0) AS restante_centavos,"
+        " MIN(CASE WHEN compensado = 0 THEN data END) AS proxima_data"
+        " FROM lancamentos WHERE grupo_parcela_uuid IS NOT NULL"
+        " GROUP BY grupo_parcela_uuid"
+        " ORDER BY proxima_data IS NULL, proxima_data, descricao, grupo_parcela_uuid"
+    ).fetchall()
+
+
+def entradas_pendentes_ate(con: sqlite3.Connection, fim_exclusivo_iso: str) -> list[sqlite3.Row]:
+    """Entradas pendentes (valor > 0) com data < fim, por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE compensado = 0 AND valor_centavos > 0 AND data < ?"
+        " ORDER BY data, id",
+        (fim_exclusivo_iso,),
+    ).fetchall()

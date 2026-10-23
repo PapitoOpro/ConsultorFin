@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Mapeamento de colunas{% endblock %}
+{% block conteudo %}
+<h1>Mapeamento de colunas</h1>
+<p class="secundario">Arquivo: {{ nome }}. Formato não reconhecido automaticamente: indique as colunas.
+  Valores no padrão brasileiro (1.234,56) e datas DD/MM/AAAA.</p>
+<div class="bloco">
+  <table>
+    <thead><tr>{% for c in colunas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for linha in amostra %}<tr>{% for v in linha %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+</div>
+<form method="post" action="/importar/previa" class="bloco">
+  <input type="hidden" name="token" value="{{ token }}">
+  <div class="grade">
+    {% for campo, rotulo in [("mapa_data", "Coluna da data"), ("mapa_descricao", "Coluna da descrição"), ("mapa_valor", "Coluna do valor")] %}
+    <div class="campo"><label for="{{ campo }}">{{ rotulo }}</label>
+      <select id="{{ campo }}" name="{{ campo }}" required>
+        {% for c in colunas %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select></div>
+    {% endfor %}
+    <div class="campo"><label for="conta_id">Conta de destino</label>
+      <select id="conta_id" name="conta_id">
+        <option value="">Escolher depois</option>
+        {% for c in contas %}<option value="{{ c.id }}"{% if c.id | string == conta_id | string %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select></div>
+  </div>
+  <button type="submit">Ver prévia</button>
+</form>
+{% endblock %}
