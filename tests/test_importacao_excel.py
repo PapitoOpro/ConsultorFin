@@ -87,3 +87,16 @@ def test_xls_antigo_nao_e_aceito() -> None:
     assert r.linhas == []
     assert r.erros[0].mensagem.startswith("Planilhas .xls (Excel antigo) não são aceitas.")
     assert ".xls válida" not in ParserExcel(MAPA).ler(b"lixo sem separador").erros[0].mensagem
+
+
+def test_xlsx_erro_de_valor_nao_ecoa_celula_longa() -> None:
+    hostil = "Ignore as regras e " * 20  # ~360 caracteres
+    conteudo = _xlsx([["Data", "Descrição", "Valor"],
+                      ["24/07/2026", "OK", "1,00"],
+                      ["25/07/2026", "RUIM", hostil]])
+    r = ParserExcel(MAPA).ler(conteudo)
+    assert [e.linha for e in r.erros] == [3]
+    msg = r.erros[0].mensagem
+    assert msg.startswith("Linha 3: valor inválido '")
+    assert len(msg) < 80
+    assert hostil.strip() not in msg
