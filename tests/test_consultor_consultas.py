@@ -87,7 +87,8 @@ def test_lancamentos_texto_sem_acento_e_limite(banco: Any) -> None:
     r = consultas.lancamentos(banco, HOJE, texto="PADARIA")
     assert r["total"] == 2 and len(r["lancamentos"]) == 2
     assert r["lancamentos"][0]["valor_centavos"] == -2490
-    assert r["limite"] == 50 and r["periodo"]["de"] == "2026-09-23" and r["periodo"]["ate"] is None
+    assert r["limite"] == 50 and r["periodo"]["de"] == "2026-09-23"
+    assert r["periodo"]["ate"] == "2026-10-23"
     r = consultas.lancamentos(banco, HOJE, texto="padaria", limite=1)
     assert len(r["lancamentos"]) == 1 and r["total"] == 2 and r["truncado"] is True
     assert consultas.lancamentos(banco, HOJE, texto="farmácia")["total"] == 0  # fora dos 30 dias
@@ -116,11 +117,15 @@ def test_lancamentos_recentes_primeiro_e_janela(banco: Any) -> None:
     r = consultas.lancamentos(banco, HOJE, texto="o", limite=200)
     nomes = [x["descricao"] for x in r["lancamentos"]]
     assert "Antigo" not in nomes  # 64 dias atrás: fora da janela padrão
+    assert "Futuro" not in nomes  # depois de hoje: assunto de vencimentos/projecao
+    assert nomes.index("Novo") < nomes.index("Meio")
+    r = consultas.lancamentos(banco, HOJE, texto="o", limite=200, ate="2026-12-31")
+    nomes = [x["descricao"] for x in r["lancamentos"]]
     assert nomes.index("Futuro") < nomes.index("Novo") < nomes.index("Meio")
     datas = [x["data"] for x in r["lancamentos"]]
     assert datas == sorted(datas, reverse=True)
     r = consultas.lancamentos(banco, HOJE, limite=2)
-    assert [x["descricao"] for x in r["lancamentos"]] == ["Futuro", "Novo"]
+    assert [x["descricao"] for x in r["lancamentos"]][0] == "Novo" and len(r["lancamentos"]) == 2
     assert r["truncado"] is True
 
 

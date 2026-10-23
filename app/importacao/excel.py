@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from app.dominio.dinheiro import ValorMuitoAlto, data_br_para_iso, para_centavos, verificar_magnitude
-from app.importacao.base import ErroLeitura, LinhaImportada, ResultadoLeitura
+from app.importacao.base import ErroLeitura, LinhaImportada, ResultadoLeitura, eco
 
 log = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class ParserExcel:
             try:
                 data = _data_iso(d)
             except ValueError:
-                res.erros.append(ErroLeitura(num, f"Linha {num}: data inválida '{str(d).strip()}'"))
+                res.erros.append(ErroLeitura(num, f"Linha {num}: data inválida '{eco(d)}'"))
                 continue
             if _vazio(val):
                 res.erros.append(ErroLeitura(num, f"Linha {num}: valor inválido ''"))

@@ -20,6 +20,14 @@ MSG_SEM_BANCO = ("Banco de dados não encontrado ({caminho}). Crie a conta com o
 MSG_DESATUALIZADO = ("O banco de dados é de uma versão antiga. Abra o painel web uma vez (ou rode "
                      "um comando de escrita) para atualizá-lo.")
 MSG_INESPERADO = "Não foi possível concluir a operação. Nada foi alterado."
+MSG_BANCO_OCUPADO = "O painel ou outro processo está gravando no banco. Tente de novo em instantes."
+
+
+def mensagem_inesperada(exc: Exception) -> str:
+    """Mensagem ao usuário para falhas não previstas (banco travado tem texto próprio)."""
+    if type(exc).__name__ == "OperationalError" and "locked" in str(exc).lower():
+        return MSG_BANCO_OCUPADO
+    return MSG_INESPERADO
 TIPOS_CONTA = ("corrente", "poupanca", "cartao", "carteira")
 
 Comando = Callable[[Any, date, argparse.Namespace], dict[str, Any]]
@@ -244,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace nem dados internos
         sys.stderr.write(f"event=consultor_falhou erro={type(exc).__name__}\n")
-        _emitir({"erro": MSG_INESPERADO})
+        _emitir({"erro": mensagem_inesperada(exc)})
         return 1
     _emitir(resultado)
     return 0

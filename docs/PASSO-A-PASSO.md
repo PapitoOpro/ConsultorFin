@@ -116,7 +116,7 @@ Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o
 
 ### Privacidade
 - O Claude é um serviço na nuvem: ele vê os dados que consulta (saldos, lançamentos, descrições) para responder.
-- O histórico das conversas fica salvo no seu computador, na pasta `.claude` do projeto ou do usuário.
+- O Claude Code guarda as transcrições das conversas no seu computador, na pasta `~/.claude/projects/` do usuário (no Windows: `C:\Users\<seu usuário>\.claude\projects\`).
 - Por isso, não digite senhas de banco no chat.
 - O painel e o consultor usam o mesmo banco de dados (`data/consultorfin.db`): o que você faz num aparece no outro.
 - Perguntar sobre vencimentos, previsão ou resumo também cria os lançamentos estimados das suas contas fixas dos próximos meses, igual a abrir o painel.

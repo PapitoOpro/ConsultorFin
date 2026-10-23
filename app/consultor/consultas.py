@@ -138,8 +138,8 @@ def lancamentos(con: Any, hoje: date, *, de: str | None = None, ate: str | None 
                 conta_id: int | None = None, categoria_id: int | None = None,
                 sem_categoria: bool = False, tipo: str | None = None, status: str = "todos",
                 texto: str = "", limite: int = LIMITE_PADRAO) -> dict[str, Any]:
-    """Extrato filtrado, MAIS RECENTES PRIMEIRO. Sem `de`: últimos 30 dias; sem `ate`: aberto
-    (pendentes futuros aparecem)."""
+    """Extrato filtrado, MAIS RECENTES PRIMEIRO. Sem `de`: últimos 30 dias; sem `ate`: hoje
+    (o que vence adiante é assunto de vencimentos/projecao; use `ate` para ver o futuro)."""
     if not 1 <= limite <= MAX_LIMITE:
         raise dom_lanc.ErroLancamento(f"O limite deve estar entre 1 e {MAX_LIMITE}.")
     if tipo is not None and tipo not in dom_lanc.TIPOS:
@@ -147,6 +147,7 @@ def lancamentos(con: Any, hoje: date, *, de: str | None = None, ate: str | None 
     if status not in dom_lanc.STATUS:
         raise dom_lanc.ErroLancamento("Status inválido.")
     de = de or (hoje - timedelta(days=DIAS_PADRAO)).isoformat()
+    ate = ate or hoje.isoformat()
     base = dom_lanc.Filtros(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                             sem_categoria=sem_categoria, tipo=tipo, texto=texto.strip()[:100],
                             status=status, recentes_primeiro=True)

@@ -160,7 +160,7 @@ def test_parametros_invalidos(db_cheio: Path, capsys: pytest.CaptureFixture[str]
 
 def test_lancamentos_filtros(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _, r = rodar(capsys, db_cheio, "lancamentos", "--texto", "padaria", "--limite", "1")
-    assert r["total"] == 2 and len(r["lancamentos"]) == 1 and r["periodo"]["ate"] is None
+    assert r["total"] == 2 and len(r["lancamentos"]) == 1 and r["periodo"]["ate"] == "2026-10-23"
     _, r = rodar(capsys, db_cheio, "lancamentos", "--categoria", "sem", "--status", "compensados",
                  "--de", "2026-01-01")
     assert r["total"] > 0
@@ -319,3 +319,36 @@ def test_criar_conta_invalida_nao_deixa_rastro(tmp_path: Path,
     codigo, _ = rodar(capsys, alvo, "criar-conta", "--nome", "X", "--tipo", "corrente",
                       "--saldo-inicial", "abc", "--data-saldo", "2026-10-01")
     assert codigo == 1 and not alvo.parent.exists()
+
+
+def test_estimativas_futuras_fora_do_padrao(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _com_aluguel(db_cheio)
+    rodar(capsys, db_cheio, "projecao", "--meses", "6")
+    _, r = rodar(capsys, db_cheio, "lancamentos", "--limite", "200")
+    assert r["periodo"]["ate"] == "2026-10-23"
+    assert not any(x["descricao"] == "Aluguel" and x["data"] > "2026-10-23" for x in r["lancamentos"])
+    _, r = rodar(capsys, db_cheio, "lancamentos", "--ate", "2027-12-31", "--texto", "aluguel")
+    assert r["total"] >= 4 and r["lancamentos"][0]["data"] > "2026-12-31"
+    for status in ("compensados", "pendentes", "todos"):
+        codigo, r = rodar(capsys, db_cheio, "lancamentos", "--categoria", "sem", "--status", status,
+                          "--ate", "2027-12-31")
+        assert codigo == 0
+        if status == "compensados":
+            assert r["total"] > 0 and all(x["compensado"] for x in r["lancamentos"])
+        if status == "pendentes":
+            assert r["total"] > 0 and not any(x["compensado"] for x in r["lancamentos"])
+
+
+def test_banco_travado_tem_mensagem_propria(db_cheio: Path, capsys: pytest.CaptureFixture[str],
+                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    class OperationalError(Exception):
+        pass
+
+    def trava(*_: Any, **__: Any) -> dict[str, Any]:
+        raise OperationalError("database is locked")
+
+    monkeypatch.setattr(consultas, "saldos", trava)
+    capsys.readouterr()
+    assert cli.main(["saldos", "--db", str(db_cheio)]) == 1
+    assert "gravando no banco" in json.loads(capsys.readouterr().out)["erro"]
+    assert cli.mensagem_inesperada(RuntimeError("x")) == cli.MSG_INESPERADO
