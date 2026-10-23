@@ -97,6 +97,7 @@ class Filtros:
     texto: str = ""
     status: str = "todos"
     pagina: int = 1
+    recentes_primeiro: bool = False  # ordem do extrato (a tela usa a ordem crescente)
 
     @classmethod
     def de_parametros(cls, params: Mapping[str, str], hoje: date) -> "Filtros":
@@ -188,7 +189,8 @@ def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
     paginas = max(1, math.ceil(total / POR_PAGINA))
     pagina = min(filtros.pagina, paginas)
     rows = repo.listar_extrato(con, **criterios, limite=POR_PAGINA,
-                               deslocamento=(pagina - 1) * POR_PAGINA)
+                               deslocamento=(pagina - 1) * POR_PAGINA,
+                               decrescente=filtros.recentes_primeiro)
     linhas = [LinhaExtrato(
         id=int(r["id"]), data=r["data"], descricao=r["descricao"], conta_nome=r["conta_nome"],
         categoria_id=r["categoria_id"], categoria_nome=r["categoria_nome"],

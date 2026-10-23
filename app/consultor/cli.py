@@ -1,6 +1,8 @@
 """CLI do consultor: um objeto JSON em stdout; erros como {"erro": "..."} e código 1."""
 import argparse
 import json
+import re
+import shutil
 import sys
 from collections.abc import Callable
 from datetime import date
@@ -23,9 +25,26 @@ TIPOS_CONTA = ("corrente", "poupanca", "cartao", "carteira")
 Comando = Callable[[Any, date, argparse.Namespace], dict[str, Any]]
 
 
+_TRADUCOES: tuple[tuple[str, str], ...] = (
+    (r"the following arguments are required: (.*)", r"Argumento obrigatório ausente: \1."),
+    (r"argument comando: invalid choice: '(.*?)'.*", r"Comando desconhecido: '\1'. Use --help."),
+    (r"argument (.*): invalid choice: '(.*?)'.*", r"Valor inválido '\2' para \1."),
+    (r"unrecognized arguments: (.*)", r"Opção desconhecida: \1."),
+    (r"argument (.*): expected one argument", r"A opção \1 precisa de um valor."),
+    (r"ambiguous option: (.*)", r"Opção ambígua: \1."),
+)
+
+
+def traduzir_erro_argparse(mensagem: str) -> str:
+    for padrao, texto in _TRADUCOES:
+        if re.fullmatch(padrao, mensagem):
+            return re.sub(padrao, texto, mensagem)
+    return "Argumentos inválidos. Use --help para ver as opções."
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
-        raise ErroLancamento(f"Argumentos inválidos: {message}. Use --help para ver as opções.")
+        raise ErroLancamento(traduzir_erro_argparse(message))
 
 
 class _Subs:
@@ -39,12 +58,24 @@ class _Subs:
         return parser
 
 
+_NUMERO = re.compile(r"-?[0-9]{1,6}")
+_FEMININOS = {"Conta", "Categoria", "Linha"}
+
+
 def _int(texto: str, rotulo: str) -> int:
     t = texto.strip()
-    sinal = t.lstrip("-")
-    if not (sinal.isascii() and sinal.isdigit() and len(sinal) <= 6):
+    if not _NUMERO.fullmatch(t):
         raise ErroLancamento(f"{rotulo} inválido.")
     return int(t)
+
+
+def _id(texto: str | None, rotulo: str) -> int:
+    try:
+        return interpretar_id(texto, rotulo)
+    except ErroLancamento as exc:
+        if rotulo in _FEMININOS:
+            raise ErroLancamento(f"{rotulo} inválida.") from exc
+        raise
 
 
 def construir_parser() -> argparse.ArgumentParser:
@@ -100,8 +131,8 @@ def _lancamentos(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
     return consultas.lancamentos(
         con, hoje, de=interpretar_data(a.de) if a.de else None,
         ate=interpretar_data(a.ate) if a.ate else None,
-        conta_id=interpretar_id(a.conta, "Conta") if a.conta else None,
-        categoria_id=None if not cat or cat == "sem" else interpretar_id(cat, "Categoria"),
+        conta_id=_id(a.conta, "Conta") if a.conta else None,
+        categoria_id=None if not cat or cat == "sem" else _id(cat, "Categoria"),
         sem_categoria=cat == "sem", tipo=a.tipo, status=a.status or "todos", texto=a.texto or "",
         limite=_int(a.limite, "Limite"))
 
@@ -118,15 +149,15 @@ COMANDOS: dict[str, Comando] = {
 }
 ESCRITAS: dict[str, Comando] = {
     "importar": lambda con, hoje, a: operacoes.importar(
-        con, hoje, a.arquivo, interpretar_id(a.conta, "Conta"), a.confirmar),
+        con, hoje, a.arquivo, _id(a.conta, "Conta"), a.confirmar),
     "casar": lambda con, hoje, a: operacoes.casar(
-        con, interpretar_id(a.pendente, "Pendente"), interpretar_id(a.linha, "Linha")),
+        con, _id(a.pendente, "Pendente"), _id(a.linha, "Linha")),
     "categorizar": lambda con, hoje, a: operacoes.categorizar(
-        con, interpretar_id(a.lancamento, "Lançamento"), interpretar_id(a.categoria, "Categoria")),
+        con, _id(a.lancamento, "Lançamento"), _id(a.categoria, "Categoria")),
     "regra": lambda con, hoje, a: operacoes.regra(
-        con, a.padrao, interpretar_id(a.categoria, "Categoria")),
+        con, a.padrao, _id(a.categoria, "Categoria")),
     "pagar": lambda con, hoje, a: operacoes.pagar(
-        con, hoje, interpretar_id(a.lancamento, "Lançamento"), a.valor, a.data),
+        con, hoje, _id(a.lancamento, "Lançamento"), a.valor, a.data),
     "criar-conta": lambda con, hoje, a: operacoes.criar_conta(
         con, a.nome, a.tipo, a.saldo_inicial, a.data_saldo),
 }
@@ -139,13 +170,23 @@ def _dias(texto: str) -> int:
     return dias
 
 
-def _abrir(caminho: Path, comando: str) -> Any:
-    """Consultas e escritas exigem banco existente; só criar-conta o cria."""
-    if comando != "criar-conta" and not caminho.is_file():
+GERADORES = {"vencimentos", "projecao", "resumo"}  # materializam recorrentes (escrevem)
+
+
+def _escreve(args: argparse.Namespace) -> bool:
+    """Se o comando pode gravar (e portanto migrar). `importar` sem --confirmar só simula."""
+    if args.comando == "importar":
+        return bool(args.confirmar)
+    return args.comando in ESCRITAS or args.comando in GERADORES
+
+
+def _abrir(caminho: Path, args: argparse.Namespace) -> Any:
+    """Exige banco existente; só criar-conta o cria."""
+    if not caminho.is_file():
         raise ErroLancamento(MSG_SEM_BANCO.format(caminho=caminho))
     con = conectar(caminho)
     try:
-        if comando in ESCRITAS:
+        if _escreve(args):
             migrar(con)
         elif con.execute("PRAGMA user_version").fetchone()[0] < len(MIGRACOES):
             raise ErroLancamento(MSG_DESATUALIZADO)
@@ -155,11 +196,36 @@ def _abrir(caminho: Path, comando: str) -> Any:
     return con
 
 
+def _criar_conta_novo_banco(caminho: Path, hoje: date, args: argparse.Namespace) -> dict[str, Any]:
+    """Valida tudo num banco em memória; só então cria arquivo/diretório. Falha => nada fica."""
+    ensaio = conectar(":memory:")
+    try:
+        migrar(ensaio)
+        ESCRITAS["criar-conta"](ensaio, hoje, args)
+    finally:
+        ensaio.close()
+    pasta_nova = not caminho.parent.exists()
+    con = conectar(caminho)
+    try:
+        migrar(con)
+        return ESCRITAS["criar-conta"](con, hoje, args)
+    except BaseException:
+        con.close()
+        caminho.unlink(missing_ok=True)
+        if pasta_nova:
+            shutil.rmtree(caminho.parent, ignore_errors=True)
+        raise
+    finally:
+        con.close()
+
+
 def _executar(args: argparse.Namespace) -> dict[str, Any]:
     hoje = date.fromisoformat(interpretar_data(args.hoje)) if args.hoje else date.today()
     caminho = Path(args.db) if args.db else config.DB_PATH
+    if args.comando == "criar-conta" and not caminho.is_file():
+        return _criar_conta_novo_banco(caminho, hoje, args)
     acao = COMANDOS.get(args.comando) or ESCRITAS[args.comando]
-    con = _abrir(caminho, args.comando)
+    con = _abrir(caminho, args)
     try:
         return acao(con, hoje, args)
     finally:

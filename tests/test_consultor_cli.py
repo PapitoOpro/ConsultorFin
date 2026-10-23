@@ -1,5 +1,8 @@
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -7,7 +10,8 @@ from typing import Any
 import pytest
 
 from app.consultor import cli, consultas
-from app.db import conectar
+from app.db import MIGRACOES, conectar
+from app.dominio.recorrentes import criar_recorrente
 from app.dominio.lancamentos import criar_lancamento_manual
 from tests._consultor_base import EXTRATO, criar_banco
 
@@ -58,15 +62,84 @@ def test_banco_inexistente_nao_cria_nada(tmp_path: Path, capsys: pytest.CaptureF
     assert not alvo.parent.exists()
 
 
-@pytest.mark.parametrize("cmd", [["saldos"], ["resumo", "--mes", "2026-10"], ["vencimentos"],
-                                 ["projecao", "--meses", "6"], ["gastos"], ["contas"],
-                                 ["categorias"], ["lancamentos", "--texto", "pix"]])
-def test_consultas_nao_escrevem(db_cheio: Path, capsys: pytest.CaptureFixture[str],
-                                cmd: list[str]) -> None:
+@pytest.mark.parametrize("cmd", [["saldos"], ["gastos"], ["contas"], ["categorias"],
+                                 ["lancamentos", "--texto", "pix"]])
+def test_leituras_puras_nao_escrevem(db_cheio: Path, capsys: pytest.CaptureFixture[str],
+                                     cmd: list[str]) -> None:
     antes = hash_db(db_cheio)
     codigo, r = rodar(capsys, db_cheio, *cmd)
     assert codigo == 0 and "erro" not in r
     assert hash_db(db_cheio) == antes
+
+
+def _com_aluguel(db: Path, dia: int = 25) -> None:
+    con = conectar(db)
+    try:
+        criar_recorrente(con, nome="Aluguel", tipo="saida", dia=dia,
+                         valor_estimado_centavos=150000, conta_id=1, categoria_id=None)
+    finally:
+        con.close()
+
+
+@pytest.mark.parametrize("cmd", [["resumo", "--mes", "2026-10"], ["vencimentos"],
+                                 ["projecao", "--meses", "6"]])
+def test_geradores_sao_idempotentes(db_cheio: Path, capsys: pytest.CaptureFixture[str],
+                                    cmd: list[str]) -> None:
+    _com_aluguel(db_cheio)
+    codigo, r = rodar(capsys, db_cheio, *cmd)
+    assert codigo == 0 and r["recorrentes_geradas"] >= 1
+    depois = hash_db(db_cheio)
+    codigo, r = rodar(capsys, db_cheio, *cmd)
+    assert codigo == 0 and r["recorrentes_geradas"] == 0
+    assert hash_db(db_cheio) == depois
+
+
+def test_recorrente_vira_id_pagavel_e_propaga(db_cheio: Path,
+                                              capsys: pytest.CaptureFixture[str]) -> None:
+    _com_aluguel(db_cheio, dia=20)
+    _, r = rodar(capsys, db_cheio, "vencimentos", "--dias", "7")
+    item = r["vencidas"][0]
+    assert item["descricao"] == "Aluguel" and item["recorrente"] is True
+    codigo, r = rodar(capsys, db_cheio, "pagar", "--lancamento", str(item["id"]),
+                      "--valor", "1.600,00", "--data", "2026-10-22")
+    assert codigo == 0
+    futuros = consulta(db_cheio, "SELECT valor_centavos FROM lancamentos "
+                                 "WHERE recorrente_id IS NOT NULL AND compensado = 0")
+    assert futuros and all(v == (-160000,) for v in futuros)
+
+
+def _banco_antigo(caminho: Path) -> Path:
+    con = conectar(caminho)
+    try:
+        for i, m in enumerate(MIGRACOES[:2]):
+            m(con)
+            con.execute(f"PRAGMA user_version = {i + 1}")
+        con.commit()
+    finally:
+        con.close()
+    return caminho
+
+
+@pytest.mark.parametrize("cmd", [["saldos"], ["gastos"], ["contas"], ["categorias"],
+                                 ["lancamentos"], ["importar", "--arquivo", str(EXTRATO),
+                                                   "--conta", "1"]])
+def test_banco_antigo_nao_e_alterado(tmp_path: Path, capsys: pytest.CaptureFixture[str],
+                                     cmd: list[str]) -> None:
+    banco = _banco_antigo(tmp_path / "antigo.db")
+    antes = hash_db(banco)
+    codigo, r = rodar(capsys, banco, *cmd)
+    assert codigo == 1 and "painel web" in r["erro"]
+    assert hash_db(banco) == antes
+
+
+def test_stdout_utf8_com_codepage_legado(db_cheio: Path) -> None:
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    raiz = Path(__file__).resolve().parent.parent
+    proc = subprocess.run([sys.executable, "-m", "app.consultor", "saldos", "--db", str(db_cheio)],
+                          cwd=raiz, env=env, capture_output=True, timeout=60)
+    assert proc.returncode == 0
+    assert "Itaú".encode("utf-8") in proc.stdout
+    assert json.loads(proc.stdout.decode("utf-8"))["contas"][0]["nome"] == "Itaú"
 
 
 def test_saldos_json_utf8(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -77,7 +150,8 @@ def test_saldos_json_utf8(db_cheio: Path, capsys: pytest.CaptureFixture[str]) ->
 
 def test_parametros_invalidos(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
     for args in (["resumo", "--mes", "2026-13"], ["projecao", "--meses", "5"],
-                 ["lancamentos", "--limite", "999"], ["lancamentos", "--conta", "abc"],
+                 ["lancamentos", "--limite", "999"], ["lancamentos", "--limite", "0"],
+                 ["lancamentos", "--limite", "-1"], ["lancamentos", "--limite", "--5"], ["lancamentos", "--conta", "abc"],
                  ["lancamentos", "--de", "ontem"], ["lancamentos", "--tipo", "x"],
                  ["vencimentos", "--dias", "-1"], ["nada"], []):
         codigo, r = rodar(capsys, db_cheio, *args)
@@ -86,8 +160,9 @@ def test_parametros_invalidos(db_cheio: Path, capsys: pytest.CaptureFixture[str]
 
 def test_lancamentos_filtros(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _, r = rodar(capsys, db_cheio, "lancamentos", "--texto", "padaria", "--limite", "1")
-    assert r["total"] == 2 and len(r["lancamentos"]) == 1
-    _, r = rodar(capsys, db_cheio, "lancamentos", "--categoria", "sem", "--status", "compensados")
+    assert r["total"] == 2 and len(r["lancamentos"]) == 1 and r["periodo"]["ate"] is None
+    _, r = rodar(capsys, db_cheio, "lancamentos", "--categoria", "sem", "--status", "compensados",
+                 "--de", "2026-01-01")
     assert r["total"] > 0
 
 
@@ -135,7 +210,7 @@ def test_importar_entradas_invalidas(db: Path, tmp_path: Path,
         (["--arquivo", str(pdf), "--conta", "1"], ".csv"),
         (["--arquivo", str(grande), "--conta", "1"], "5 MB"),
         (["--arquivo", str(estranho), "--conta", "1"], "painel"),
-        (["--arquivo", str(EXTRATO), "--conta", "abc"], "Conta inválido"),
+        (["--arquivo", str(EXTRATO), "--conta", "abc"], "Conta inválida"),
         (["--arquivo", str(EXTRATO), "--conta", "99"], "Conta não encontrada"),
     ]
     for args, trecho in casos:
@@ -225,3 +300,22 @@ def test_parser_expoe_subcomandos() -> None:
     assert set(sub.choices) == {"saldos", "resumo", "vencimentos", "projecao", "gastos",
                                 "lancamentos", "contas", "categorias", "importar", "casar",
                                 "categorizar", "regra", "pagar", "criar-conta"}
+
+
+def test_erros_de_argparse_em_portugues(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    casos = [(["importar"], "obrigatório"), (["nada"], "Comando desconhecido"),
+             (["saldos", "--xpto"], "Opção desconhecida"),
+             (["resumo", "--mes"], "precisa de um valor"),
+             (["criar-conta", "--nome", "x"], "obrigatório")]
+    for args, trecho in casos:
+        codigo, r = rodar(capsys, db_cheio, *args)
+        assert codigo == 1 and trecho in r["erro"], (args, r)
+        assert "argument" not in r["erro"] and "required" not in r["erro"]
+
+
+def test_criar_conta_invalida_nao_deixa_rastro(tmp_path: Path,
+                                               capsys: pytest.CaptureFixture[str]) -> None:
+    alvo = tmp_path / "novo" / "f.db"
+    codigo, _ = rodar(capsys, alvo, "criar-conta", "--nome", "X", "--tipo", "corrente",
+                      "--saldo-inicial", "abc", "--data-saldo", "2026-10-01")
+    assert codigo == 1 and not alvo.parent.exists()
