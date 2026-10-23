@@ -20,6 +20,10 @@ def criar_recorrente(
         raise ValueError("O dia deve estar entre 1 e 31.")
     if valor_estimado_centavos <= 0:
         raise ValueError("O valor estimado deve ser maior que zero.")
+    if not repo.conta_existe(con, conta_id):
+        raise ValueError("Conta não encontrada.")
+    if categoria_id is not None and not repo.categoria_existe(con, categoria_id):
+        raise ValueError("Categoria não encontrada.")
     with transacao(con):
         return repo.inserir(
             con, nome=nome.strip(), tipo=tipo, dia=dia,
@@ -29,7 +33,8 @@ def criar_recorrente(
 
 def gerar_recorrentes(con: Any, hoje: date, meses: int) -> int:
     """Gera pendentes estimados para `meses` meses a partir do mês de `hoje`
-    (janela: [mês de hoje, mês de hoje + meses - 1]). Idempotente por (recorrente, AAAA-MM);
+    (janela: [mês de hoje, mês de hoje + meses - 1]). Idempotente por (recorrente, competência
+    AAAA-MM), independente da data atual do lançamento (editável pelo usuário);
     ignora meses pulados e recorrentes inativas; dia ajustado ao fim do mês.
     Devolve o total criado."""
     if meses < 1:
@@ -49,7 +54,7 @@ def gerar_recorrentes(con: Any, hoje: date, meses: int) -> int:
                 repo.inserir_lancamento_estimado(
                     con, recorrente_id=rid, conta_id=int(r["conta_id"]), data=venc.isoformat(),
                     descricao=r["nome"], valor_centavos=sinal * magnitude, tipo=r["tipo"],
-                    categoria_id=r["categoria_id"])
+                    categoria_id=r["categoria_id"], competencia=mes)
                 criados += 1
     return criados
 
@@ -85,13 +90,13 @@ def pular_mes(con: Any, lancamento_id: int) -> None:
         raise ValueError("Lançamento já pago não pode ser pulado.")
     with transacao(con):
         repo.excluir_lancamento(con, lancamento_id)
-        repo.marcar_pulado(con, int(row["recorrente_id"]), str(row["data"])[:7])
+        repo.marcar_pulado(con, int(row["recorrente_id"]), str(row["competencia"] or str(row["data"])[:7]))
 
 
-def desativar_recorrente(con: Any, recorrente_id: int) -> None:
-    """Desativa e apaga todos os pendentes (compensado=0); os pagos permanecem."""
+def desativar_recorrente(con: Any, recorrente_id: int, hoje: date) -> None:
+    """Desativa e apaga só os pendentes futuros (data > hoje); vencidos e pagos permanecem."""
     if repo.obter(con, recorrente_id) is None:
         raise ValueError("Recorrente não encontrada.")
     with transacao(con):
         repo.desativar(con, recorrente_id)
-        repo.excluir_pendentes(con, recorrente_id)
+        repo.excluir_pendentes_futuros(con, recorrente_id, hoje.isoformat())

@@ -28,9 +28,9 @@ def desativar(con: sqlite3.Connection, recorrente_id: int) -> None:
 
 
 def mes_ja_gerado(con: sqlite3.Connection, recorrente_id: int, mes: str) -> bool:
-    """True se já existe lançamento (pendente ou pago) do recorrente no mês AAAA-MM."""
+    """True se já existe lançamento (pendente ou pago) do recorrente na competência AAAA-MM."""
     row = con.execute(
-        "SELECT 1 FROM lancamentos WHERE recorrente_id = ? AND substr(data, 1, 7) = ? LIMIT 1",
+        "SELECT 1 FROM lancamentos WHERE recorrente_id = ? AND competencia = ? LIMIT 1",
         (recorrente_id, mes),
     ).fetchone()
     return row is not None
@@ -63,15 +63,15 @@ def ultimo_valor_real(con: sqlite3.Connection, recorrente_id: int) -> int | None
 
 def inserir_lancamento_estimado(
     con: sqlite3.Connection, *, recorrente_id: int, conta_id: int, data: str, descricao: str,
-    valor_centavos: int, tipo: str, categoria_id: int | None,
+    valor_centavos: int, tipo: str, categoria_id: int | None, competencia: str,
 ) -> int:
     novo = str(uuid.uuid4())
     cur = con.execute(
         "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
-        " categoria_id, chave_deduplicacao, origem, compensado, estimado, recorrente_id)"
-        " VALUES (?,?,?,?,?,?,?,?,'manual',0,1,?)",
+        " categoria_id, chave_deduplicacao, origem, compensado, estimado, recorrente_id,"
+        " competencia) VALUES (?,?,?,?,?,?,?,?,'manual',0,1,?,?)",
         (novo, conta_id, data, descricao, valor_centavos, tipo, categoria_id,
-         f"manual:{novo}", recorrente_id),
+         f"manual:{novo}", recorrente_id, competencia),
     )
     return int(cur.lastrowid)
 
@@ -88,12 +88,27 @@ def atualizar_futuros_estimados(
     return cur.rowcount
 
 
-def excluir_pendentes(con: sqlite3.Connection, recorrente_id: int) -> int:
+def excluir_pendentes_futuros(
+    con: sqlite3.Connection, recorrente_id: int, apos_iso: str
+) -> int:
+    """Apaga pendentes (compensado=0) com data > apos_iso; vencidos e pagos permanecem."""
     cur = con.execute(
-        "DELETE FROM lancamentos WHERE recorrente_id = ? AND compensado = 0", (recorrente_id,)
+        "DELETE FROM lancamentos WHERE recorrente_id = ? AND compensado = 0 AND data > ?",
+        (recorrente_id, apos_iso),
     )
     return cur.rowcount
 
 
 def excluir_lancamento(con: sqlite3.Connection, lancamento_id: int) -> None:
     con.execute("DELETE FROM lancamentos WHERE id = ?", (lancamento_id,))
+
+
+def conta_existe(con: sqlite3.Connection, conta_id: int) -> bool:
+    return con.execute("SELECT 1 FROM contas WHERE id = ?", (conta_id,)).fetchone() is not None
+
+
+def categoria_existe(con: sqlite3.Connection, categoria_id: int) -> bool:
+    return (
+        con.execute("SELECT 1 FROM categorias WHERE id = ?", (categoria_id,)).fetchone()
+        is not None
+    )

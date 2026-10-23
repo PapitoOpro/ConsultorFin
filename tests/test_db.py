@@ -41,18 +41,19 @@ def _banco_v1() -> sqlite3.Connection:
     return c
 
 
-def test_migracao_incremental_v1_aplica_so_v2() -> None:
+def test_migracao_incremental_v1_aplica_so_pendentes() -> None:
     c = _banco_v1()
     assert "recorrentes_pulados" not in _tabelas(c)
     c.execute("INSERT INTO categorias (uuid, nome) VALUES ('x', 'Extra')")
     c.commit()
     migrar(c)
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
     assert "recorrentes_pulados" in _tabelas(c)
+    assert "competencia" in {r["name"] for r in c.execute("PRAGMA table_info(lancamentos)")}
     # v1 não foi reaplicada: categoria extra preservada, iniciais não duplicadas
     assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 9
     migrar(c)  # no-op
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
     assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 9
     c.close()
 
@@ -71,4 +72,21 @@ def test_migracao_com_falha_faz_rollback(monkeypatch: pytest.MonkeyPatch) -> Non
     assert c.execute("PRAGMA user_version").fetchone()[0] == versao
     assert "tmp_falha" not in _tabelas(c)
     assert not c.in_transaction
+    c.close()
+
+
+def test_migracao_3_preenche_competencia_de_recorrentes() -> None:
+    c = _banco_v1()
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('c', 'C', 'corrente')")
+    c.execute("INSERT INTO recorrentes (uuid, nome, tipo, dia, valor_estimado_centavos, conta_id)"
+              " VALUES ('r', 'Luz', 'saida', 10, 100, 1)")
+    for u, rid in (("a", 1), ("b", None)):
+        c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+                  " chave_deduplicacao, origem, recorrente_id)"
+                  " VALUES (?, 1, '2026-10-10', 'x', -1, 'saida', ?, 'manual', ?)", (u, u, rid))
+    c.commit()
+    migrar(c)
+    comp = {r["uuid"]: r["competencia"]
+            for r in c.execute("SELECT uuid, competencia FROM lancamentos")}
+    assert comp == {"a": "2026-10", "b": None}
     c.close()

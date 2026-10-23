@@ -106,8 +106,15 @@ def _migracao_2(con: sqlite3.Connection) -> None:
     )
 
 
+def _migracao_3(con: sqlite3.Connection) -> None:
+    con.execute("ALTER TABLE lancamentos ADD COLUMN competencia TEXT")
+    con.execute(
+        "UPDATE lancamentos SET competencia = substr(data, 1, 7) WHERE recorrente_id IS NOT NULL"
+    )
+
+
 # Lista numerada: MIGRACOES[i] leva o banco da versão i para i+1. Só acrescentar ao fim.
-MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [_migracao_1, _migracao_2]
+MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [_migracao_1, _migracao_2, _migracao_3]
 
 
 def conectar(caminho: Path | str | None = None) -> sqlite3.Connection:

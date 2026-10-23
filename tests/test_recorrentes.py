@@ -118,16 +118,50 @@ def test_pular_mes_rejeita_pago(con: sqlite3.Connection, conta: int) -> None:
         rec.pular_mes(con, l["id"])
 
 
-def test_desativar(con: sqlite3.Connection, conta: int) -> None:
+def test_desativar_so_pendentes_futuros(con: sqlite3.Connection, conta: int) -> None:
     rid = _conta_fixa(con, conta)
-    rec.gerar_recorrentes(con, date(2026, 10, 1), 3)
-    out = _lancs(con, rid)[0]
+    rec.gerar_recorrentes(con, date(2026, 9, 1), 4)  # set, out, nov, dez
+    _set, out, _nov, _dez = _lancs(con, rid)
     rec.confirmar_recorrente(con, out["id"], 21000, date(2026, 10, 9))
-    rec.desativar_recorrente(con, rid)
-    assert [r["data"] for r in _lancs(con, rid)] == ["2026-10-10"]
+    rec.desativar_recorrente(con, rid, date(2026, 10, 23))
+    # set vencida (pendente) e out paga permanecem; nov e dez futuras somem
+    assert [r["data"] for r in _lancs(con, rid)] == ["2026-09-10", "2026-10-10"]
     assert rec.gerar_recorrentes(con, date(2026, 10, 1), 3) == 0
     with pytest.raises(ValueError, match="não encontrada"):
-        rec.desativar_recorrente(con, 9999)
+        rec.desativar_recorrente(con, 9999, date(2026, 10, 23))
+
+
+def test_editar_data_nao_duplica_nem_pula(con: sqlite3.Connection, conta: int) -> None:
+    rid = _conta_fixa(con, conta)
+    rec.gerar_recorrentes(con, date(2026, 10, 1), 2)  # out, nov
+    out, _nov = _lancs(con, rid)
+    con.execute("UPDATE lancamentos SET data = '2026-11-20' WHERE id = ?", (out["id"],))
+    con.commit()
+    assert rec.gerar_recorrentes(con, date(2026, 10, 1), 3) == 1  # só dez
+    assert sorted(r["competencia"] for r in _lancs(con, rid)) == [
+        "2026-10", "2026-11", "2026-12"]
+    assert rec.gerar_recorrentes(con, date(2026, 10, 1), 3) == 0
+
+
+def test_pular_mes_apos_mover_usa_competencia_original(
+    con: sqlite3.Connection, conta: int
+) -> None:
+    rid = _conta_fixa(con, conta)
+    rec.gerar_recorrentes(con, date(2026, 10, 1), 1)
+    (out,) = _lancs(con, rid)
+    con.execute("UPDATE lancamentos SET data = '2026-11-20' WHERE id = ?", (out["id"],))
+    con.commit()
+    rec.pular_mes(con, out["id"])
+    assert con.execute("SELECT mes FROM recorrentes_pulados").fetchone()["mes"] == "2026-10"
+    assert rec.gerar_recorrentes(con, date(2026, 10, 1), 1) == 0
+
+
+def test_criar_conta_ou_categoria_inexistente(con: sqlite3.Connection, conta: int) -> None:
+    base: dict[str, Any] = dict(nome="Luz", tipo="saida", dia=10, valor_estimado_centavos=100)
+    with pytest.raises(ValueError, match="Conta não encontrada"):
+        rec.criar_recorrente(con, **base, conta_id=9999, categoria_id=None)
+    with pytest.raises(ValueError, match="Categoria não encontrada"):
+        rec.criar_recorrente(con, **base, conta_id=conta, categoria_id=9999)
 
 
 @pytest.mark.parametrize("kw,msg", [
