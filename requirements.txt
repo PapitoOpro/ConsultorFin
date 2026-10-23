@@ -6,3 +6,4 @@ pandas
 openpyxl
 pytest
 httpx
+httpx2

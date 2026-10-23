@@ -1,0 +1,76 @@
+@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fontes/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fontes/inter-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fontes/inter-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-style: normal; font-display: swap; src: url("../fontes/inter-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fontes/jetbrains-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fontes/jetbrains-mono-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; font-style: normal; font-display: swap; src: url("../fontes/jetbrains-mono-latin-700-normal.woff2") format("woff2"); }
+
+:root {
+  --fundo: #121212;
+  --superficie: #1E1E1E;
+  --borda: #2C2C2C;            /* 1px solid, sem sombras */
+  --primaria: #38BDF8;         /* ciano: ações e destaques */
+  --alerta: #F59E0B;           /* âmbar: vencimentos e metas estouradas */
+  --entrada: #4ADE80;          /* verde suave: entradas */
+  --saida: #F87171;            /* vermelho suave: saídas */
+  --texto: #F3F4F6;            /* títulos (nunca branco puro) */
+  --texto-secundario: #9CA3AF; /* rótulos, datas, textos auxiliares */
+  --fonte-texto: "Inter", system-ui, sans-serif;
+  --fonte-dados: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--fundo); color: var(--texto); font-family: var(--fonte-texto); font-size: 14px; line-height: 1.5; }
+h1, h2, h3 { color: var(--texto); font-weight: 600; margin: 0 0 12px; }
+h1 { font-size: 22px; }
+h2 { font-size: 16px; }
+a { color: var(--primaria); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* layout */
+.layout { display: flex; min-height: 100vh; }
+.menu { width: 220px; flex: none; background: var(--superficie); border-right: 1px solid var(--borda); padding: 16px 0; }
+.menu .marca { padding: 0 20px 16px; font-weight: 700; color: var(--texto); }
+.menu a { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: var(--texto-secundario); border-left: 2px solid transparent; }
+.menu a:hover { color: var(--texto); text-decoration: none; }
+.menu a.ativo { color: var(--primaria); border-left-color: var(--primaria); }
+.menu svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.conteudo { flex: 1; min-width: 0; padding: 24px 32px; }
+.mensagens:empty { display: none; }
+.mensagens { margin-bottom: 16px; }
+
+/* blocos */
+.grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.bloco { background: var(--superficie); border: 1px solid var(--borda); border-radius: 4px; padding: 16px; }
+.rotulo { color: var(--texto-secundario); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.numero { font-family: var(--fonte-dados); font-size: 26px; font-weight: 500; color: var(--texto); }
+.secundario { color: var(--texto-secundario); }
+
+/* valores monetários */
+.valor { font-family: var(--fonte-dados); text-align: right; white-space: nowrap; }
+.valor.entrada { color: var(--entrada); }
+.valor.saida { color: var(--saida); }
+
+/* tabelas */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--borda); text-align: left; }
+th { color: var(--texto-secundario); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+th.valor, td.valor { text-align: right; }
+tr:hover td { background: var(--superficie); }
+tfoot td { font-weight: 600; border-top: 1px solid var(--borda); }
+
+/* botões e formulários */
+button, .botao { display: inline-block; font: inherit; color: var(--fundo); background: var(--primaria); border: 1px solid var(--primaria); border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+button:hover, .botao:hover { text-decoration: none; filter: brightness(1.1); }
+button.secundario, .botao.secundario { color: var(--texto); background: transparent; border-color: var(--borda); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+label { display: block; color: var(--texto-secundario); font-size: 12px; margin-bottom: 4px; }
+input, select, textarea { font: inherit; color: var(--texto); background: var(--fundo); border: 1px solid var(--borda); border-radius: 4px; padding: 6px 10px; }
+input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 1px solid var(--primaria); outline-offset: 1px; }
+input[type="number"], input.valor { font-family: var(--fonte-dados); text-align: right; }
+.campo { margin-bottom: 12px; }
+
+/* alerta (âmbar) */
+.alerta { color: var(--alerta); background: var(--superficie); border: 1px solid var(--alerta); border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; }
