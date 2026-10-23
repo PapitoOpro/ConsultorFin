@@ -372,3 +372,50 @@ def test_sem_proposta_entre_contas_diferentes(con) -> None:
     assert propor_casamentos(con, outra) == []
     assert propor_casamentos(con, conta) == []
     assert linha_do_extrato_para(con, pid) is False
+
+
+# --- I3: casar/pagar conta fixa atualiza as estimativas futuras ---------------------------------
+
+def _luz(con, conta: int) -> list[int]:
+    from app.dominio.recorrentes import criar_recorrente, gerar_recorrentes
+    criar_recorrente(con, nome="Luz", tipo="saida", dia=10, valor_estimado_centavos=21000,
+                     conta_id=conta, categoria_id=None)
+    gerar_recorrentes(con, HOJE.replace(day=1), 4)  # out, nov, dez, jan
+    return [r[0] for r in con.execute(
+        "SELECT id FROM lancamentos WHERE recorrente_id IS NOT NULL ORDER BY data")]
+
+
+def _valores_futuros(con, ids: list[int]) -> list[int]:
+    return [con.execute("SELECT valor_centavos FROM lancamentos WHERE id = ?", (i,)).fetchone()[0]
+            for i in ids]
+
+
+def test_casar_conta_fixa_atualiza_estimativas_futuras(con) -> None:
+    conta = _conta(con)
+    ids = _luz(con, conta)
+    imp = _imp(con, conta, [("2026-10-12", "DA ENERGIA LUZ", -23000)])
+    props = propor_casamentos(con, conta, imp)
+    assert [c.pendente_id for c in props] == [ids[0]]
+    confirmar_casamento(con, ids[0], props[0].lancamento_id)
+    assert _valores_futuros(con, ids) == [-23000, -23000, -23000, -23000]
+
+
+def test_pagar_conta_fixa_em_lancamentos_atualiza_estimativas_futuras(con) -> None:
+    from app.dominio.lancamentos import pagar_pendente
+    conta = _conta(con)
+    ids = _luz(con, conta)
+    pagar_pendente(con, ids[0], 23000, date(2026, 10, 10))
+    assert _valores_futuros(con, ids) == [-23000, -23000, -23000, -23000]
+    est = [r[0] for r in con.execute(
+        "SELECT estimado FROM lancamentos WHERE recorrente_id IS NOT NULL ORDER BY data")]
+    assert est == [0, 1, 1, 1]
+
+
+def test_casar_item_sem_recorrente_nao_mexe_nas_estimativas(con) -> None:
+    conta = _conta(con)
+    ids = _luz(con, conta)
+    pid = _pend(con, conta, "2026-10-20", "Mercado", -30000)
+    imp = _imp(con, conta, [("2026-10-20", "MERCADO", -31000)])
+    confirmar_casamento(con, pid, _linha_id(con, "MERCADO"))
+    assert imp
+    assert _valores_futuros(con, ids) == [-21000, -21000, -21000, -21000]

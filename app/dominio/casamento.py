@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from app.db import transacao
-from app.repo import lancamentos
+from app.repo import lancamentos, recorrentes
 
 JANELA_DIAS = 10
 # Brief dizia 5%, mas o próprio exemplo (21000 x 23000 = 9,5%) exige >= 9,53%: usado 10%.
@@ -152,3 +152,7 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
                                             int(pend["compensado"]), pend["data_compensacao"])
         lancamentos.quitar_pendente(con, pendente_id, linha["data"], int(linha["valor_centavos"]),
                                     linha["importacao_id"])
+        if pend["recorrente_id"] is not None:
+            # Mesma propagação de confirmar_recorrente: o valor real vira a estimativa futura.
+            recorrentes.atualizar_futuros_estimados(con, int(pend["recorrente_id"]),
+                                                    str(pend["data"]), int(linha["valor_centavos"]))

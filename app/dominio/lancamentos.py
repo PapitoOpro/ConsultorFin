@@ -11,6 +11,7 @@ from app.db import transacao
 from app.dominio.categorias import aplicar_regras, criar_regra
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
 from app.dominio.parcelas import marcar_pago
+from app.dominio.recorrentes import confirmar_recorrente
 from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
 from app.repo import lancamentos as repo
@@ -267,7 +268,12 @@ def pagar_pendente(con: Any, lancamento_id: int, valor_real_centavos: int | None
     if row["compensado"]:
         raise ErroLancamento("Este lançamento já está compensado; não é possível pagar de novo.")
     try:
-        marcar_pago(con, lancamento_id, valor_real_centavos, data_pagamento)
+        if row["recorrente_id"] is not None:
+            real = (abs(int(row["valor_centavos"])) if valor_real_centavos is None
+                    else valor_real_centavos)
+            confirmar_recorrente(con, lancamento_id, real, data_pagamento)
+        else:
+            marcar_pago(con, lancamento_id, valor_real_centavos, data_pagamento)
     except ValueError as exc:
         raise ErroLancamento(str(exc)) from exc
 
