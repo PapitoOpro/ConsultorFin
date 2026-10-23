@@ -93,6 +93,7 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
             raise ValueError("Pendente e linha importada são de contas diferentes.")
         lancamentos.excluir(con, lancamento_id)
         lancamentos.registrar_chave_quitada(con, linha["chave_deduplicacao"], pendente_id,
-                                            linha["importacao_id"])
+                                            linha["importacao_id"],
+                                            int(pend["valor_centavos"]), int(pend["estimado"]))
         lancamentos.quitar_pendente(con, pendente_id, linha["data"], int(linha["valor_centavos"]),
                                     linha["importacao_id"])

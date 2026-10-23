@@ -206,3 +206,52 @@ def test_desfazer_importacao_reabre_pendente_e_apaga_chaves(con) -> None:
 
 def test_casamento_dataclass() -> None:
     assert Casamento(1, 2, 0.5).pendente_id == 1
+
+
+def test_undo_restaura_valor_e_estimado_originais(con) -> None:
+    conta = _conta(con)
+    pid = _pend(con, conta, "2026-10-10", "Luz", -21000, estimado=True)
+    imp = _imp(con, conta, [("2026-10-16", "LUZ", -23000)])
+    confirmar_casamento(con, pid, _linha_id(con, "LUZ"))
+    desfazer_importacao(con, imp)
+    p = con.execute("SELECT * FROM lancamentos WHERE id = ?", (pid,)).fetchone()
+    assert (p["valor_centavos"], p["estimado"], p["compensado"]) == (-21000, 1, 0)
+
+
+def test_undo_sem_originais_mantem_valor_e_estimado(con) -> None:
+    conta = _conta(con)
+    pid = _pend(con, conta, "2026-10-10", "Luz", -21000, estimado=True)
+    imp = _imp(con, conta, [("2026-10-16", "LUZ", -23000)])
+    confirmar_casamento(con, pid, _linha_id(con, "LUZ"))
+    con.execute("UPDATE chaves_quitadas SET valor_original_centavos = NULL, estimado_original = NULL")
+    con.commit()
+    desfazer_importacao(con, imp)
+    p = con.execute("SELECT * FROM lancamentos WHERE id = ?", (pid,)).fetchone()
+    assert (p["valor_centavos"], p["estimado"], p["compensado"]) == (-23000, 0, 0)
+
+
+def test_undo_misto_casada_e_nao_casada(con) -> None:
+    conta = _conta(con)
+    pid = _pend(con, conta, "2026-10-10", "Luz", -21000, estimado=True)
+    imp = _imp(con, conta, [("2026-10-16", "LUZ", -23000), ("2026-10-17", "PADARIA", -900)])
+    confirmar_casamento(con, pid, _linha_id(con, "LUZ"))
+    desfazer_importacao(con, imp)
+    assert con.execute("SELECT COUNT(*) FROM lancamentos WHERE origem = 'importado'").fetchone()[0] == 0
+    p = con.execute("SELECT * FROM lancamentos WHERE id = ?", (pid,)).fetchone()
+    assert (p["compensado"], p["valor_centavos"], p["estimado"]) == (0, -21000, 1)
+    assert con.execute("SELECT COUNT(*) FROM chaves_quitadas").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0] == 1
+
+
+def test_confirmar_entre_contas_diferentes_falha(con) -> None:
+    conta = _conta(con)
+    outra = criar_conta(con, "Outra", "corrente")
+    pid = _pend(con, outra, "2026-10-10", "Luz", -21000)
+    _imp(con, conta, [("2026-10-16", "LUZ", -23000)])
+    with pytest.raises(ValueError, match="contas diferentes"):
+        confirmar_casamento(con, pid, _linha_id(con, "LUZ"))
+
+
+def test_similaridade_ignora_acento_e_caixa() -> None:
+    from app.dominio.casamento import _similaridade
+    assert _similaridade("LUZ ELÉTRICA", "luz eletrica") == 1.0

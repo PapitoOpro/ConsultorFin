@@ -114,7 +114,14 @@ def _migracao_3(con: sqlite3.Connection) -> None:
 
 
 # Lista numerada: MIGRACOES[i] leva o banco da versão i para i+1. Só acrescentar ao fim.
-MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [_migracao_1, _migracao_2, _migracao_3]
+def _migracao_4(con: sqlite3.Connection) -> None:
+    con.execute("ALTER TABLE chaves_quitadas ADD COLUMN valor_original_centavos INTEGER")
+    con.execute("ALTER TABLE chaves_quitadas ADD COLUMN estimado_original INTEGER")
+
+
+MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
+    _migracao_1, _migracao_2, _migracao_3, _migracao_4,
+]
 
 
 def conectar(caminho: Path | str | None = None) -> sqlite3.Connection:

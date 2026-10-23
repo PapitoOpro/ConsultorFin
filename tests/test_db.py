@@ -26,6 +26,12 @@ def test_migrar_cria_tabelas_e_categorias(con: sqlite3.Connection) -> None:
     assert con.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 
+def test_chaves_quitadas_guarda_originais(con: sqlite3.Connection) -> None:
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(chaves_quitadas)")}
+    assert {"valor_original_centavos", "estimado_original"} <= cols
+    assert len(MIGRACOES) >= 4
+
+
 def test_migrar_idempotente(con: sqlite3.Connection) -> None:
     migrar(con)
     assert con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 8

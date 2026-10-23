@@ -154,20 +154,27 @@ def excluir(con: sqlite3.Connection, lancamento_id: int) -> None:
 
 
 def registrar_chave_quitada(
-    con: sqlite3.Connection, chave: str, pendente_id: int, importacao_id: int | None
+    con: sqlite3.Connection, chave: str, pendente_id: int, importacao_id: int | None,
+    valor_original_centavos: int | None = None, estimado_original: int | None = None,
 ) -> None:
     con.execute(
-        "INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id) VALUES (?,?,?)",
-        (chave, pendente_id, importacao_id),
+        "INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id,"
+        " valor_original_centavos, estimado_original) VALUES (?,?,?,?,?)",
+        (chave, pendente_id, importacao_id, valor_original_centavos, estimado_original),
     )
 
 
 def reabrir_pendentes_quitados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
-    """Pendentes casados com a importação voltam a pendentes (valor real é mantido)."""
+    """Pendentes casados voltam a pendentes, restaurando valor/estimado originais
+    guardados em chaves_quitadas (NULL = sem original: mantém valor/estimado)."""
     cur = con.execute(
-        "UPDATE lancamentos SET compensado = 0, data_compensacao = NULL, importacao_id = NULL"
-        " WHERE importacao_id = ? AND origem <> 'importado'",
-        (importacao_id,),
+        "UPDATE lancamentos SET compensado = 0, data_compensacao = NULL, importacao_id = NULL,"
+        " valor_centavos = COALESCE((SELECT c.valor_original_centavos FROM chaves_quitadas c"
+        "   WHERE c.pendente_id = lancamentos.id AND c.importacao_id = :imp), valor_centavos),"
+        " estimado = COALESCE((SELECT c.estimado_original FROM chaves_quitadas c"
+        "   WHERE c.pendente_id = lancamentos.id AND c.importacao_id = :imp), estimado)"
+        " WHERE importacao_id = :imp AND origem <> 'importado'",
+        {"imp": importacao_id},
     )
     return cur.rowcount
 
