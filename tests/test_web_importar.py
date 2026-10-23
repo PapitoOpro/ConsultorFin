@@ -16,6 +16,7 @@ from app.repo import contas, lancamentos
 FIXTURE = Path(__file__).parent / "fixtures" / "extrato_itau_exemplo.csv"
 CSV_GENERICO = "Dia;Histórico;Quanto\n01/10/2026;LOJA A;-10,50\n02/10/2026;LOJA B;-20,00\n03/10/2026;SALARIO;100,00\n"
 MAPA = {"mapa_data": "Dia", "mapa_descricao": "Histórico", "mapa_valor": "Quanto"}
+XLS_ANTIGO = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64
 
 
 @pytest.fixture
@@ -142,11 +143,13 @@ def test_confirmar_revalida_arquivo_repetido(cliente: TestClient, db: Path) -> N
 
 @pytest.mark.parametrize("nome,conteudo,msg", [
     ("extrato.csv", b"", "O arquivo está vazio."),
-    ("extrato.txt", b"abc", "Formato não aceito. Envie um arquivo .csv, .xls ou .xlsx."),
+    ("extrato.txt", b"abc", "Formato não aceito. Envie um arquivo .csv ou .xlsx."),
+    ("antigo.xls", XLS_ANTIGO, "Formato não aceito. Envie um arquivo .csv ou .xlsx."),
+    ("disfarcado.xlsx", XLS_ANTIGO, "Planilhas .xls (Excel antigo) não são aceitas."),
     ("extrato.csv", b"x" * (5 * 1024 * 1024 + 1), "O arquivo excede o limite de 5 MB."),
     ("planilha.xlsx", b"PK\x03\x04lixo", "Não foi possível ler o arquivo."),
     ("lixo.csv", b"\x00\x01\x02\x03", "Não foi possível ler o arquivo."),
-], ids=["vazio", "extensao", "grande", "xlsx-lixo", "csv-lixo"])
+], ids=["vazio", "extensao", "xls", "xls-disfarcado", "grande", "xlsx-lixo", "csv-lixo"])
 def test_arquivos_invalidos(cliente: TestClient, db: Path, nome: str, conteudo: bytes, msg: str) -> None:
     conta = _conta(db)
     r = _upload(cliente, nome, conteudo, conta)

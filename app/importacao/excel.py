@@ -1,4 +1,4 @@
-"""Leitura de planilhas (xlsx/xls) e CSV genéricos com mapeamento manual de colunas."""
+"""Leitura de planilhas .xlsx e CSV genéricos com mapeamento manual de colunas (.xls não)."""
 import io
 import logging
 import numbers
@@ -17,8 +17,10 @@ CAMPOS = ("data", "descricao", "valor")
 _ASSINATURA_XLS = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _MSG_ILEGIVEL = (
     "Não foi possível ler o arquivo. Verifique se é um CSV (com colunas separadas por ';', ',' "
-    "ou tabulação) ou uma planilha Excel (.xlsx/.xls) válida."
+    "ou tabulação) ou uma planilha Excel (.xlsx) válida."
 )
+_MSG_XLS = ("Planilhas .xls (Excel antigo) não são aceitas. Abra no Excel, salve como .xlsx "
+            "ou .csv e envie de novo.")
 
 
 class ArquivoIlegivel(ValueError):
@@ -36,11 +38,12 @@ def _carregar(conteudo: bytes) -> "pd.DataFrame":
     """Lê a primeira planilha/CSV como tabela de textos/objetos; 1ª linha = cabeçalho."""
     if not conteudo.strip():
         raise ArquivoIlegivel("Arquivo vazio.")
+    if conteudo[:8] == _ASSINATURA_XLS:
+        raise ArquivoIlegivel(_MSG_XLS)
     try:
-        if conteudo[:2] == b"PK" or conteudo[:8] == _ASSINATURA_XLS:
-            motor = "openpyxl" if conteudo[:2] == b"PK" else "xlrd"
+        if conteudo[:2] == b"PK":
             df = pd.read_excel(io.BytesIO(conteudo), dtype=object, keep_default_na=False,
-                               engine=motor)
+                               engine="openpyxl")
         else:
             texto = _decodificar_csv(conteudo)
             primeira = next((l for l in texto.splitlines() if l.strip()), "")

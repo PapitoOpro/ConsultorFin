@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 LIMITE_BYTES = 5 * 1024 * 1024
-EXTENSOES = {".csv", ".xls", ".xlsx"}
+EXTENSOES = {".csv", ".xlsx"}
 TIPOS_CONTA = {"corrente": "Conta corrente", "poupanca": "Poupança", "cartao": "Cartão"}
 LINHAS_PREVIA = 10
 MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um CSV ou uma planilha Excel válida."
@@ -56,7 +56,7 @@ def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: 
 def _ler_upload(arquivo: UploadFile) -> tuple[str, bytes]:
     nome = Path((arquivo.filename or "").replace("\\", "/")).name[:200]
     if Path(nome).suffix.lower() not in EXTENSOES:
-        raise ErroImportacao("Formato não aceito. Envie um arquivo .csv, .xls ou .xlsx.")
+        raise ErroImportacao("Formato não aceito. Envie um arquivo .csv ou .xlsx.")
     conteudo = arquivo.file.read(LIMITE_BYTES + 1)
     if len(conteudo) > LIMITE_BYTES:
         raise ErroImportacao("O arquivo excede o limite de 5 MB.", 413)

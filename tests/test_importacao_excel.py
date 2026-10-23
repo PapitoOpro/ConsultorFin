@@ -80,3 +80,10 @@ def test_valor_acima_do_teto_vira_linha_de_erro_em_portugues() -> None:
     assert [e.linha for e in r.erros] == [3, 4]
     assert r.erros[0].mensagem.startswith("Linha 3: valor muito alto '")
     assert r.erros[1].mensagem == "Linha 4: valor muito alto '99999999999999,00'"
+
+
+def test_xls_antigo_nao_e_aceito() -> None:
+    r = ParserExcel(MAPA).ler(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+    assert r.linhas == []
+    assert r.erros[0].mensagem.startswith("Planilhas .xls (Excel antigo) não são aceitas.")
+    assert ".xls válida" not in ParserExcel(MAPA).ler(b"lixo sem separador").erros[0].mensagem
