@@ -134,6 +134,14 @@ def candidatos_casamento_da_conta(con: sqlite3.Connection, conta_id: int) -> lis
     ).fetchall()
 
 
+def importados_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    """Linhas importadas livres (ainda não casadas) da conta, de todas as importações."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'importado' ORDER BY id",
+        (conta_id,),
+    ).fetchall()
+
+
 def importados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> list[sqlite3.Row]:
     """Linhas importadas ainda existentes (as casadas já foram removidas)."""
     return con.execute(

@@ -13,6 +13,8 @@ JANELA_DIAS = 10
 # Brief dizia 5%, mas o próprio exemplo (21000 x 23000 = 9,5%) exige >= 9,53%: usado 10%.
 TOLERANCIA_PERCENTUAL = 0.10
 TOLERANCIA_MINIMA_CENTAVOS = 500
+MSG_LINHA_NO_EXTRATO = ("Existe uma linha no extrato que parece ser este pagamento; confirme em "
+                        "Possíveis correspondências para não contar duas vezes.")
 
 
 @dataclass(frozen=True)
@@ -64,11 +66,13 @@ def _pontuar(pendente: Any, linha: Any) -> float | None:
     )
 
 
-def propor_casamentos(con: Any, conta_id: int, importacao_id: int) -> list[Casamento]:
+def propor_casamentos(con: Any, conta_id: int, importacao_id: int | None = None) -> list[Casamento]:
     """Propõe pares candidato×linha; cada candidato e cada linha aparece em no máximo um par.
-    Candidatos: pendentes e pagos à mão (compensados sem importação) da conta."""
+    Candidatos: pendentes e pagos à mão (compensados sem importação) da conta. Linhas: as
+    importadas livres da importação dada, ou de todas as importações da conta (None)."""
     pendentes = lancamentos.candidatos_casamento_da_conta(con, conta_id)
-    linhas = lancamentos.importados_da_importacao(con, importacao_id)
+    linhas = (lancamentos.importados_da_conta(con, conta_id) if importacao_id is None
+              else lancamentos.importados_da_importacao(con, importacao_id))
     candidatos: list[Casamento] = []
     for p in pendentes:
         for l in linhas:
@@ -86,6 +90,43 @@ def propor_casamentos(con: Any, conta_id: int, importacao_id: int) -> list[Casam
         usadas_l.add(c.lancamento_id)
         propostas.append(c)
     return propostas
+
+
+@dataclass(frozen=True)
+class PropostaCasamento:
+    pendente_id: int
+    lancamento_id: int
+    pendente_descricao: str
+    pendente_data: str
+    pendente_valor: int
+    linha_descricao: str
+    linha_data: str
+    linha_valor: int
+
+
+def propostas_com_detalhes(con: Any, conta_id: int,
+                           importacao_id: int | None = None) -> list[PropostaCasamento]:
+    """Propostas de casamento com os dados de cada lado, para exibição."""
+    out: list[PropostaCasamento] = []
+    for c in propor_casamentos(con, conta_id, importacao_id):
+        p = lancamentos.obter(con, c.pendente_id)
+        l = lancamentos.obter(con, c.lancamento_id)
+        if p is None or l is None:
+            continue
+        out.append(PropostaCasamento(
+            c.pendente_id, c.lancamento_id, str(p["descricao"]), _data_efetiva(p),
+            int(p["valor_centavos"]), str(l["descricao"]), str(l["data"]),
+            int(l["valor_centavos"])))
+    return out
+
+
+def linha_do_extrato_para(con: Any, lancamento_id: int) -> bool:
+    """True se alguma linha importada livre da conta é proposta para este lançamento."""
+    row = lancamentos.obter(con, lancamento_id)
+    if row is None:
+        return False
+    return any(c.pendente_id == lancamento_id
+               for c in propor_casamentos(con, int(row["conta_id"])))
 
 
 def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:

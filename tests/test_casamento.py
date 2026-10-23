@@ -342,3 +342,33 @@ def test_confirmar_entre_contas_diferentes_falha(con) -> None:
 def test_similaridade_ignora_acento_e_caixa() -> None:
     from app.dominio.casamento import _similaridade
     assert _similaridade("LUZ ELÉTRICA", "luz eletrica") == 1.0
+
+
+# --- I2: itens criados depois do extrato importado ---------------------------------------------
+
+def test_aluguel_criado_depois_do_extrato_recebe_proposta(con) -> None:
+    from app.dominio.casamento import linha_do_extrato_para
+    from app.dominio.saldo import saldo_atual
+    conta = _conta(con)
+    _imp(con, conta, [("2026-10-05", "PIX ALUGUEL APTO", -150000), ("2026-10-06", "PADARIA", -900)])
+    pid = _pend(con, conta, "2026-10-05", "Aluguel", -150000)
+    props = propor_casamentos(con, conta)
+    assert [(c.pendente_id, c.lancamento_id) for c in props] == [(pid, _linha_id(con, "PIX ALUGUEL APTO"))]
+    assert linha_do_extrato_para(con, pid) is True
+    confirmar_casamento(con, props[0].pendente_id, props[0].lancamento_id)
+    assert con.execute("SELECT COUNT(*) FROM lancamentos WHERE valor_centavos = -150000"
+                       ).fetchone()[0] == 1
+    assert saldo_atual(con, conta, date(2026, 10, 31)) == 100000 - 150000 - 900
+    assert propor_casamentos(con, conta) == []
+    assert linha_do_extrato_para(con, pid) is False
+
+
+def test_sem_proposta_entre_contas_diferentes(con) -> None:
+    from app.dominio.casamento import linha_do_extrato_para
+    conta = _conta(con)
+    outra = criar_conta(con, "Outra", "corrente")
+    _imp(con, conta, [("2026-10-05", "ALUGUEL", -150000)])
+    pid = _pend(con, outra, "2026-10-05", "Aluguel", -150000)
+    assert propor_casamentos(con, outra) == []
+    assert propor_casamentos(con, conta) == []
+    assert linha_do_extrato_para(con, pid) is False

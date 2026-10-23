@@ -3,10 +3,12 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+from app.dominio.casamento import PropostaCasamento, propostas_com_detalhes
 from app.dominio.dinheiro import somar_meses
 from app.dominio.lancamentos import ErroLancamento
 from app.dominio.projecao import HORIZONTES, vencimentos
 from app.dominio.recorrentes import gerar_recorrentes
+from app.repo import contas as repo_contas
 from app.repo import lancamentos as repo_lanc
 from app.repo import recorrentes as repo_rec
 
@@ -118,3 +120,10 @@ def listar_recorrentes(con: Any) -> list[RecorrenteVista]:
             ativa=bool(r["ativa"]), conta_nome=r["conta_nome"])
         for r in repo_rec.listar_com_ultimo_real(con)
     ]
+
+
+def correspondencias(con: Any) -> list[tuple[str, PropostaCasamento]]:
+    """(nome da conta, proposta) para itens que parecem corresponder a linhas já importadas
+    do extrato, em todas as contas; nada é confirmado aqui."""
+    return [(str(c["nome"]), p) for c in repo_contas.listar(con)
+            for p in propostas_com_detalhes(con, int(c["id"]))]

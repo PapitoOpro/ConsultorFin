@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, Response
 
 from app.dominio import lancamentos as dom
+from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, linha_do_extrato_para
 from app.dominio.dinheiro import para_centavos
 from app.dominio.lancamentos import ErroLancamento, Filtros, NaoEncontrado
 from app.repo import contas
@@ -157,5 +158,7 @@ def pagar(lancamento_id: str, request: Request, con: Any = Depends(get_con),
         except ValueError as exc:
             raise ErroLancamento("Valor inválido. Use o formato 1.234,56.") from exc
         dom.pagar_pendente(con, lid, real, dia)
+        if linha_do_extrato_para(con, lid):
+            return f"Pagamento registrado. {MSG_LINHA_NO_EXTRATO}"
         return "Pagamento registrado."
     return _executar(request, con, voltar, acao)

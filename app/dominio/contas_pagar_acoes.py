@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any, TypeVar
 
+from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, confirmar_casamento, linha_do_extrato_para
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
 from app.dominio.lancamentos import ErroLancamento, NaoEncontrado, interpretar_data, interpretar_id
 from app.dominio.parcelas import (
@@ -146,9 +147,18 @@ def pagar(con: Any, lancamento_id: str, valor: str, data: str) -> str:
     real = _valor_positivo(valor) if valor.strip() else abs(int(row["valor_centavos"]))
     if row["recorrente_id"] is not None:
         _traduzir(lambda: confirmar_recorrente(con, lid, real, dia))
-        return "Valor real confirmado e pagamento registrado."
-    _traduzir(lambda: marcar_pago(con, lid, real, dia))
-    return "Pagamento registrado."
+        msg = "Valor real confirmado e pagamento registrado."
+    else:
+        _traduzir(lambda: marcar_pago(con, lid, real, dia))
+        msg = "Pagamento registrado."
+    return f"{msg} {MSG_LINHA_NO_EXTRATO}" if linha_do_extrato_para(con, lid) else msg
+
+
+def confirmar_correspondencia(con: Any, pendente_id: str, lancamento_id: str) -> str:
+    """Confirma uma "Possível correspondência no extrato" (mesma regra do casamento)."""
+    pid, lid = interpretar_id(pendente_id), interpretar_id(lancamento_id)
+    _traduzir(lambda: confirmar_casamento(con, pid, lid))
+    return "Correspondência confirmada."
 
 
 def pular(con: Any, lancamento_id: str) -> str:

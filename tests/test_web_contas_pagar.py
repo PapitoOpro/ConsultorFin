@@ -450,3 +450,52 @@ def test_erro_inesperado_vira_mensagem_amigavel(cliente: TestClient, db: Path, c
 def test_formulario_de_conta_tem_dica_do_saldo_inicial(cliente: TestClient) -> None:
     contas_html = _secao(cliente.get(URL).text, "contas")
     assert "Informe o saldo na data do primeiro lançamento que você vai importar." in contas_html
+
+
+def _importar_linhas(db: Path, conta_id: int, linhas: list[tuple[str, str, int]]) -> None:
+    from app.importacao.base import LinhaImportada, ResultadoLeitura
+    from app.importacao.servico import importar
+
+    class _P:
+        def ler(self, conteudo: bytes) -> ResultadoLeitura:
+            return ResultadoLeitura(linhas=[LinhaImportada(*l) for l in linhas])
+
+    con = conectar(db)
+    try:
+        importar(con, conta_id, "x.csv", repr(linhas).encode(), _P(), HOJE)
+    finally:
+        con.close()
+
+
+def test_possiveis_correspondencias_listadas_e_confirmadas(
+        cliente: TestClient, db: Path, conta: int) -> None:
+    _importar_linhas(db, conta, [("2026-10-05", "PIX ALUGUEL APTO", -150000)])
+    _recorrente(cliente, conta)  # Aluguel dia 10, R$ 1.500,00 (gera 10/10)
+    r = cliente.get(URL)
+    secao = _secao(r.text, "correspondencias")
+    assert "Possíveis correspondências no extrato" in secao
+    assert "PIX ALUGUEL APTO" in secao and "Aluguel" in secao and "05/10/2026" in secao
+    m = re.search(r'name="pendente_id" value="(\d+)">\s*<input type="hidden" name="lancamento_id" '
+                  r'value="(\d+)"', secao)
+    assert m
+    ok = cliente.post(f"{URL}/casamento/confirmar",
+                      data={"pendente_id": m.group(1), "lancamento_id": m.group(2)})
+    assert ok.status_code == 200 and "Correspondência confirmada." in ok.text
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos WHERE valor_centavos = -150000"
+                " AND data <= '2026-10-31'")[0][0] == 1
+    assert "PIX ALUGUEL APTO" not in _secao(ok.text, "correspondencias")
+    ruim = cliente.post(f"{URL}/casamento/confirmar", data={"pendente_id": "x", "lancamento_id": "1"})
+    assert ruim.status_code == 400 and "inválido" in ruim.text
+
+
+def test_pagar_avisa_quando_ha_linha_no_extrato(cliente: TestClient, db: Path, conta: int) -> None:
+    _importar_linhas(db, conta, [("2026-10-20", "DEB AUT INTERNET FIBRA", -10000)])
+    pid = _pendente(db, conta, "2026-10-20", "Internet", -10000)
+    r = cliente.post(f"{URL}/{pid}/pagar", data={"valor": "", "data": "2026-10-20"})
+    assert "Pagamento registrado." in r.text
+    assert ("Existe uma linha no extrato que parece ser este pagamento; confirme em Possíveis "
+            "correspondências para não contar duas vezes.") in r.text
+    assert "DEB AUT INTERNET FIBRA" in _secao(r.text, "correspondencias")
+    outro = _pendente(db, conta, "2026-10-21", "Academia", -9000)
+    r = cliente.post(f"{URL}/{outro}/pagar", data={"valor": "", "data": "2026-10-21"})
+    assert "Existe uma linha no extrato" not in r.text

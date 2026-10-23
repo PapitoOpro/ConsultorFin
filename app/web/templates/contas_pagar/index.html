@@ -42,6 +42,37 @@
   {{ tabela(painel.receitas, horizonte, hoje, "Nenhuma receita pendente no horizonte escolhido.") }}
 </section>
 
+<section id="correspondencias" class="bloco" style="margin-top:12px">
+  <h2>Possíveis correspondências no extrato</h2>
+  {% if correspondencias %}
+  <p class="secundario">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>
+  <table>
+    <thead><tr><th>Conta</th><th>Item</th><th class="valor">Valor</th><th>Linha do extrato</th><th class="valor">Valor</th><th></th></tr></thead>
+    <tbody>
+    {% for conta_nome, p in correspondencias %}
+      <tr>
+        <td>{{ conta_nome }}</td>
+        <td>{{ p.pendente_descricao }} <span class="secundario">{{ p.pendente_data | data_br }}</span></td>
+        <td class="valor">{{ p.pendente_valor | brl }}</td>
+        <td>{{ p.linha_descricao }} <span class="secundario">{{ p.linha_data | data_br }}</span></td>
+        <td class="valor">{{ p.linha_valor | brl }}</td>
+        <td>
+          <form method="post" action="/contas-a-pagar/casamento/confirmar">
+            <input type="hidden" name="horizonte" value="{{ horizonte }}">
+            <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
+            <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
+            <button type="submit">Confirmar</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="secundario">Nenhuma correspondência pendente com o extrato.</p>
+  {% endif %}
+</section>
+
 <section id="parcelamentos" class="bloco" style="margin-top:12px">
   <h2>Parcelamentos</h2>
   {% if parcelamentos %}

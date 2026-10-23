@@ -30,6 +30,7 @@ def _pagina(request: Request, con: Any, horizonte: int, *, aviso: str | None = N
     ctx = {
         "ativo": "contas", "painel": dom.abrir_painel(con, hoje, horizonte),
         "horizonte": horizonte, "horizontes": (3, 6, 12), "hoje": hoje.isoformat(),
+        "correspondencias": dom.correspondencias(con),
         "parcelamentos": dom.resumo_parcelamentos(con), "recorrentes": dom.listar_recorrentes(con),
         "contas": contas.listar(con), "categorias": opcoes_categorias(con),
         "tipos_conta": acoes.TIPOS_CONTA, "aviso": aviso, "erro": erro,
@@ -134,6 +135,14 @@ def editar_grupo(grupo: str, request: Request, con: Any = Depends(get_con),
 def excluir_grupo(grupo: str, request: Request, con: Any = Depends(get_con),
                   horizonte: str = Form("")) -> HTMLResponse:
     return _executar(request, con, horizonte, lambda _: acoes.excluir_grupo(con, grupo))
+
+
+@router.post("/contas-a-pagar/casamento/confirmar", response_class=HTMLResponse)
+def confirmar_correspondencia(request: Request, con: Any = Depends(get_con),
+                              pendente_id: str = Form(""), lancamento_id: str = Form(""),
+                              horizonte: str = Form("")) -> HTMLResponse:
+    return _executar(request, con, horizonte,
+                     lambda _: acoes.confirmar_correspondencia(con, pendente_id, lancamento_id))
 
 
 @router.post("/contas-a-pagar/{lancamento_id}/pagar", response_class=HTMLResponse)

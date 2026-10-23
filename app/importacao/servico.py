@@ -8,7 +8,7 @@ from datetime import date, datetime, time
 from app.db import transacao
 from app.dominio.categorias import PADROES_FATURA_PADRAO, aplicar_regras, classificar_tipo
 from app.dominio.lancamentos import chave_deduplicacao
-from app.dominio.casamento import propor_casamentos
+from app.dominio.casamento import PropostaCasamento, propostas_com_detalhes  # noqa: F401 - reexport
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.importacao.base import ErroLeitura, LinhaImportada, Parser, ResultadoLeitura
 from app.repo import configuracoes, contas, importacoes, lancamentos
@@ -79,18 +79,6 @@ class SimulacaoImportacao:
     erros: list[ErroLeitura] = field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class PropostaCasamento:
-    pendente_id: int
-    lancamento_id: int
-    pendente_descricao: str
-    pendente_data: str
-    pendente_valor: int
-    linha_descricao: str
-    linha_data: str
-    linha_valor: int
-
-
 def _com_chaves(conta_uuid: str, linhas: list[LinhaImportada]) -> list[tuple[LinhaImportada, str]]:
     """Cada linha com sua chave de deduplicação (n-ésima ocorrência do mesmo trio)."""
     ocorrencias: dict[tuple[str, str, int], int] = {}
@@ -139,21 +127,6 @@ def conta_detectada(con: Any, conteudo: bytes, parser: Parser) -> int | None:
         if d and (digitos == d or digitos.endswith(d)):
             return conta_id
     return None
-
-
-def propostas_com_detalhes(con: Any, conta_id: int, importacao_id: int) -> list[PropostaCasamento]:
-    """Propostas de casamento (Task 9) com os dados de cada lado, para exibição."""
-    out: list[PropostaCasamento] = []
-    for c in propor_casamentos(con, conta_id, importacao_id):
-        p = lancamentos.obter(con, c.pendente_id)
-        l = lancamentos.obter(con, c.lancamento_id)
-        if p is None or l is None:
-            continue
-        out.append(PropostaCasamento(
-            c.pendente_id, c.lancamento_id, str(p["descricao"]), str(p["data"]),
-            int(p["valor_centavos"]), str(l["descricao"]), str(l["data"]),
-            int(l["valor_centavos"])))
-    return out
 
 
 def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,

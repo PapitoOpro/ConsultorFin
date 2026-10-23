@@ -362,3 +362,13 @@ def test_descricao_com_html_e_escapada(cliente: TestClient, conta: int) -> None:
     r = _get(cliente)
     assert "<script>alert(1)</script>" not in r.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in r.text
+
+
+def test_pagar_avisa_quando_ha_linha_no_extrato(cliente: TestClient, db: Path, conta: int) -> None:
+    cliente.post("/lancamentos/novo", data={
+        "data": "2026-10-20", "descricao": "Uber", "valor": "27,35", "sinal": "saida",
+        "conta_id": str(conta)})
+    pid = _id(db, "Uber")
+    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "", "data": "2026-10-20", "voltar": VOLTAR})
+    assert r.status_code == 200 and "Pagamento registrado." in r.text
+    assert "Existe uma linha no extrato que parece ser este pagamento" in r.text
