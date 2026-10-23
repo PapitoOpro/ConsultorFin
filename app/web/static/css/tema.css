@@ -98,3 +98,29 @@ details.linha-acoes summary { cursor: pointer; color: var(--primaria); }
 details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .paginacao { display: flex; gap: 16px; align-items: center; justify-content: flex-end; margin-top: 12px; }
 .radios label { display: inline; margin-right: 12px; }
+
+/* Início */
+.topo { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.topo h1 { margin: 0; }
+.seletores { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.seletores .campo { margin-bottom: 0; }
+.tiles { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.tile .numero { font-size: 20px; text-align: right; }
+.grade .numero.entrada, .numero.entrada { color: var(--entrada); }
+.numero.saida { color: var(--saida); }
+.grade.duas { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grade.tres { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.bloco.venc { border-color: var(--alerta); }
+.alerta-txt { color: var(--alerta); }
+.lista { list-style: none; margin: 0; padding: 0; }
+.lista li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--borda); }
+.lista li.vencida span:first-child { color: var(--saida); }
+.grafico { height: 160px; width: 100%; }
+.grafico.pequeno { height: 110px; }
+.bloco.vazio { text-align: center; padding: 32px 16px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.detalhe { margin-top: 12px; }
+.detalhe summary { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; cursor: pointer; border-bottom: 1px solid var(--borda); }
+.detalhe details.sub { margin-left: 20px; }
+.detalhe details.sub table { margin-left: 20px; width: calc(100% - 20px); font-size: 13px; }
+.detalhe table.total td { font-weight: 600; border-bottom: 0; }

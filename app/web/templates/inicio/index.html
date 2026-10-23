@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block titulo %}Início{% endblock %}
+{% block cabecalho %}
+  {% if not erro and not resumo.vazio %}
+  <script src="/static/js/echarts.min.js" defer></script>
+  <script src="/static/js/graficos.js" defer></script>
+  {% endif %}
+{% endblock %}
+{% block mensagens %}
+  {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
+{% endblock %}
+{% macro link_lanc(resumo, cat_id) -%}
+/lancamentos?{{ {'de': resumo.de_iso, 'ate': resumo.ate_iso, 'categoria_id': ('sem' if cat_id is none else cat_id), 'status': 'compensados'}|urlencode }}
+{%- endmacro %}
+{% macro classe(v) %}{{ 'entrada' if v >= 0 else 'saida' }}{% endmacro %}
+{% block conteudo %}
+<div class="topo">
+  <h1>Início</h1>
+  <form method="get" action="/" class="seletores">
+    <div class="campo"><label for="f-mes">Mês</label>
+      <input id="f-mes" type="month" name="mes" value="{{ mes_iso }}"></div>
+    <div class="campo"><label for="f-hor">Horizonte</label>
+      <select id="f-hor" name="horizonte">
+        {% for h in horizontes %}<option value="{{ h }}"{{ " selected" if h == horizonte }}>{{ h }} meses</option>{% endfor %}
+      </select></div>
+    <button type="submit" class="secundario">Atualizar</button>
+  </form>
+</div>
+
+{% if resumo %}
+{% if resumo.contas %}
+<section class="grade tiles" aria-label="Saldos">
+  {% for c in resumo.contas %}
+  <div class="bloco tile"><div class="rotulo">{{ c.nome }}</div>
+    <div class="valor numero {{ classe(c.saldo_centavos) }}">{{ c.saldo_centavos|brl }}</div></div>
+  {% endfor %}
+  <div class="bloco tile"><div class="rotulo">Saldo total</div>
+    <div class="valor numero {{ classe(resumo.saldo_total_centavos) }}">{{ resumo.saldo_total_centavos|brl }}</div></div>
+</section>
+{% endif %}
+
+{% if resumo.vazio %}
+<section class="bloco vazio" aria-label="Sem dados">
+  <p>Nenhum lançamento ainda. Importe o extrato da sua conta para ver o painel.</p>
+  <a class="botao" href="/importar">Importar primeiro extrato</a>
+</section>
+{% else %}
+<section class="grade" aria-label="Resumo do mês">
+  <div class="bloco"><div class="rotulo">Entradas do mês</div>
+    <div class="valor numero entrada">{{ resumo.entradas_centavos|brl }}</div></div>
+  <div class="bloco"><div class="rotulo">Saídas do mês</div>
+    <div class="valor numero saida">{{ resumo.saidas_centavos|brl }}</div></div>
+  <div class="bloco"><div class="rotulo">Sobra do mês</div>
+    <div class="valor numero {{ classe(resumo.sobra_centavos) }}">{{ resumo.sobra_centavos|brl }}</div></div>
+</section>
+
+<div id="inicio" class="grade duas" data-mes="{{ mes_iso }}" data-horizonte="{{ horizonte }}">
+  <section class="bloco venc" aria-label="Vencimentos">
+    <div class="rotulo alerta-txt">Vencimentos</div>
+    {% set nv = resumo.venc.vencidas|length %}{% set na = resumo.venc.a_vencer|length %}
+    {% if nv + na == 0 %}
+      <p class="secundario">Nenhuma conta vencida ou a vencer</p>
+    {% else %}
+      <p class="secundario">{{ nv }} vencida{{ 's' if nv != 1 }} · {{ na }} a vencer</p>
+      <ul class="lista">
+        {% for v in resumo.venc.vencidas %}
+        <li class="vencida"><span>{{ v["descricao"] }} · venceu {{ v["data"]|data_br }}</span><span class="valor">{{ (-v["valor_centavos"])|brl }}</span></li>
+        {% endfor %}
+        {% for v in resumo.venc.a_vencer %}
+        <li><span>{{ v["descricao"] }} · {{ v["data"]|data_br }}</span><span class="valor">{{ (-v["valor_centavos"])|brl }}</span></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  <section class="bloco" aria-label="Gastos por categoria">
+    <div class="rotulo">Gastos por categoria</div>
+    <div id="graf-rosca" class="grafico" role="img" aria-label="Rosca de gastos por categoria"></div>
+    <table class="sr-only"><caption>Gastos por categoria</caption>
+      <tbody>{% for f in dados.rosca %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+</div>
+
+<div class="grade tres">
+  <section class="bloco" aria-label="Parcelas">
+    <div class="rotulo">Parcelas · próximos {{ horizonte }} meses</div>
+    <div id="graf-parcelas" class="grafico pequeno" role="img" aria-label="Colunas de parcelas por mês"></div>
+    <table class="sr-only"><caption>Parcelas por mês</caption>
+      <tbody>{% for p in dados.parcelas %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+  <section class="bloco" aria-label="Saldo projetado">
+    <div class="rotulo">Saldo projetado</div>
+    <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês"></div>
+    <table class="sr-only"><caption>Saldo projetado por mês</caption>
+      <tbody>{% for p in dados.saldo_projetado %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}{{ ' (negativo)' if p.negativo }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+  <section class="bloco" aria-label="Maiores categorias">
+    <div class="rotulo">Maiores categorias</div>
+    <div id="graf-maiores" class="grafico pequeno" role="img" aria-label="Barras das maiores categorias"></div>
+    <table class="sr-only"><caption>Maiores categorias</caption>
+      <tbody>{% for f in dados.maiores %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+</div>
+
+<section class="bloco" aria-label="Entradas e saídas">
+  <div class="rotulo">Entradas × saídas · mês anterior e mês selecionado</div>
+  <div id="graf-comparativo" class="grafico pequeno" role="img" aria-label="Entradas e saídas, mês atual e anterior"></div>
+  <table class="sr-only"><caption>Entradas e saídas por mês</caption>
+    <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th></tr></thead>
+    <tbody>{% for p in dados.comparativo %}<tr><td>{{ p.rotulo }}</td><td>{{ p.entradas_fmt }}</td><td>{{ p.saidas_fmt }}</td></tr>{% endfor %}</tbody></table>
+</section>
+<p id="msg-graficos" class="secundario" role="status"></p>
+
+<section class="bloco detalhe" aria-label="Detalhamento por categoria">
+  <div class="rotulo">Saídas por categoria · {{ mes_iso }}</div>
+  {% for cat in resumo.categorias %}
+  <details class="cat">
+    <summary><span>{{ cat.nome }}</span><span class="valor saida">{{ cat.total_centavos|brl }}</span></summary>
+    {% for sub in cat.subs %}
+    <details class="sub">
+      <summary><span>{{ sub.nome }}</span><span class="valor saida">{{ sub.total_centavos|brl }}</span></summary>
+      <table><tbody>
+        {% for l in sub.lancamentos %}
+        <tr><td>{{ l.data|data_br }}</td><td>{{ l.descricao }}</td><td class="valor saida">{{ l.valor_centavos|brl }}</td></tr>
+        {% endfor %}
+      </tbody></table>
+      <p><a href="{{ link_lanc(resumo, sub.id if sub.id is not none else cat.id) }}">{% if sub.n > sub.lancamentos|length %}Ver todos os {{ sub.n }} lançamentos{% else %}Ver no extrato{% endif %}</a></p>
+    </details>
+    {% endfor %}
+  </details>
+  {% else %}
+  <p class="secundario">Nenhuma saída neste mês.</p>
+  {% endfor %}
+  <table class="total"><tbody><tr><td>Total</td><td class="valor saida">{{ resumo.saidas_centavos|brl }}</td></tr></tbody></table>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}
