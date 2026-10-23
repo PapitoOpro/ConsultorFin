@@ -78,3 +78,25 @@ def test_filtros_parametros_invalidos_e_padrao() -> None:
     assert interpretar_data("05/03/2026") == "2026-03-05"
     with pytest.raises(ErroLancamento):
         interpretar_id("١٢")  # dígitos não-ASCII
+
+
+def test_totais_excluem_cartao_como_o_inicio(con: sqlite3.Connection) -> None:
+    from app.dominio.categorias import despesas_do_mes
+    cc = contas.criar_conta(con, "CC", "corrente", saldo_inicial_centavos=100000,
+                            data_saldo_inicial="2026-10-01")
+    card = contas.criar_conta(con, "Cartão", "cartao", saldo_inicial_centavos=0,
+                              data_saldo_inicial="2026-10-01")
+    criar_lancamento_manual(con, conta_id=card, data=date(2026, 10, 5), descricao="Restaurante",
+                            valor_centavos=-8000, compensado=True)
+    criar_lancamento_manual(con, conta_id=cc, data=date(2026, 10, 6), descricao="Mercado",
+                            valor_centavos=-5000, compensado=True)
+    criar_lancamento_manual(con, conta_id=card, data=date(2026, 10, 25), descricao="Parcela",
+                            valor_centavos=-3000)
+    todas = listar(con, Filtros.de_parametros({}, date(2026, 10, 23)))
+    assert todas.saidas_centavos == despesas_do_mes(con, 2026, 10) == 5000
+    assert (todas.pendentes_centavos, todas.total, todas.conta_cartao) == (0, 3, False)
+    so_cartao = listar(con, Filtros.de_parametros({"conta_id": str(card)}, date(2026, 10, 23)))
+    assert (so_cartao.saidas_centavos, so_cartao.pendentes_centavos, so_cartao.total,
+            so_cartao.conta_cartao) == (8000, -3000, 2, True)
+    so_cc = listar(con, Filtros.de_parametros({"conta_id": str(cc)}, date(2026, 10, 23)))
+    assert (so_cc.saidas_centavos, so_cc.conta_cartao) == (5000, False)

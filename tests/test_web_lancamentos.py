@@ -372,3 +372,21 @@ def test_pagar_avisa_quando_ha_linha_no_extrato(cliente: TestClient, db: Path, c
     r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "", "data": "2026-10-20", "voltar": VOLTAR})
     assert r.status_code == 200 and "Pagamento registrado." in r.text
     assert "Existe uma linha no extrato que parece ser este pagamento" in r.text
+
+
+def test_totais_com_cartao_e_rotulo(cliente: TestClient, db: Path, conta: int) -> None:
+    con = conectar(db)
+    try:
+        card = contas.criar_conta(con, "Cartão", "cartao", saldo_inicial_centavos=0,
+                                  data_saldo_inicial="2026-10-01")
+        criar_lancamento_manual(con, conta_id=card, data=date(2026, 10, 5), descricao="Restaurante",
+                                valor_centavos=-8000, compensado=True)
+    finally:
+        con.close()
+    filtro = {"de": "2026-10-01", "ate": "2026-10-31"}
+    r = cliente.get("/lancamentos", params=filtro)
+    assert _total(r.text, "saidas") == "R$ 3.233,29"  # sem o cartão
+    assert "conta de cartão (fora dos totais do painel)" not in r.text
+    r = cliente.get("/lancamentos", params={**filtro, "conta_id": str(card)})
+    assert _total(r.text, "saidas") == "R$ 80,00"
+    assert "conta de cartão (fora dos totais do painel)" in r.text

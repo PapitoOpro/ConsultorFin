@@ -296,22 +296,24 @@ def listar_extrato(
 def totais_extrato(
     con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
     categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
-    compensado: bool | None,
+    compensado: bool | None, excluir_cartao: bool = False,
 ) -> sqlite3.Row:
     """Contagem e somas do filtro. Entradas/saídas: só compensados (pagamento_fatura conta como
-    saída; transferência fora). Pendentes: soma dos não compensados, exceto transferências."""
+    saída; transferência fora). Pendentes: soma dos não compensados, exceto transferências.
+    excluir_cartao: somas sem contas de tipo 'cartao' (a contagem inclui todas as linhas)."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
                            compensado=compensado)
+    cartao = " AND c.tipo <> 'cartao'" if excluir_cartao else ""
     return con.execute(
         "SELECT COUNT(*) AS total,"
-        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo = 'entrada'"
-        "   THEN l.valor_centavos END), 0) AS entradas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo = 'entrada'" + cartao
+        + "   THEN l.valor_centavos END), 0) AS entradas,"
         " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo IN ('saida', 'pagamento_fatura')"
-        "   THEN l.valor_centavos END), 0) AS saidas,"
-        " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'"
-        "   THEN l.valor_centavos END), 0) AS pendentes"
-        " FROM lancamentos l" + where,
+        + cartao + "   THEN l.valor_centavos END), 0) AS saidas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'" + cartao
+        + "   THEN l.valor_centavos END), 0) AS pendentes"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id" + where,
         params,
     ).fetchone()
 

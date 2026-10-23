@@ -165,6 +165,7 @@ class PaginaLancamentos:
     saidas_centavos: int  # magnitude positiva
     liquido_centavos: int
     pendentes_centavos: int  # soma com sinal dos pendentes no filtro
+    conta_cartao: bool = False  # filtrado por uma conta de cartão (fora dos totais do painel)
 
 
 def _criterios(f: Filtros) -> dict[str, Any]:
@@ -176,9 +177,12 @@ def _criterios(f: Filtros) -> dict[str, Any]:
 def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
     """Extrato filtrado, ordenado por data. Totais: só compensados (entradas = tipo entrada;
     saídas = saida + pagamento_fatura; transferência não conta); pendentes à parte.
-    Saldo acumulado = saldo inicial da conta + compensados até a linha (independe do filtro)."""
+    Saldo acumulado = saldo inicial da conta + compensados até a linha (independe do filtro).
+    Como no painel, contas de cartão ficam fora dos totais, salvo ao filtrar por uma delas."""
     criterios = _criterios(filtros)
-    t = repo.totais_extrato(con, **criterios)
+    t = repo.totais_extrato(con, **criterios, excluir_cartao=filtros.conta_id is None)
+    conta = None if filtros.conta_id is None else repo_contas.obter(con, filtros.conta_id)
+    conta_cartao = conta is not None and conta["tipo"] == "cartao"
     total = int(t["total"])
     paginas = max(1, math.ceil(total / POR_PAGINA))
     pagina = min(filtros.pagina, paginas)
@@ -195,7 +199,7 @@ def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
     return PaginaLancamentos(
         linhas=linhas, total=total, pagina=pagina, paginas=paginas, entradas_centavos=entradas,
         saidas_centavos=-saidas, liquido_centavos=entradas + saidas,
-        pendentes_centavos=int(t["pendentes"]))
+        pendentes_centavos=int(t["pendentes"]), conta_cartao=conta_cartao)
 
 
 def opcoes_categorias(con: Any) -> list[tuple[int, str]]:

@@ -39,7 +39,8 @@
   <div class="bloco"><div class="rotulo">Resultado líquido</div><div class="numero valor {{ 'entrada' if pagina.liquido_centavos > 0 else ('saida' if pagina.liquido_centavos < 0) }}" id="total-liquido">{{ pagina.liquido_centavos | brl }}</div></div>
   <div class="bloco"><div class="rotulo">Pendentes no filtro</div><div class="numero valor" id="total-pendentes">{{ pagina.pendentes_centavos | brl }}</div></div>
 </div>
-<p class="secundario">Totais consideram apenas lançamentos compensados; transferências ficam de fora e pagamentos de fatura contam como saída.</p>
+{% if pagina.conta_cartao %}<p class="secundario" id="rotulo-cartao">Totais desta conta: conta de cartão (fora dos totais do painel).</p>{% endif %}
+<p class="secundario">Totais consideram apenas lançamentos compensados; transferências ficam de fora e pagamentos de fatura contam como saída. Contas de cartão só entram nos totais ao filtrar por uma delas.</p>
 
 <details class="bloco">
   <summary>Novo lançamento manual</summary>
