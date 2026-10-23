@@ -1,6 +1,9 @@
 import sqlite3
 
-from app.db import conectar, migrar
+import pytest
+
+from app import db
+from app.db import MIGRACOES, conectar, migrar
 
 TABELAS = {
     "contas", "categorias", "lancamentos", "importacoes", "regras_categoria",
@@ -26,4 +29,46 @@ def test_migrar_cria_tabelas_e_categorias(con: sqlite3.Connection) -> None:
 def test_migrar_idempotente(con: sqlite3.Connection) -> None:
     migrar(con)
     assert con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 8
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
+
+
+def _banco_v1() -> sqlite3.Connection:
+    c = conectar(":memory:")
+    c.execute("BEGIN")
+    MIGRACOES[0](c)
+    c.execute("PRAGMA user_version = 1")
+    c.execute("COMMIT")
+    return c
+
+
+def test_migracao_incremental_v1_aplica_so_v2() -> None:
+    c = _banco_v1()
+    assert "recorrentes_pulados" not in _tabelas(c)
+    c.execute("INSERT INTO categorias (uuid, nome) VALUES ('x', 'Extra')")
+    c.commit()
+    migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert "recorrentes_pulados" in _tabelas(c)
+    # v1 não foi reaplicada: categoria extra preservada, iniciais não duplicadas
+    assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 9
+    migrar(c)  # no-op
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 9
+    c.close()
+
+
+def test_migracao_com_falha_faz_rollback(monkeypatch: pytest.MonkeyPatch) -> None:
+    def falha(con: sqlite3.Connection) -> None:
+        con.execute("CREATE TABLE tmp_falha (id INTEGER)")
+        raise RuntimeError("boom")
+
+    c = conectar(":memory:")
+    migrar(c)
+    versao = c.execute("PRAGMA user_version").fetchone()[0]
+    monkeypatch.setattr(db, "MIGRACOES", [*MIGRACOES, falha])
+    with pytest.raises(RuntimeError):
+        migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == versao
+    assert "tmp_falha" not in _tabelas(c)
+    assert not c.in_transaction
+    c.close()

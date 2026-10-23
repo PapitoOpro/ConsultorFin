@@ -97,8 +97,17 @@ def _migracao_1(con: sqlite3.Connection) -> None:
     )
 
 
+def _migracao_2(con: sqlite3.Connection) -> None:
+    con.execute(
+        "CREATE TABLE recorrentes_pulados ("
+        " recorrente_id INTEGER NOT NULL REFERENCES recorrentes(id),"
+        " mes TEXT NOT NULL,"
+        " PRIMARY KEY (recorrente_id, mes))"
+    )
+
+
 # Lista numerada: MIGRACOES[i] leva o banco da versão i para i+1. Só acrescentar ao fim.
-MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [_migracao_1]
+MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [_migracao_1, _migracao_2]
 
 
 def conectar(caminho: Path | str | None = None) -> sqlite3.Connection:
