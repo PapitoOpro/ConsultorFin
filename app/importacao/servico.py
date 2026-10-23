@@ -1,9 +1,10 @@
 """Orquestra a importação de extratos com deduplicação, numa única transação."""
 import hashlib
-import sqlite3
+from typing import Any
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 
+from app.db import transacao
 from app.dominio.lancamentos import chave_deduplicacao, tipo_inicial
 from app.importacao.base import ErroLeitura, Parser
 from app.repo import contas, importacoes, lancamentos
@@ -22,7 +23,7 @@ class ResumoImportacao:
     erros: list[ErroLeitura] = field(default_factory=list)
 
 
-def importar(con: sqlite3.Connection, conta_id: int, nome_arquivo: str, conteudo: bytes,
+def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
              parser: Parser, hoje: date) -> ResumoImportacao:
     arquivo_hash = hashlib.sha256(conteudo).hexdigest()
     conta_uuid = contas.uuid_da_conta(con, conta_id)
@@ -33,8 +34,7 @@ def importar(con: sqlite3.Connection, conta_id: int, nome_arquivo: str, conteudo
         )
     leitura = parser.ler(conteudo)
     novos = ignorados = 0
-    try:
-        con.execute("BEGIN")
+    with transacao(con):
         imp_id = importacoes.criar(con, conta_id, nome_arquivo, arquivo_hash,
                                    datetime.combine(hoje, time()))
         ocorrencias: dict[tuple[str, str, int], int] = {}
@@ -53,22 +53,11 @@ def importar(con: sqlite3.Connection, conta_id: int, nome_arquivo: str, conteudo
         datas = [l.data for l in leitura.linhas]
         importacoes.finalizar(con, imp_id, min(datas, default=None), max(datas, default=None),
                               len(leitura.linhas), novos, ignorados)
-        con.execute("COMMIT")
-    except Exception:
-        if con.in_transaction:
-            con.execute("ROLLBACK")
-        raise
     return ResumoImportacao(imp_id, len(leitura.linhas), novos, ignorados, leitura.erros)
 
 
-def desfazer_importacao(con: sqlite3.Connection, importacao_id: int) -> None:
-    try:
-        con.execute("BEGIN")
+def desfazer_importacao(con: Any, importacao_id: int) -> None:
+    with transacao(con):
         lancamentos.remover_importados_da_importacao(con, importacao_id)
         if not importacoes.marcar_desfeita(con, importacao_id):
             raise ValueError(f"Importação {importacao_id} não encontrada.")
-        con.execute("COMMIT")
-    except Exception:
-        if con.in_transaction:
-            con.execute("ROLLBACK")
-        raise

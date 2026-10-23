@@ -40,8 +40,7 @@ def test_importar_fixture_cria_lancamentos(con):
     assert (row["compensado"], row["origem"], row["data_compensacao"]) == (1, "importado", row["data"])
     imp = con.execute("SELECT * FROM importacoes").fetchone()
     assert (imp["periodo_inicio"], imp["periodo_fim"], imp["total_novos"]) == (
-        con.execute("SELECT MIN(data) FROM lancamentos").fetchone()[0],
-        con.execute("SELECT MAX(data) FROM lancamentos").fetchone()[0], 18)
+        "2026-07-25", "2026-10-22", 18)
 
 
 def test_mesmo_arquivo_levanta(con):

@@ -1,7 +1,8 @@
 """Acesso ao SQLite e migrações versionadas por PRAGMA user_version."""
 import sqlite3
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from app import config
@@ -122,3 +123,17 @@ def migrar(con: sqlite3.Connection) -> None:
         except Exception:
             con.execute("ROLLBACK")
             raise
+
+
+@contextmanager
+def transacao(con: sqlite3.Connection) -> Iterator[None]:
+    """BEGIN; COMMIT em sucesso; ROLLBACK e re-raise em exceção."""
+    con.execute("BEGIN")
+    try:
+        yield
+    except BaseException:
+        if con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+    else:
+        con.execute("COMMIT")
