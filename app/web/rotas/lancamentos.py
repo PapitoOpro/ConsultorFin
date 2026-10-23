@@ -27,13 +27,18 @@ def _status(exc: Exception) -> int:
     return 404 if isinstance(exc, NaoEncontrado) else 400
 
 
-def _filtros_de(voltar: str) -> Filtros:
+def _hoje(request: Request) -> date:
+    hoje: date = request.app.state.hoje_fn()
+    return hoje
+
+
+def _filtros_de(voltar: str, hoje: date) -> Filtros:
     """Filtros a partir da query string devolvida pelo formulário; inválida -> padrão."""
     params = dict(parse_qsl(voltar[:1000], keep_blank_values=True))
     try:
-        return Filtros.de_parametros(params, date.today())
+        return Filtros.de_parametros(params, hoje)
     except ErroLancamento:
-        return Filtros.de_parametros({}, date.today())
+        return Filtros.de_parametros({}, hoje)
 
 
 def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None = None,
@@ -43,7 +48,7 @@ def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None =
     ctx = {
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
         "categorias": dom.opcoes_categorias(con), "tipos": TIPOS_ROTULO, "aviso": aviso,
-        "erro": erro, "voltar": urlencode(base), "hoje": date.today().isoformat(),
+        "erro": erro, "voltar": urlencode(base), "hoje": _hoje(request).isoformat(),
         "anterior": urlencode({**base, "pagina": str(pagina.pagina - 1)}) if pagina.pagina > 1 else None,
         "proxima": urlencode({**base, "pagina": str(pagina.pagina + 1)})
         if pagina.pagina < pagina.paginas else None,
@@ -54,7 +59,7 @@ def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None =
 
 def _executar(request: Request, con: Any, voltar: str, acao: Callable[[], str]) -> HTMLResponse:
     """Roda a ação e re-renderiza o extrato com aviso ou erro em português."""
-    filtros = _filtros_de(voltar)
+    filtros = _filtros_de(voltar, _hoje(request))
     try:
         aviso = acao()
     except ErroLancamento as exc:
@@ -68,9 +73,10 @@ def _executar(request: Request, con: Any, voltar: str, acao: Callable[[], str]) 
 @router.get("/lancamentos", response_class=HTMLResponse)
 def extrato(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
     try:
-        filtros = Filtros.de_parametros(dict(request.query_params), date.today())
+        filtros = Filtros.de_parametros(dict(request.query_params), _hoje(request))
     except ErroLancamento as exc:
-        return _pagina(request, con, Filtros.de_parametros({}, date.today()), erro=str(exc), status=400)
+        return _pagina(request, con, Filtros.de_parametros({}, _hoje(request)), erro=str(exc),
+                       status=400)
     try:
         return _pagina(request, con, filtros)
     except Exception as exc:  # noqa: BLE001
@@ -157,7 +163,7 @@ def pagar(lancamento_id: str, request: Request, con: Any = Depends(get_con),
             real = para_centavos(valor) if valor.strip() else None
         except ValueError as exc:
             raise ErroLancamento("Valor inválido. Use o formato 1.234,56.") from exc
-        dom.pagar_pendente(con, lid, real, dia)
+        dom.pagar_pendente(con, lid, real, dia, hoje=_hoje(request))
         if linha_do_extrato_para(con, lid):
             return f"Pagamento registrado. {MSG_LINHA_NO_EXTRATO}"
         return "Pagamento registrado."

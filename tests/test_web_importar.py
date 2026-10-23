@@ -385,3 +385,52 @@ def test_nome_do_arquivo_escapado(cliente: TestClient, db: Path) -> None:
     r = _upload(cliente, "<b>x.csv", FIXTURE.read_bytes(), conta)
     assert "<b>x.csv" not in r.text
     assert "&lt;b&gt;x.csv" in r.text
+
+
+def test_importar_usa_relogio_injetavel(db: Path) -> None:
+    app = create_app(db)
+    app.state.hoje_fn = lambda: date(2026, 10, 20)
+    with TestClient(app) as c:
+        conta = _conta(db)
+        prev = _upload(c, "extrato.csv", FIXTURE.read_bytes(), conta)
+        _confirmar(c, prev.text, conta)
+        r = _upload(c, "extrato.csv", FIXTURE.read_bytes(), conta)
+    assert "Este arquivo já foi importado em 20/10/2026" in r.text
+
+
+def test_casamento_com_campo_nao_inteiro_e_amigavel(cliente: TestClient) -> None:
+    r = cliente.post("/importar/casamento/confirmar", data={"pendente_id": "abc", "lancamento_id": "1"})
+    assert r.status_code == 200  # fragmento HTMX com a mensagem, como os demais erros do casamento
+    assert "Identificador inválido." in r.text
+    assert "detail" not in r.text
+
+
+def test_falha_na_conferencia_apos_importar_mostra_aviso(
+        cliente: TestClient, db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.web.rotas import importar as rota
+
+    def quebra(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(rota, "conciliar", quebra)
+    conta = _conta(db)
+    prev = _upload(cliente, "extrato.csv", FIXTURE.read_bytes(), conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert r.status_code == 200
+    assert "18 novos" in r.text
+    assert ("A importação foi concluída, mas não foi possível conferir o saldo nem procurar "
+            "correspondências agora.") in r.text
+    assert "boom" not in r.text
+    assert _total(db) == 18
+
+
+def test_desfazer_erro_inesperado_e_amigavel(
+        cliente: TestClient, db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.web.rotas import importar as rota
+
+    def quebra(*_a: Any, **_k: Any) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(rota, "desfazer_importacao", quebra)
+    r = cliente.post("/importar/1/desfazer")
+    assert r.status_code == 500 and "Não foi possível desfazer a importação." in r.text

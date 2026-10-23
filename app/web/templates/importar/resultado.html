@@ -11,7 +11,9 @@
 
 <div class="bloco">
   <h2>Conciliação de saldo</h2>
-  {% if not tem_saldos %}
+  {% if falha_conferencia %}
+    <div class="alerta">A importação foi concluída, mas não foi possível conferir o saldo nem procurar correspondências agora. Os lançamentos já estão gravados; confira em Lançamentos e em Contas a pagar.</div>
+  {% elif not tem_saldos %}
     <p class="secundario">Este arquivo não traz saldos para conciliar.</p>
   {% elif conciliacao.ok %}
     <p class="entrada">Saldo confere com o banco</p>

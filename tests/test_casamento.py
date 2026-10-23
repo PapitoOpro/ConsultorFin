@@ -404,7 +404,7 @@ def test_pagar_conta_fixa_em_lancamentos_atualiza_estimativas_futuras(con) -> No
     from app.dominio.lancamentos import pagar_pendente
     conta = _conta(con)
     ids = _luz(con, conta)
-    pagar_pendente(con, ids[0], 23000, date(2026, 10, 10))
+    pagar_pendente(con, ids[0], 23000, date(2026, 10, 10), hoje=HOJE)
     assert _valores_futuros(con, ids) == [-23000, -23000, -23000, -23000]
     est = [r[0] for r in con.execute(
         "SELECT estimado FROM lancamentos WHERE recorrente_id IS NOT NULL ORDER BY data")]

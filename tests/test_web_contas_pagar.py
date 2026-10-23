@@ -499,3 +499,22 @@ def test_pagar_avisa_quando_ha_linha_no_extrato(cliente: TestClient, db: Path, c
     outro = _pendente(db, conta, "2026-10-21", "Academia", -9000)
     r = cliente.post(f"{URL}/{outro}/pagar", data={"valor": "", "data": "2026-10-21"})
     assert "Existe uma linha no extrato" not in r.text
+
+
+def test_parcelamento_total_menor_que_parcelas(cliente: TestClient, db: Path, conta: int) -> None:
+    r = _parcelamento(cliente, conta, valor_total="0,02", n_parcelas="3")
+    assert r.status_code == 400 and "O valor total deve ser de pelo menos R$ 0,01 por parcela." in r.text
+    assert _n_lanc(db) == 0
+    _parcelamento(cliente, conta)
+    grupo = str(_sql(db, "SELECT grupo_parcela_uuid FROM lancamentos LIMIT 1")[0][0])
+    antes = _sql(db, "SELECT valor_centavos FROM lancamentos ORDER BY id")
+    r = cliente.post(f"{URL}/grupo/{grupo}/editar", data={"valor_total": "0,01", "n_parcelas": "3"})
+    assert r.status_code == 400 and "pelo menos R$ 0,01 por parcela" in r.text
+    assert _sql(db, "SELECT valor_centavos FROM lancamentos ORDER BY id") == antes
+
+
+def test_pagar_com_data_futura_e_recusado(cliente: TestClient, db: Path, conta: int) -> None:
+    pid = _pendente(db, conta, "2026-10-20", "CONTA X", -5000)
+    r = cliente.post(f"{URL}/{pid}/pagar", data={"valor": "", "data": "2026-10-24"})
+    assert r.status_code == 400 and "A data do pagamento não pode ser no futuro." in r.text
+    assert _sql(db, "SELECT compensado FROM lancamentos") == [(0,)]

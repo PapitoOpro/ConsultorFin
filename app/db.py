@@ -164,8 +164,11 @@ def migrar(con: sqlite3.Connection) -> None:
 
 @contextmanager
 def transacao(con: sqlite3.Connection) -> Iterator[None]:
-    """BEGIN; COMMIT em sucesso; ROLLBACK e re-raise em exceção."""
-    con.execute("BEGIN")
+    """BEGIN IMMEDIATE; COMMIT em sucesso; ROLLBACK e re-raise em exceção.
+
+    IMMEDIATE pega o lock de escrita já no início: escritores concorrentes esperam o
+    busy timeout em vez de falhar com "database is locked" ao promover leitura em escrita."""
+    con.execute("BEGIN IMMEDIATE")
     try:
         yield
     except BaseException:

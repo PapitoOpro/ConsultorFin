@@ -149,7 +149,7 @@ def confirmar_correspondencia(request: Request, con: Any = Depends(get_con),
 def pagar(lancamento_id: str, request: Request, con: Any = Depends(get_con),
           valor: str = Form(""), data: str = Form(""), horizonte: str = Form("")) -> HTMLResponse:
     return _executar(request, con, horizonte,
-                     lambda _: acoes.pagar(con, lancamento_id, valor, data))
+                     lambda hoje: acoes.pagar(con, lancamento_id, valor, data, hoje))
 
 
 @router.post("/contas-a-pagar/{lancamento_id}/pular", response_class=HTMLResponse)

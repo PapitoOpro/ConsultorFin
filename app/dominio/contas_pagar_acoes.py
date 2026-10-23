@@ -6,8 +6,11 @@ from typing import Any, TypeVar
 
 from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, confirmar_casamento, linha_do_extrato_para
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
-from app.dominio.lancamentos import ErroLancamento, NaoEncontrado, interpretar_data, interpretar_id
+from app.dominio.lancamentos import (
+    MSG_DATA_FUTURA, ErroLancamento, NaoEncontrado, interpretar_data, interpretar_id,
+)
 from app.dominio.parcelas import (
+    MSG_TOTAL_MENOR_QUE_PARCELAS,
     criar_parcelamento,
     editar_grupo_parcelas,
     excluir_grupo_parcelas,
@@ -105,6 +108,8 @@ def criar_parcelamento_de_formulario(
     total = _valor_positivo(valor_total)
     n = _inteiro(n_parcelas, 1, MAX_PARCELAS,
                  f"O número de parcelas deve estar entre 1 e {MAX_PARCELAS}.")
+    if total < n:
+        raise ErroLancamento(MSG_TOTAL_MENOR_QUE_PARCELAS)
     venc = date.fromisoformat(interpretar_data(primeiro_vencimento))
     if not 2000 <= venc.year <= 2100:
         raise ErroLancamento("Data inválida.")
@@ -135,8 +140,9 @@ def criar_recorrente_de_formulario(
     return "Receita recorrente cadastrada." if tipo == "entrada" else "Conta fixa cadastrada."
 
 
-def pagar(con: Any, lancamento_id: str, valor: str, data: str) -> str:
-    """Confirma o valor real (recorrente) ou marca como pago; recusa pendente já pago."""
+def pagar(con: Any, lancamento_id: str, valor: str, data: str, hoje: date) -> str:
+    """Confirma o valor real (recorrente) ou marca como pago; recusa pendente já pago
+    e data de pagamento futura."""
     lid = interpretar_id(lancamento_id)
     row = repo_lanc.obter(con, lid)
     if row is None:
@@ -144,6 +150,8 @@ def pagar(con: Any, lancamento_id: str, valor: str, data: str) -> str:
     if row["compensado"]:
         raise ErroLancamento("Este lançamento já está pago. Nada foi alterado.")
     dia = date.fromisoformat(interpretar_data(data))
+    if dia > hoje:
+        raise ErroLancamento(MSG_DATA_FUTURA)
     real = _valor_positivo(valor) if valor.strip() else abs(int(row["valor_centavos"]))
     if row["recorrente_id"] is not None:
         _traduzir(lambda: confirmar_recorrente(con, lid, real, dia))
@@ -183,6 +191,9 @@ def editar_grupo(con: Any, grupo: str, valor_total: str, n_parcelas: str) -> str
     n = (_inteiro(n_parcelas, 1, MAX_PARCELAS,
                   f"O número de parcelas deve estar entre 1 e {MAX_PARCELAS}.")
          if n_parcelas.strip() else None)
+    if total is not None and n is not None and total < n:
+        raise ErroLancamento(MSG_TOTAL_MENOR_QUE_PARCELAS)
+    # Se só um dos dois foi informado, dividir_em_parcelas recusa total < n (mesma mensagem).
     _traduzir(lambda: editar_grupo_parcelas(con, g, valor_total_centavos=total, n_parcelas=n))
     return "Parcelamento atualizado."
 

@@ -34,10 +34,12 @@ def test_dividir():
     assert dividir_em_parcelas(5000, 1) == [5000]
     for total in (1, 7, 9999, 10001):
         for n in (1, 2, 3, 7, 12):
-            assert sum(dividir_em_parcelas(total, n)) == total
+            if total >= n:  # total < n é recusado (parcela de 0 centavo)
+                assert sum(dividir_em_parcelas(total, n)) == total
+    assert dividir_em_parcelas(3, 3) == [1, 1, 1]
 
 
-@pytest.mark.parametrize("total,n", [(10000, 0), (10000, -1), (0, 3), (-100, 3)])
+@pytest.mark.parametrize("total,n", [(10000, 0), (10000, -1), (0, 3), (-100, 3), (2, 3), (1, 2)])
 def test_dividir_invalido(total, n):
     with pytest.raises(ValueError):
         dividir_em_parcelas(total, n)

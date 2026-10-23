@@ -66,7 +66,7 @@ def test_excluir_manual_recusa_importado(con: sqlite3.Connection, conta: int) ->
 def test_pagar_pendente_recusa_compensado(con: sqlite3.Connection, conta: int) -> None:
     a = _m(con, conta, 1, "A", -100)
     with pytest.raises(ErroLancamento, match="já está compensado"):
-        pagar_pendente(con, a, 50, date(2026, 3, 5))
+        pagar_pendente(con, a, 50, date(2026, 3, 5), hoje=date(2026, 3, 5))
 
 
 def test_filtros_parametros_invalidos_e_padrao() -> None:
@@ -100,3 +100,20 @@ def test_totais_excluem_cartao_como_o_inicio(con: sqlite3.Connection) -> None:
             so_cartao.conta_cartao) == (8000, -3000, 2, True)
     so_cc = listar(con, Filtros.de_parametros({"conta_id": str(cc)}, date(2026, 10, 23)))
     assert (so_cc.saidas_centavos, so_cc.conta_cartao) == (5000, False)
+
+
+def test_excluir_manual_recusa_conta_fixa(con: sqlite3.Connection, conta: int) -> None:
+    from app.dominio.recorrentes import criar_recorrente, gerar_recorrentes
+    criar_recorrente(con, nome="Luz", tipo="saida", dia=10, valor_estimado_centavos=1000,
+                     conta_id=conta, categoria_id=None)
+    gerar_recorrentes(con, date(2026, 3, 1), 1)
+    rid = con.execute("SELECT id FROM lancamentos WHERE recorrente_id IS NOT NULL").fetchone()[0]
+    with pytest.raises(ErroLancamento, match="Pular este mês"):
+        excluir_manual(con, rid)
+
+
+def test_pagar_pendente_recusa_data_futura(con: sqlite3.Connection, conta: int) -> None:
+    a = _m(con, conta, 5, "Boleto", -5000, ok=False)
+    with pytest.raises(ErroLancamento, match="não pode ser no futuro"):
+        pagar_pendente(con, a, None, date(2026, 3, 6), hoje=date(2026, 3, 5))
+    pagar_pendente(con, a, None, date(2026, 3, 5), hoje=date(2026, 3, 5))

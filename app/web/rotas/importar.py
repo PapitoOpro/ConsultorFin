@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.dominio.casamento import confirmar_casamento
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
+from app.dominio.lancamentos import interpretar_id
 from app.dominio.saldo import ajustar_saldo_inicial, conciliar
 from app.importacao.base import Parser, ResultadoLeitura
 from app.importacao.deteccao import detectar
@@ -233,29 +234,41 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
         if not leitura.linhas:
             raise ErroImportacao("Nenhuma linha válida encontrada no arquivo; nada foi importado.")
         try:
-            resumo = importar(con, conta, envio.nome, envio.conteudo, parser, date.today())
+            resumo = importar(con, conta, envio.nome, envio.conteudo, parser,
+                              request.app.state.hoje_fn())
         except (ArquivoJaImportado, LancamentosAnterioresAoSaldoInicial) as exc:
             raise ErroImportacao(str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - transacao() já fez rollback
             log.error("event=importacao_falhou erro=%s", type(exc).__name__)
             raise ErroImportacao("Não foi possível concluir a importação. Nada foi gravado.", 500) from exc
         request.app.state.uploads.descartar(token)
-        return _render(request, "resultado.html", {
-            "nome": envio.nome, "resumo": resumo, "tem_saldos": bool(leitura.saldos_dia),
-            "conciliacao": conciliar(con, conta, leitura.saldos_dia),
-            "data_saldo_inicial": contas.saldo_inicial_da_conta(con, conta)[1],
-            "propostas": propostas_com_detalhes(con, conta, resumo.importacao_id)})
+        ctx: dict[str, Any] = {"nome": envio.nome, "resumo": resumo,
+                               "tem_saldos": bool(leitura.saldos_dia), "conciliacao": None,
+                               "data_saldo_inicial": None, "propostas": [], "falha_conferencia": False}
+        try:  # a importação já foi gravada: falha aqui não pode virar erro 500
+            ctx["conciliacao"] = conciliar(con, conta, leitura.saldos_dia)
+            ctx["data_saldo_inicial"] = contas.saldo_inicial_da_conta(con, conta)[1]
+            ctx["propostas"] = propostas_com_detalhes(con, conta, resumo.importacao_id)
+        except Exception as exc:  # noqa: BLE001
+            log.error("event=conferencia_falhou erro=%s", type(exc).__name__)
+            ctx["falha_conferencia"] = True
+        return _render(request, "resultado.html", ctx)
     except ErroImportacao as e:
         return _pagina_inicial(request, con, erro=e.mensagem, status=e.status)
 
 
 @router.post("/importar/casamento/confirmar", response_class=HTMLResponse)
-def casamento(request: Request, con: Any = Depends(get_con), pendente_id: int = Form(...),
-              lancamento_id: int = Form(...)) -> HTMLResponse:
+def casamento(request: Request, con: Any = Depends(get_con), pendente_id: str = Form(""),
+              lancamento_id: str = Form("")) -> HTMLResponse:
+    # Erros voltam no próprio fragmento (status 200) para o HTMX trocar a proposta pela mensagem.
     try:
-        confirmar_casamento(con, pendente_id, lancamento_id)
+        confirmar_casamento(con, interpretar_id(pendente_id), interpretar_id(lancamento_id))
     except ValueError as exc:
         return _render(request, "_casamento_resultado.html", {"erro": str(exc)})
+    except Exception as exc:  # noqa: BLE001 - transacao() já fez rollback
+        log.error("event=casamento_falhou erro=%s", type(exc).__name__)
+        return _render(request, "_casamento_resultado.html",
+                       {"erro": "Não foi possível confirmar o casamento. Nada foi alterado."}, 500)
     return _render(request, "_casamento_resultado.html", {"erro": None})
 
 

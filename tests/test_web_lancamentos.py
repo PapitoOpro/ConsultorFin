@@ -27,7 +27,9 @@ def db(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def cliente(db: Path) -> Iterator[TestClient]:
-    with TestClient(create_app(db)) as c:
+    app = create_app(db)
+    app.state.hoje_fn = lambda: date(2026, 10, 23)
+    with TestClient(app) as c:
         yield c
 
 
@@ -301,11 +303,12 @@ def _boleto(c: TestClient, conta: int) -> None:
 def test_pagar_pendente_e_recusar_ja_compensado(cliente: TestClient, db: Path, conta: int) -> None:
     _boleto(cliente, conta)
     pid = _id(db, "Boleto")
-    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "48,90", "data": "2026-11-04"})
+    # Datas de pagamento ajustadas para <= hoje (2026-10-23): data futura agora é recusada.
+    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "48,90", "data": "2026-10-22"})
     assert r.status_code == 200 and "Pagamento registrado." in r.text
     assert _sql(db, "SELECT valor_centavos, compensado, data_compensacao FROM lancamentos WHERE id = ?",
-                pid) == [(-4890, 1, "2026-11-04")]
-    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "1,00", "data": "2026-11-06"})
+                pid) == [(-4890, 1, "2026-10-22")]
+    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "1,00", "data": "2026-10-22"})
     assert r.status_code == 400 and "já está compensado" in r.text
     assert _sql(db, "SELECT valor_centavos FROM lancamentos WHERE id = ?", pid) == [(-4890,)]
     iid = _id(db, "NETFLIX.COM")
@@ -390,3 +393,34 @@ def test_totais_com_cartao_e_rotulo(cliente: TestClient, db: Path, conta: int) -
     r = cliente.get("/lancamentos", params={**filtro, "conta_id": str(card)})
     assert _total(r.text, "saidas") == "R$ 80,00"
     assert "conta de cartão (fora dos totais do painel)" in r.text
+
+
+def test_pagar_com_data_futura_e_recusado(cliente: TestClient, db: Path, conta: int) -> None:
+    _boleto(cliente, conta)
+    pid = _id(db, "Boleto")
+    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "", "data": "2026-10-24"})
+    assert r.status_code == 400 and "A data do pagamento não pode ser no futuro." in r.text
+    assert _sql(db, "SELECT compensado FROM lancamentos WHERE id = ?", pid) == [(0,)]
+
+
+def test_excluir_recusa_conta_fixa(cliente: TestClient, db: Path, conta: int) -> None:
+    from app.dominio.recorrentes import criar_recorrente, gerar_recorrentes
+    con = conectar(db)
+    try:
+        criar_recorrente(con, nome="Aluguel", tipo="saida", dia=10, valor_estimado_centavos=1000,
+                         conta_id=conta, categoria_id=None)
+        gerar_recorrentes(con, date(2026, 10, 23), 1)
+    finally:
+        con.close()
+    rid = _id(db, "Aluguel")
+    r = cliente.post(f"/lancamentos/{rid}/excluir")
+    assert r.status_code == 400 and "Pular este mês" in r.text
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos WHERE id = ?", rid) == [(1,)]
+
+
+def test_mes_padrao_usa_relogio_injetavel(db: Path, conta: int) -> None:
+    app = create_app(db)
+    app.state.hoje_fn = lambda: date(2026, 8, 15)
+    with TestClient(app) as c:
+        r = c.get("/lancamentos")
+    assert _linhas(r.text) == 5  # só agosto/2026 (mês de hoje_fn)

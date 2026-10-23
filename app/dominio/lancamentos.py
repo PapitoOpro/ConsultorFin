@@ -51,6 +51,7 @@ MAX_LOTE = 500
 TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura")
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
+MSG_DATA_FUTURA = "A data do pagamento não pode ser no futuro."
 
 
 class ErroLancamento(ValueError):
@@ -262,15 +263,21 @@ def excluir_manual(con: Any, lancamento_id: int) -> None:
     if row["origem"] != "manual" or row["importacao_id"] is not None:
         raise ErroLancamento("Lançamentos importados não podem ser excluídos aqui. "
                              "Para removê-los, desfaça a importação.")
+    if row["recorrente_id"] is not None:
+        raise ErroLancamento("Este lançamento é de uma conta fixa ou receita recorrente e seria "
+                             "recriado. Para não pagá-lo neste mês, use \"Pular este mês\" em "
+                             "Contas a pagar.")
     with transacao(con):
         repo.excluir(con, lancamento_id)
 
 
 def pagar_pendente(con: Any, lancamento_id: int, valor_real_centavos: int | None,
-                   data_pagamento: date) -> None:
+                   data_pagamento: date, *, hoje: date) -> None:
     row = _exigir_lancamento(con, lancamento_id)
     if row["compensado"]:
         raise ErroLancamento("Este lançamento já está compensado; não é possível pagar de novo.")
+    if data_pagamento > hoje:
+        raise ErroLancamento(MSG_DATA_FUTURA)
     try:
         if row["recorrente_id"] is not None:
             real = (abs(int(row["valor_centavos"])) if valor_real_centavos is None

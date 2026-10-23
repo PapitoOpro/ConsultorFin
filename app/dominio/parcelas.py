@@ -7,6 +7,8 @@ from app.db import transacao
 from app.dominio.dinheiro import somar_meses
 from app.repo import lancamentos as repo
 
+MSG_TOTAL_MENOR_QUE_PARCELAS = "O valor total deve ser de pelo menos R$ 0,01 por parcela."
+
 
 def dividir_em_parcelas(total_centavos: int, n: int) -> list[int]:
     """Divide em n parcelas inteiras; a última absorve a diferença (10000/3 -> 3333,3333,3334)."""
@@ -14,6 +16,8 @@ def dividir_em_parcelas(total_centavos: int, n: int) -> list[int]:
         raise ValueError("O número de parcelas deve ser pelo menos 1.")
     if total_centavos <= 0:
         raise ValueError("O valor total deve ser maior que zero.")
+    if total_centavos < n:
+        raise ValueError(MSG_TOTAL_MENOR_QUE_PARCELAS)
     base = total_centavos // n
     return [base] * (n - 1) + [total_centavos - base * (n - 1)]
 

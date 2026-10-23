@@ -132,3 +132,55 @@ def test_migracao_5_atualiza_banco_v4_com_dados(tmp_path) -> None:
     assert (p["compensado"], p["data_compensacao"], p["importacao_id"], p["valor_centavos"],
             p["estimado"]) == (0, None, None, -21000, 1)
     c.close()
+
+
+def _gerar_concorrente(caminho) -> list[object]:
+    import threading
+    from datetime import date
+
+    from app.dominio.recorrentes import criar_recorrente, gerar_recorrentes
+    from app.repo.contas import criar_conta
+
+    c = conectar(caminho)
+    migrar(c)
+    cid = criar_conta(c, "CC", "corrente", saldo_inicial_centavos=0, data_saldo_inicial="2026-10-01")
+    for i in range(30):
+        criar_recorrente(c, nome=f"R{i}", tipo="saida", dia=5, valor_estimado_centavos=100,
+                         conta_id=cid, categoria_id=None)
+    c.close()
+    resultados: list[object] = []
+    barreira = threading.Barrier(4)
+
+    def rodar() -> None:
+        con = conectar(caminho)
+        barreira.wait()
+        try:
+            resultados.append(gerar_recorrentes(con, date(2026, 10, 23), 12))
+        except Exception as exc:  # noqa: BLE001 - o teste inspeciona a falha
+            resultados.append(type(exc).__name__)
+        finally:
+            con.close()
+
+    threads = [threading.Thread(target=rodar) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return resultados
+
+
+def test_transacao_serializa_escritores_concorrentes(tmp_path) -> None:
+    resultados = _gerar_concorrente(tmp_path / "c.db")
+    assert sorted(resultados, key=str) == [0, 0, 0, 360]
+    c = conectar(tmp_path / "c.db")
+    assert c.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0] == 360
+    c.close()
+
+
+def test_transacao_rollback_em_erro(con: sqlite3.Connection) -> None:
+    with pytest.raises(RuntimeError):
+        with db.transacao(con):
+            con.execute("INSERT INTO configuracoes (chave, valor) VALUES ('x', '1')")
+            raise RuntimeError("falha")
+    assert con.execute("SELECT COUNT(*) FROM configuracoes WHERE chave = 'x'").fetchone()[0] == 0
+    assert not con.in_transaction
