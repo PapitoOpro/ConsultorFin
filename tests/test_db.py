@@ -96,3 +96,39 @@ def test_migracao_3_preenche_competencia_de_recorrentes() -> None:
             for r in c.execute("SELECT uuid, competencia FROM lancamentos")}
     assert comp == {"a": "2026-10", "b": None}
     c.close()
+
+
+def test_migracao_5_atualiza_banco_v4_com_dados(tmp_path) -> None:
+    caminho = tmp_path / "v4.db"
+    c = conectar(caminho)
+    for numero in range(4):
+        c.execute("BEGIN")
+        MIGRACOES[numero](c)
+        c.execute(f"PRAGMA user_version = {numero + 1}")
+        c.execute("COMMIT")
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('c', 'C', 'corrente')")
+    c.execute("INSERT INTO importacoes (arquivo_nome, arquivo_hash, conta_id, criado_em)"
+              " VALUES ('a.csv', 'h', 1, '2026-10-23T00:00:00')")
+    c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+              " chave_deduplicacao, origem, importacao_id, data_compensacao, compensado)"
+              " VALUES ('p', 1, '2026-10-10', 'Luz', -23000, 'saida', 'manual:p', 'manual', 1,"
+              " '2026-10-16', 1)")
+    c.execute("INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id,"
+              " valor_original_centavos, estimado_original) VALUES ('k', 1, 1, -21000, 1)")
+    c.commit()
+    c.close()
+
+    c = conectar(caminho)
+    migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) >= 5
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(chaves_quitadas)")}
+    assert {"compensado_original", "data_compensacao_original"} <= cols
+    q = c.execute("SELECT * FROM chaves_quitadas").fetchone()
+    assert (q["chave"], q["valor_original_centavos"], q["compensado_original"],
+            q["data_compensacao_original"]) == ("k", -21000, None, None)
+    from app.importacao.servico import desfazer_importacao
+    desfazer_importacao(c, 1)
+    p = c.execute("SELECT * FROM lancamentos WHERE uuid = 'p'").fetchone()
+    assert (p["compensado"], p["data_compensacao"], p["importacao_id"], p["valor_centavos"],
+            p["estimado"]) == (0, None, None, -21000, 1)
+    c.close()

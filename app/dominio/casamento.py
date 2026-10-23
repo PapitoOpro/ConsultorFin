@@ -36,13 +36,24 @@ def _similaridade(a: str, b: str) -> float:
     return max(difflib.SequenceMatcher(None, na, nb).ratio(), contido)
 
 
+def _pago_a_mao(row: Any) -> bool:
+    """Compensado pelo usuário (não importado e ainda não casado com o extrato)."""
+    return bool(row["compensado"]) and row["origem"] != "importado" and row["importacao_id"] is None
+
+
+def _data_efetiva(row: Any) -> str:
+    """Pago à mão: data do pagamento; pendente: data prevista."""
+    return str(row["data_compensacao"] or row["data"]) if row["compensado"] else str(row["data"])
+
+
 def _pontuar(pendente: Any, linha: Any) -> float | None:
     vp, vl = int(pendente["valor_centavos"]), int(linha["valor_centavos"])
     if (vp < 0) != (vl < 0) or vp == 0 or vl == 0:
         return None
     tolerancia = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
     dif_valor = abs(vl - vp)
-    dias = abs((date.fromisoformat(linha["data"]) - date.fromisoformat(pendente["data"])).days)
+    dias = abs((date.fromisoformat(linha["data"])
+                - date.fromisoformat(_data_efetiva(pendente))).days)
     if dif_valor > tolerancia or dias > JANELA_DIAS:
         return None
     return round(
@@ -54,8 +65,9 @@ def _pontuar(pendente: Any, linha: Any) -> float | None:
 
 
 def propor_casamentos(con: Any, conta_id: int, importacao_id: int) -> list[Casamento]:
-    """Propõe pares pendente×linha; cada pendente e cada linha aparece em no máximo um par."""
-    pendentes = lancamentos.pendentes_da_conta(con, conta_id)
+    """Propõe pares candidato×linha; cada candidato e cada linha aparece em no máximo um par.
+    Candidatos: pendentes e pagos à mão (compensados sem importação) da conta."""
+    pendentes = lancamentos.candidatos_casamento_da_conta(con, conta_id)
     linhas = lancamentos.importados_da_importacao(con, importacao_id)
     candidatos: list[Casamento] = []
     for p in pendentes:
@@ -77,7 +89,8 @@ def propor_casamentos(con: Any, conta_id: int, importacao_id: int) -> list[Casam
 
 
 def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
-    """Quita o pendente com os dados reais da linha e remove a linha (chave vai a chaves_quitadas)."""
+    """Quita o pendente (ou o pago à mão) com os dados reais da linha e remove a linha
+    (chave vai a chaves_quitadas com o estado anterior, para o desfazer restaurar)."""
     with transacao(con):
         pend = lancamentos.obter(con, pendente_id)
         if pend is None:
@@ -85,7 +98,7 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
         linha = lancamentos.obter(con, lancamento_id)
         if linha is None:
             raise ValueError(f"Linha importada {lancamento_id} não encontrada.")
-        if pend["compensado"] != 0:
+        if pend["compensado"] != 0 and not _pago_a_mao(pend):
             raise ValueError(f"O lançamento {pendente_id} não está mais pendente.")
         if linha["origem"] != "importado":
             raise ValueError(f"O lançamento {lancamento_id} não é uma linha importada livre.")
@@ -94,6 +107,7 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
         lancamentos.excluir(con, lancamento_id)
         lancamentos.registrar_chave_quitada(con, linha["chave_deduplicacao"], pendente_id,
                                             linha["importacao_id"],
-                                            int(pend["valor_centavos"]), int(pend["estimado"]))
+                                            int(pend["valor_centavos"]), int(pend["estimado"]),
+                                            int(pend["compensado"]), pend["data_compensacao"])
         lancamentos.quitar_pendente(con, pendente_id, linha["data"], int(linha["valor_centavos"]),
                                     linha["importacao_id"])

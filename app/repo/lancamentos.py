@@ -125,9 +125,11 @@ def atualizar_parcela_total_do_grupo(
     )
 
 
-def pendentes_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+def candidatos_casamento_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    """Pendentes e "pagos à mão" (compensados, não importados e sem importação) da conta."""
     return con.execute(
-        "SELECT * FROM lancamentos WHERE conta_id = ? AND compensado = 0 ORDER BY id",
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND (compensado = 0"
+        " OR (compensado = 1 AND origem <> 'importado' AND importacao_id IS NULL)) ORDER BY id",
         (conta_id,),
     ).fetchall()
 
@@ -158,23 +160,34 @@ def excluir(con: sqlite3.Connection, lancamento_id: int) -> None:
 def registrar_chave_quitada(
     con: sqlite3.Connection, chave: str, pendente_id: int, importacao_id: int | None,
     valor_original_centavos: int | None = None, estimado_original: int | None = None,
+    compensado_original: int | None = None, data_compensacao_original: str | None = None,
 ) -> None:
     con.execute(
         "INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id,"
-        " valor_original_centavos, estimado_original) VALUES (?,?,?,?,?)",
-        (chave, pendente_id, importacao_id, valor_original_centavos, estimado_original),
+        " valor_original_centavos, estimado_original, compensado_original,"
+        " data_compensacao_original) VALUES (?,?,?,?,?,?,?)",
+        (chave, pendente_id, importacao_id, valor_original_centavos, estimado_original,
+         compensado_original, data_compensacao_original),
     )
 
 
+_ORIGINAL = ("(SELECT c.{col} FROM chaves_quitadas c"
+             " WHERE c.pendente_id = lancamentos.id AND c.importacao_id = :imp)")
+
+
 def reabrir_pendentes_quitados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
-    """Pendentes casados voltam a pendentes, restaurando valor/estimado originais
-    guardados em chaves_quitadas (NULL = sem original: mantém valor/estimado)."""
+    """Desfaz os casamentos da importação, restaurando o estado guardado em chaves_quitadas:
+    pago à mão (compensado_original = 1) volta a pago com a data original; os demais voltam
+    a pendentes. valor/estimado NULL = sem original: mantém o atual."""
+    pago = f"COALESCE({_ORIGINAL.format(col='compensado_original')}, 0) = 1"
     cur = con.execute(
-        "UPDATE lancamentos SET compensado = 0, data_compensacao = NULL, importacao_id = NULL,"
-        " valor_centavos = COALESCE((SELECT c.valor_original_centavos FROM chaves_quitadas c"
-        "   WHERE c.pendente_id = lancamentos.id AND c.importacao_id = :imp), valor_centavos),"
-        " estimado = COALESCE((SELECT c.estimado_original FROM chaves_quitadas c"
-        "   WHERE c.pendente_id = lancamentos.id AND c.importacao_id = :imp), estimado)"
+        f"UPDATE lancamentos SET compensado = CASE WHEN {pago} THEN 1 ELSE 0 END,"
+        f" data_compensacao = CASE WHEN {pago}"
+        f"   THEN {_ORIGINAL.format(col='data_compensacao_original')} ELSE NULL END,"
+        " importacao_id = NULL,"
+        f" valor_centavos = COALESCE({_ORIGINAL.format(col='valor_original_centavos')},"
+        "   valor_centavos),"
+        f" estimado = COALESCE({_ORIGINAL.format(col='estimado_original')}, estimado)"
         " WHERE importacao_id = :imp AND origem <> 'importado'",
         {"imp": importacao_id},
     )

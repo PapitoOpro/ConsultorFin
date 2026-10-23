@@ -168,15 +168,102 @@ def test_atribuicao_gulosa_uma_por_par(con) -> None:
     assert props == {(p1, _linha_id(con, "LUZ")), (p2, _linha_id(con, "INTERNET"))}
 
 
-def test_ignora_pendentes_de_outra_conta_e_ja_compensados(con) -> None:
+def test_ignora_pendentes_de_outra_conta_e_ja_casados(con) -> None:
+    # C1: um compensado manual SEM importação agora é candidato (pago à mão); só os já
+    # casados (importacao_id definido) e os de outra conta ficam de fora.
     conta = _conta(con)
     outra = criar_conta(con, "Outra", "corrente")
     _pend(con, outra, "2026-10-10", "Luz", -21000)
-    inserir_manual(con, conta_id=conta, data="2026-10-10", descricao="Luz", valor_centavos=-21000,
-                   tipo="saida", categoria_id=None, compensado=True, observacao=None)
-    con.commit()
+    pid = _pend(con, conta, "2026-10-10", "Luz", -21000)
+    imp0 = _imp(con, conta, [("2026-10-10", "LUZ", -21000)], nome="0.csv")
+    confirmar_casamento(con, pid, _linha_id(con, "LUZ"))
+    imp = _imp(con, conta, [("2026-10-11", "LUZ X", -21000)])
+    assert imp0 != imp
+    assert propor_casamentos(con, conta, imp) == []
+
+
+# --- C1: pago à mão e depois importado ---------------------------------------------------------
+
+def _pago_a_mao(con, conta: int, data: str, desc: str, valor: int, pago_em: date) -> int:
+    from app.dominio.parcelas import marcar_pago
+    pid = _pend(con, conta, data, desc, valor)
+    marcar_pago(con, pid, None, pago_em)
+    return pid
+
+
+def test_pago_a_mao_e_depois_importado_nao_conta_duas_vezes(con) -> None:
+    from app.dominio.saldo import saldo_atual
+    from app.importacao.servico import propostas_com_detalhes
+    conta = _conta(con)
+    pid = _pago_a_mao(con, conta, "2026-10-29", "Internet", -10000, date(2026, 10, 29))
+    saldos = {"2026-10-29": 90000}
+    imp = _imp(con, conta, [("2026-10-29", "DEB AUT INTERNET FIBRA", -10000)], saldos=saldos)
+    props = propostas_com_detalhes(con, conta, imp)
+    assert [(p.pendente_id, p.lancamento_id) for p in props] == [
+        (pid, _linha_id(con, "DEB AUT INTERNET FIBRA"))]
+    confirmar_casamento(con, props[0].pendente_id, props[0].lancamento_id)
+    assert saldo_atual(con, conta, date(2026, 10, 30)) == 90000
+    assert conciliar(con, conta, saldos).ok is True
+    assert con.execute("SELECT COUNT(*) FROM lancamentos WHERE valor_centavos = -10000"
+                       ).fetchone()[0] == 1
+    p = con.execute("SELECT * FROM lancamentos WHERE id = ?", (pid,)).fetchone()
+    assert (p["compensado"], p["importacao_id"], p["data_compensacao"]) == (1, imp, "2026-10-29")
+
+
+def test_undo_restaura_pago_a_mao(con) -> None:
+    conta = _conta(con)
+    pid = _pago_a_mao(con, conta, "2026-10-25", "Internet", -10000, date(2026, 10, 27))
+    imp = _imp(con, conta, [("2026-10-28", "INTERNET", -10050)])
+    confirmar_casamento(con, pid, _linha_id(con, "INTERNET"))
+    p = con.execute("SELECT * FROM lancamentos WHERE id = ?", (pid,)).fetchone()
+    assert (p["valor_centavos"], p["data_compensacao"], p["importacao_id"]) == (-10050, "2026-10-28", imp)
+    q = con.execute("SELECT compensado_original, data_compensacao_original FROM chaves_quitadas"
+                    ).fetchone()
+    assert tuple(q) == (1, "2026-10-27")
+    desfazer_importacao(con, imp)
+    p = con.execute("SELECT * FROM lancamentos WHERE id = ?", (pid,)).fetchone()
+    assert (p["compensado"], p["data_compensacao"], p["importacao_id"], p["valor_centavos"],
+            p["estimado"]) == (1, "2026-10-27", None, -10000, 0)
+    assert saldo_em(con, conta, "2026-10-31") == 100000 - 10000
+    assert con.execute("SELECT COUNT(*) FROM chaves_quitadas").fetchone()[0] == 0
+
+
+def test_undo_de_pendente_casado_grava_original_zero(con) -> None:
+    conta = _conta(con)
+    pid = _pend(con, conta, "2026-10-10", "Luz", -21000)
+    imp = _imp(con, conta, [("2026-10-16", "LUZ", -23000)])
+    confirmar_casamento(con, pid, _linha_id(con, "LUZ"))
+    q = con.execute("SELECT compensado_original, data_compensacao_original FROM chaves_quitadas"
+                    ).fetchone()
+    assert tuple(q) == (0, None)
+    desfazer_importacao(con, imp)
+    p = con.execute("SELECT compensado, data_compensacao FROM lancamentos WHERE id = ?",
+                    (pid,)).fetchone()
+    assert tuple(p) == (0, None)
+
+
+def test_manual_compensado_em_conta_importada_e_candidato(con) -> None:
+    from app.dominio.lancamentos import criar_lancamento_manual
+    conta = _conta(con)
+    _imp(con, conta, [("2026-10-05", "PADARIA", -900)], nome="a.csv")
+    mid = criar_lancamento_manual(con, conta_id=conta, data=date(2026, 10, 12), descricao="Farmácia",
+                                  valor_centavos=-4500, compensado=True)
+    imp = _imp(con, conta, [("2026-10-12", "FARMACIA EXEMPLO", -4500)], nome="b.csv")
+    props = propor_casamentos(con, conta, imp)
+    assert [(c.pendente_id, c.lancamento_id) for c in props] == [
+        (mid, _linha_id(con, "FARMACIA EXEMPLO"))]
+
+
+def test_pago_a_mao_de_outra_conta_sinal_oposto_ou_fora_da_janela_nao_e_candidato(con) -> None:
+    conta = _conta(con)
+    outra = criar_conta(con, "Outra", "corrente")
+    _pago_a_mao(con, outra, "2026-10-10", "Luz", -21000, date(2026, 10, 10))
+    _pago_a_mao(con, conta, "2026-10-10", "Luz", 21000, date(2026, 10, 10))      # sinal oposto
+    _pago_a_mao(con, conta, "2026-09-20", "Luz", -21000, date(2026, 9, 20))      # 20 dias antes
     imp = _imp(con, conta, [("2026-10-10", "LUZ", -21000)])
     assert propor_casamentos(con, conta, imp) == []
+    with pytest.raises(ValueError, match="contas diferentes"):
+        confirmar_casamento(con, 1, _linha_id(con, "LUZ"))
 
 
 def test_conciliacao_continua_ok_apos_casamento(con) -> None:

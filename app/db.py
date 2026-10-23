@@ -120,8 +120,14 @@ def _migracao_4(con: sqlite3.Connection) -> None:
     con.execute("ALTER TABLE chaves_quitadas ADD COLUMN estimado_original INTEGER")
 
 
+def _migracao_5(con: sqlite3.Connection) -> None:
+    # Estado do lançamento antes do casamento (pago à mão volta a pago à mão no desfazer).
+    con.execute("ALTER TABLE chaves_quitadas ADD COLUMN compensado_original INTEGER")
+    con.execute("ALTER TABLE chaves_quitadas ADD COLUMN data_compensacao_original TEXT")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
-    _migracao_1, _migracao_2, _migracao_3, _migracao_4,
+    _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5,
 ]
 
 
