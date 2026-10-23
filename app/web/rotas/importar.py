@@ -93,10 +93,11 @@ def _envio(request: Request, token: str) -> Envio:
 
 
 def _conta_id(con: Any, texto: str) -> int | None:
-    if texto.strip().isdigit():
-        conta = contas.obter(con, int(texto))
-        return None if conta is None else int(conta["id"])
-    return None
+    texto = texto.strip()
+    if not (texto.isascii() and texto.isdigit() and len(texto) <= 18):
+        return None
+    conta = contas.obter(con, int(texto))
+    return None if conta is None else int(conta["id"])
 
 
 def _previa(request: Request, con: Any, token: str, envio: Envio, conta_txt: str,
@@ -173,10 +174,11 @@ def criar_conta_rota(request: Request, con: Any = Depends(get_con), nome: str = 
             data_iso = date.fromisoformat(data_saldo_inicial).isoformat()
         except ValueError as exc:
             raise ErroImportacao("Data do saldo inicial inválida.") from exc
+        envio = _envio(request, token) if token else None
         novo_id = contas.criar_conta(con, nome, tipo, final_numero=final_numero.strip()[:20] or None,
                                      saldo_inicial_centavos=saldo, data_saldo_inicial=data_iso)
-        if token:
-            return _previa(request, con, token, _envio(request, token), str(novo_id), None)
+        if token and envio is not None:
+            return _previa(request, con, token, envio, str(novo_id), None)
         return RedirectResponse("/importar", status_code=303)
     except ErroImportacao as e:
         return _pagina_inicial(request, con, erro=e.mensagem, status=e.status)
@@ -201,6 +203,9 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
             resumo = importar(con, conta, envio.nome, envio.conteudo, parser, date.today())
         except ArquivoJaImportado as exc:
             raise ErroImportacao(str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 - transacao() já fez rollback
+            log.error("event=importacao_falhou erro=%s", type(exc).__name__)
+            raise ErroImportacao("Não foi possível concluir a importação. Nada foi gravado.", 500) from exc
         request.app.state.uploads.descartar(token)
         return _render(request, "resultado.html", {
             "nome": envio.nome, "resumo": resumo, "tem_saldos": bool(leitura.saldos_dia),

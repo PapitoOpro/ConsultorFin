@@ -1,6 +1,7 @@
 """Armazém temporário em memória dos arquivos enviados entre a prévia e a confirmação.
 
-Os bytes nunca vão para disco nem para log. Cada envio recebe um token aleatório
+A aplicação nunca grava os bytes enviados em disco nem em log (o Starlette pode usar
+arquivo temporário para corpos multipart grandes). Cada envio recebe um token aleatório
 (secrets.token_urlsafe); expira em TTL_SEGUNDOS e o armazém guarda no máximo
 MAX_ITENS envios (os mais antigos são descartados). Processo único/local.
 """

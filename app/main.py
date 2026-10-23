@@ -15,6 +15,7 @@ from app import config
 from app.db import conectar, migrar
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.web.rotas import routers
+from app.web.seguranca import ProtecaoOrigemHost
 from app.web.uploads import ArmazemUploads
 
 WEB_DIR: Path = Path(__file__).resolve().parent / "web"
@@ -37,6 +38,7 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
     templates.env.filters["brl"] = formatar_brl
     templates.env.filters["data_br"] = iso_para_br
+    app.add_middleware(ProtecaoOrigemHost)
     app.state.templates = templates
     app.state.uploads = ArmazemUploads()
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
