@@ -44,9 +44,8 @@ def soma_compensados_ate(con: sqlite3.Connection, conta_id: int, data_iso: str) 
     return int(row["s"])
 
 
-# Ponto único de extensão da conciliação (Ruling 2, Task 9: incluir também
-# "OR importacao_id IS NOT NULL").
-_FILTRO_CONCILIACAO = "origem = 'importado'"
+# Conciliação (Ruling 2): importados + pendentes casados com o extrato (importacao_id definido).
+_FILTRO_CONCILIACAO = "origem = 'importado' OR importacao_id IS NOT NULL"
 
 
 def somas_diarias_conciliacao(
@@ -122,3 +121,56 @@ def atualizar_parcela_total_do_grupo(
         "UPDATE lancamentos SET parcela_total = ? WHERE grupo_parcela_uuid = ?",
         (parcela_total, grupo_uuid),
     )
+
+
+def pendentes_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND compensado = 0 ORDER BY id",
+        (conta_id,),
+    ).fetchall()
+
+
+def importados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> list[sqlite3.Row]:
+    """Linhas importadas ainda existentes (as casadas já foram removidas)."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE importacao_id = ? AND origem = 'importado' ORDER BY id",
+        (importacao_id,),
+    ).fetchall()
+
+
+def quitar_pendente(
+    con: sqlite3.Connection, pendente_id: int, data_iso: str, valor_centavos: int,
+    importacao_id: int | None,
+) -> None:
+    con.execute(
+        "UPDATE lancamentos SET compensado = 1, data_compensacao = ?, estimado = 0,"
+        " valor_centavos = ?, importacao_id = ? WHERE id = ?",
+        (data_iso, valor_centavos, importacao_id, pendente_id),
+    )
+
+
+def excluir(con: sqlite3.Connection, lancamento_id: int) -> None:
+    con.execute("DELETE FROM lancamentos WHERE id = ?", (lancamento_id,))
+
+
+def registrar_chave_quitada(
+    con: sqlite3.Connection, chave: str, pendente_id: int, importacao_id: int | None
+) -> None:
+    con.execute(
+        "INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id) VALUES (?,?,?)",
+        (chave, pendente_id, importacao_id),
+    )
+
+
+def reabrir_pendentes_quitados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
+    """Pendentes casados com a importação voltam a pendentes (valor real é mantido)."""
+    cur = con.execute(
+        "UPDATE lancamentos SET compensado = 0, data_compensacao = NULL, importacao_id = NULL"
+        " WHERE importacao_id = ? AND origem <> 'importado'",
+        (importacao_id,),
+    )
+    return cur.rowcount
+
+
+def apagar_chaves_quitadas_da_importacao(con: sqlite3.Connection, importacao_id: int) -> None:
+    con.execute("DELETE FROM chaves_quitadas WHERE importacao_id = ?", (importacao_id,))

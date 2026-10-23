@@ -76,6 +76,10 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
 
 def desfazer_importacao(con: Any, importacao_id: int) -> None:
     with transacao(con):
+        # Reabre pendentes casados (valor real mantido, compensado=0, sem importação)
+        # e libera as chaves, para que reimportar volte a criar as linhas.
+        lancamentos.reabrir_pendentes_quitados_da_importacao(con, importacao_id)
+        lancamentos.apagar_chaves_quitadas_da_importacao(con, importacao_id)
         lancamentos.remover_importados_da_importacao(con, importacao_id)
         if not importacoes.marcar_desfeita(con, importacao_id):
             raise ValueError(f"Importação {importacao_id} não encontrada.")
