@@ -288,6 +288,24 @@ def test_criar_conta_invalida(cliente: TestClient) -> None:
     assert r.status_code == 400 and "Tipo de conta inválido." in r.text
 
 
+def test_desfazer_so_na_mais_recente_e_pede_confirmacao(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=0, data="2026-10-01")
+    for nome, linhas in (("a.csv", "01/10/2026;A;1,00\n"), ("b.csv", "02/10/2026;B;2,00\n")):
+        r = _upload(cliente, nome, ("Dia;Histórico;Quanto\n" + linhas).encode(), conta)
+        cliente.post("/importar/confirmar", data={"token": _token(r.text), "conta_id": str(conta), **MAPA})
+    hist = cliente.get("/importar").text
+    assert 'action="/importar/2/desfazer"' in hist and 'action="/importar/1/desfazer"' not in hist
+    assert "return confirm('Desfazer esta importação?" in hist
+    r = cliente.post("/importar/1/desfazer")
+    assert r.status_code == 400
+    assert "Desfaça primeiro a importação mais recente (#2," in r.text
+    assert _total(db) == 2
+    assert "Importação desfeita." in cliente.post("/importar/2/desfazer").text
+    assert 'action="/importar/1/desfazer"' in cliente.get("/importar").text
+    assert "Importação desfeita." in cliente.post("/importar/1/desfazer").text
+    assert _total(db) == 0
+
+
 HDR_ITAU = ("Itaú Unibanco;;;;\nExtrato conta corrente;;;;\nagência: 0000     conta: 00000-0;;;;\n"
             "data;lançamento;ag./origem;valor (R$);saldos (R$)\n")
 

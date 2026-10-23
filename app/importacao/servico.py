@@ -189,12 +189,29 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
     return ResumoImportacao(imp_id, len(leitura.linhas), novos, ignorados, leitura.erros)
 
 
+class ImportacaoNaoEncontrada(ValueError):
+    """Importação inexistente."""
+
+
 def desfazer_importacao(con: Any, importacao_id: int) -> None:
+    """Desfaz só a importação ativa mais recente da conta (uma anterior pode ter linhas
+    das quais uma posterior, sobreposta, depende)."""
     with transacao(con):
-        # Reabre pendentes casados (valor real mantido, compensado=0, sem importação)
-        # e libera as chaves, para que reimportar volte a criar as linhas.
+        imp = importacoes.obter(con, importacao_id)
+        if imp is None:
+            raise ImportacaoNaoEncontrada(f"Importação {importacao_id} não encontrada.")
+        if imp["desfeita"]:
+            raise ValueError(f"A importação #{importacao_id} já foi desfeita.")
+        ultima = importacoes.ultima_ativa_da_conta(con, imp["conta_id"])
+        if ultima is not None and int(ultima["id"]) != importacao_id:
+            raise ValueError(
+                f"Desfaça primeiro a importação mais recente (#{ultima['id']}, "
+                f"{iso_para_br(str(ultima['criado_em'])[:10])}) desta conta; só a última "
+                "importação ativa pode ser desfeita.")
+        # Desfaz os casamentos (pendente volta a pendente; pago à mão volta a pago à mão,
+        # com valor/estimado/data originais) e libera as chaves, para que reimportar volte
+        # a criar as linhas.
         lancamentos.reabrir_pendentes_quitados_da_importacao(con, importacao_id)
         lancamentos.apagar_chaves_quitadas_da_importacao(con, importacao_id)
         lancamentos.remover_importados_da_importacao(con, importacao_id)
-        if not importacoes.marcar_desfeita(con, importacao_id):
-            raise ValueError(f"Importação {importacao_id} não encontrada.")
+        importacoes.marcar_desfeita(con, importacao_id)

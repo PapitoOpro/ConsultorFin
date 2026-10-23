@@ -133,6 +133,48 @@ def test_simular_importacao_nao_escreve_e_bate_com_importar(con):
     assert (real.novos, real.ignorados) == (sim.novos, sim.ignorados)
 
 
+def _duas_importacoes(con, conta):
+    a = importar(con, conta, "a.csv", b"a", ParserFalso([LinhaImportada("2026-10-01", "PIX", -100),
+                                                        LinhaImportada("2026-10-02", "X", -200)]), HOJE)
+    b = importar(con, conta, "b.csv", b"b", ParserFalso([LinhaImportada("2026-10-02", "X", -200),
+                                                        LinhaImportada("2026-10-03", "Y", -300)]), HOJE)
+    return a.importacao_id, b.importacao_id
+
+
+def test_desfazer_so_a_importacao_mais_recente_da_conta(con):
+    conta = _conta(con)
+    a, b = _duas_importacoes(con, conta)
+    with pytest.raises(ValueError, match=rf"Desfaça primeiro a importação mais recente \(#{b}, 23/10/2026\)"):
+        desfazer_importacao(con, a)
+    assert _total(con) == 3
+    assert [r[0] for r in con.execute("SELECT desfeita FROM importacoes ORDER BY id")] == [0, 0]
+
+
+def test_desfazer_mais_recente_e_depois_a_anterior(con):
+    conta = _conta(con)
+    a, b = _duas_importacoes(con, conta)
+    desfazer_importacao(con, b)
+    assert {r[0] for r in con.execute("SELECT descricao FROM lancamentos")} == {"PIX", "X"}
+    desfazer_importacao(con, a)
+    assert _total(con) == 0
+    with pytest.raises(ValueError, match="já foi desfeita"):
+        desfazer_importacao(con, a)
+
+
+def test_desfazer_independe_entre_contas(con):
+    conta, outra = _conta(con), _conta(con)
+    a = importar(con, conta, "a.csv", b"a", ParserFalso([LinhaImportada("2026-10-01", "P", -1)]), HOJE)
+    importar(con, outra, "b.csv", b"b", ParserFalso([LinhaImportada("2026-10-01", "P", -1)]), HOJE)
+    desfazer_importacao(con, a.importacao_id)
+    assert _total(con) == 1
+
+
+def test_desfazer_inexistente(con):
+    from app.importacao.servico import ImportacaoNaoEncontrada
+    with pytest.raises(ImportacaoNaoEncontrada):
+        desfazer_importacao(con, 99)
+
+
 def test_recusa_lancamentos_anteriores_ao_saldo_inicial(con):
     from app.importacao.servico import LancamentosAnterioresAoSaldoInicial, simular_importacao
 

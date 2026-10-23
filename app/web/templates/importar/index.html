@@ -54,8 +54,8 @@
         <td class="valor">{{ i.total_novos if i.total_novos is not none else 0 }}</td>
         <td class="valor">{{ i.total_ignorados if i.total_ignorados is not none else 0 }}</td>
         <td>{{ "Desfeita" if i.desfeita else "Ativa" }}</td>
-        <td>{% if not i.desfeita %}
-          <form method="post" action="/importar/{{ i.id }}/desfazer"><button type="submit" class="secundario">Desfazer</button></form>
+        <td>{% if not i.desfeita and i.id in desfaziveis %}
+          <form method="post" action="/importar/{{ i.id }}/desfazer" onsubmit="return confirm('Desfazer esta importação? Os lançamentos importados por ela serão removidos e os casamentos, desfeitos.')"><button type="submit" class="secundario">Desfazer</button></form>
         {% endif %}</td>
       </tr>
     {% endfor %}

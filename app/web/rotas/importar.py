@@ -14,7 +14,7 @@ from app.importacao.base import Parser, ResultadoLeitura
 from app.importacao.deteccao import detectar
 from app.importacao.excel import ArquivoIlegivel, ParserExcel, listar_colunas
 from app.importacao.servico import (
-    ArquivoJaImportado, LancamentosAnterioresAoSaldoInicial, conta_detectada,
+    ArquivoJaImportado, ImportacaoNaoEncontrada, LancamentosAnterioresAoSaldoInicial, conta_detectada,
     desfazer_importacao, importar, propostas_com_detalhes, simular_importacao,
 )
 from app.repo import contas, importacoes
@@ -49,6 +49,7 @@ def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: 
                     status: int = 200) -> HTMLResponse:
     return _render(request, "index.html", {
         "contas": contas.listar(con), "historico": importacoes.listar_com_conta(con),
+        "desfaziveis": importacoes.ids_ultimas_ativas(con),
         "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso}, status)
 
 
@@ -262,6 +263,12 @@ def casamento(request: Request, con: Any = Depends(get_con), pendente_id: int = 
 def desfazer(importacao_id: int, request: Request, con: Any = Depends(get_con)) -> Response:
     try:
         desfazer_importacao(con, importacao_id)
-    except ValueError:
+    except ImportacaoNaoEncontrada:
         return _pagina_inicial(request, con, erro="Importação não encontrada.", status=404)
+    except ValueError as exc:
+        return _pagina_inicial(request, con, erro=str(exc), status=400)
+    except Exception as exc:  # noqa: BLE001 - transacao() já fez rollback
+        log.error("event=desfazer_falhou erro=%s", type(exc).__name__)
+        return _pagina_inicial(request, con, status=500,
+                               erro="Não foi possível desfazer a importação. Nada foi alterado.")
     return _pagina_inicial(request, con, aviso="Importação desfeita.")

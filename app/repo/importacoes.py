@@ -34,6 +34,26 @@ def marcar_desfeita(con: sqlite3.Connection, importacao_id: int) -> bool:
     return cur.rowcount > 0
 
 
+def obter(con: sqlite3.Connection, importacao_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM importacoes WHERE id = ?", (importacao_id,)).fetchone()
+
+
+def ultima_ativa_da_conta(con: sqlite3.Connection, conta_id: int | None) -> sqlite3.Row | None:
+    """Importação ativa (desfeita = 0) mais recente da conta."""
+    return con.execute(
+        "SELECT * FROM importacoes WHERE conta_id IS ? AND desfeita = 0 ORDER BY id DESC LIMIT 1",
+        (conta_id,),
+    ).fetchone()
+
+
+def ids_ultimas_ativas(con: sqlite3.Connection) -> set[int]:
+    """Id da importação ativa mais recente de cada conta (as únicas que podem ser desfeitas)."""
+    rows = con.execute(
+        "SELECT MAX(id) AS id FROM importacoes WHERE desfeita = 0 GROUP BY conta_id"
+    ).fetchall()
+    return {int(r["id"]) for r in rows}
+
+
 def criada_em_da_ativa_com_hash(con: sqlite3.Connection, conta_id: int,
                                 arquivo_hash: str) -> str | None:
     """ISO de criação da importação ativa com o hash, ou None."""
