@@ -73,3 +73,14 @@ def test_somar_meses_negativo() -> None:
 def test_somar_meses_com_dia_fixo() -> None:
     assert somar_meses(date(2026, 1, 5), 1, dia=31) == date(2026, 2, 28)
     assert somar_meses(date(2026, 1, 5), 2, dia=31) == date(2026, 3, 31)
+
+
+def test_para_centavos_aceita_o_teto() -> None:
+    assert para_centavos("10.000.000.000,00") == 10**12
+    assert para_centavos("-10.000.000.000,00") == -(10**12)
+
+
+@pytest.mark.parametrize("texto", ["10.000.000.000,01", "-10.000.000.000,01", "1" + "0" * 30])
+def test_para_centavos_acima_do_teto_levanta_valor_muito_alto(texto: str) -> None:
+    with pytest.raises(ValueError, match="valor muito alto"):
+        para_centavos(texto)

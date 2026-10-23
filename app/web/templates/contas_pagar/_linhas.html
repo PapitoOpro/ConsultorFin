@@ -1,0 +1,34 @@
+{% macro tabela(linhas, horizonte, hoje, vazio) %}
+{% if linhas %}
+<table>
+  <thead><tr><th>Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
+  <tbody>
+  {% for l in linhas %}
+    <tr id="lancamento-{{ l.id }}">
+      <td>{{ l.data | data_br }}</td>
+      <td>{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}</td>
+      <td class="valor {{ 'entrada' if l.valor_centavos > 0 else 'saida' }}">{{ l.valor_centavos | brl }}</td>
+      <td>
+        <details class="linha-acoes"><summary>Ações</summary>
+          <form method="post" action="/contas-a-pagar/{{ l.id }}/pagar">
+            <input type="hidden" name="horizonte" value="{{ horizonte }}">
+            <input class="valor" name="valor" value="{{ (l.valor_centavos | abs) | brl }}" aria-label="Valor real">
+            <input type="date" name="data" value="{{ hoje }}" aria-label="Data do pagamento" required>
+            <button type="submit">{{ 'Confirmar valor e pagar' if l.recorrente_id else 'Marcar como pago' }}</button>
+          </form>
+          {% if l.recorrente_id %}
+          <form method="post" action="/contas-a-pagar/{{ l.id }}/pular">
+            <input type="hidden" name="horizonte" value="{{ horizonte }}">
+            <button type="submit" class="secundario">Pular este mês</button>
+          </form>
+          {% endif %}
+        </details>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="secundario">{{ vazio }}</p>
+{% endif %}
+{% endmacro %}

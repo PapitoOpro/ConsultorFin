@@ -8,7 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-from app.dominio.dinheiro import data_br_para_iso, para_centavos
+from app.dominio.dinheiro import ValorMuitoAlto, data_br_para_iso, para_centavos, verificar_magnitude
 from app.importacao.base import ErroLeitura, LinhaImportada, ResultadoLeitura
 
 log = logging.getLogger(__name__)
@@ -89,7 +89,10 @@ def _data_iso(v: Any) -> str:
 
 def _centavos(v: Any) -> int:
     if isinstance(v, numbers.Real) and not isinstance(v, bool):
-        return int((Decimal(str(float(v))) * 100).to_integral_value(ROUND_HALF_UP))
+        bruto = Decimal(str(float(v)))
+        if not bruto.is_finite():
+            raise ValueError("valor inválido")
+        return verificar_magnitude(int((bruto * 100).to_integral_value(ROUND_HALF_UP)))
     return para_centavos(str(v))
 
 
@@ -127,8 +130,9 @@ class ParserExcel:
                 continue
             try:
                 valor = _centavos(val)
-            except ValueError:
-                res.erros.append(ErroLeitura(num, f"Linha {num}: valor inválido '{str(val).strip()}'"))
+            except ValueError as exc:
+                motivo = "muito alto" if isinstance(exc, ValorMuitoAlto) else "inválido"
+                res.erros.append(ErroLeitura(num, f"Linha {num}: valor {motivo} '{str(val).strip()}'"))
                 continue
             res.linhas.append(LinhaImportada(data=data, descricao=str(desc).strip(), valor_centavos=valor))
         return res

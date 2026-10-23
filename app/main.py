@@ -5,6 +5,7 @@ Execução (fábrica preguiçosa; importar este módulo não cria nem toca `data
 """
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -41,6 +42,7 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     app.add_middleware(ProtecaoOrigemHost)
     app.state.templates = templates
     app.state.uploads = ArmazemUploads()
+    app.state.hoje_fn = date.today  # relógio injetável (testes)
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
     for r in routers:
         app.include_router(r)

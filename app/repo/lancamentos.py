@@ -314,3 +314,26 @@ def contar_existentes(con: sqlite3.Connection, ids: list[int]) -> int:
     marcas = ",".join("?" for _ in ids)
     row = con.execute(f"SELECT COUNT(*) AS n FROM lancamentos WHERE id IN ({marcas})", ids).fetchone()
     return int(row["n"])
+
+
+def resumo_grupos_parcelas(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Uma linha por grupo de parcelas: contagens e totais (magnitudes positivas)."""
+    return con.execute(
+        "SELECT grupo_parcela_uuid AS grupo, MIN(descricao) AS descricao, COUNT(*) AS n,"
+        " SUM(compensado) AS pagas, COUNT(*) - SUM(compensado) AS pendentes,"
+        " -SUM(valor_centavos) AS total_centavos,"
+        " -COALESCE(SUM(CASE WHEN compensado = 0 THEN valor_centavos END), 0) AS restante_centavos,"
+        " MIN(CASE WHEN compensado = 0 THEN data END) AS proxima_data"
+        " FROM lancamentos WHERE grupo_parcela_uuid IS NOT NULL"
+        " GROUP BY grupo_parcela_uuid"
+        " ORDER BY proxima_data IS NULL, proxima_data, descricao, grupo_parcela_uuid"
+    ).fetchall()
+
+
+def entradas_pendentes_ate(con: sqlite3.Connection, fim_exclusivo_iso: str) -> list[sqlite3.Row]:
+    """Entradas pendentes (valor > 0) com data < fim, por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE compensado = 0 AND valor_centavos > 0 AND data < ?"
+        " ORDER BY data, id",
+        (fim_exclusivo_iso,),
+    ).fetchall()

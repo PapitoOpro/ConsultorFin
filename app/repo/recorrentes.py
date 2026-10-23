@@ -112,3 +112,14 @@ def categoria_existe(con: sqlite3.Connection, categoria_id: int) -> bool:
         con.execute("SELECT 1 FROM categorias WHERE id = ?", (categoria_id,)).fetchone()
         is not None
     )
+
+
+def listar_com_ultimo_real(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Todas as recorrentes (ativas primeiro) com nome da conta e último valor real (magnitude)."""
+    return con.execute(
+        "SELECT r.*, c.nome AS conta_nome, (SELECT ABS(l.valor_centavos) FROM lancamentos l"
+        " WHERE l.recorrente_id = r.id AND l.estimado = 0 AND l.compensado = 1"
+        " ORDER BY l.data DESC, l.id DESC LIMIT 1) AS ultimo_real_centavos"
+        " FROM recorrentes r LEFT JOIN contas c ON c.id = r.conta_id"
+        " ORDER BY r.ativa DESC, r.dia, r.nome, r.id"
+    ).fetchall()

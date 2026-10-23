@@ -68,3 +68,15 @@ def test_listar_colunas_e_arquivo_invalido() -> None:
     r = ParserExcel(MAPA).ler(b"PK\x03\x04lixo")
     assert r.linhas == [] and r.erros[0].linha == 0
     assert "Não foi possível ler" in r.erros[0].mensagem
+
+
+def test_valor_acima_do_teto_vira_linha_de_erro_em_portugues() -> None:
+    conteudo = _xlsx([["Data", "Descrição", "Valor"],
+                      ["24/07/2026", "OK", "1,00"],
+                      ["25/07/2026", "ENORME", 1e30],
+                      ["26/07/2026", "ENORME2", "99999999999999,00"]])
+    r = ParserExcel(MAPA).ler(conteudo)
+    assert [l.descricao for l in r.linhas] == ["OK"]
+    assert [e.linha for e in r.erros] == [3, 4]
+    assert r.erros[0].mensagem.startswith("Linha 3: valor muito alto '")
+    assert r.erros[1].mensagem == "Linha 4: valor muito alto '99999999999999,00'"

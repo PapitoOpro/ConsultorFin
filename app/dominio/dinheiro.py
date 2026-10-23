@@ -8,13 +8,27 @@ from decimal import Decimal
 _PADRAO_VALOR = re.compile(r"^-?(\d{1,3}(\.\d{3})+|\d+)(,\d{1,2})?$")
 
 
+LIMITE_CENTAVOS = 10**12
+
+
+class ValorMuitoAlto(ValueError):
+    """Valor acima do teto aceito (R$ 10 bilhões)."""
+
+
+def verificar_magnitude(centavos: int) -> int:
+    if abs(centavos) > LIMITE_CENTAVOS:
+        raise ValorMuitoAlto("valor muito alto")
+    return centavos
+
+
 def para_centavos(texto: str) -> int:
-    """Converte texto BRL (ex.: '1.234,56', '-603,89', 'R$ 10,00') em centavos."""
+    """Converte texto BRL (ex.: '1.234,56', '-603,89', 'R$ 10,00') em centavos.
+    |valor| acima de 10**12 centavos -> ValorMuitoAlto ('valor muito alto')."""
     limpo = texto.replace("R$", "").replace(" ", "").strip()
     if not _PADRAO_VALOR.match(limpo):
         raise ValueError(f"valor inválido: {texto!r}")
     numero = limpo.replace(".", "").replace(",", ".")
-    return int((Decimal(numero) * 100).to_integral_value())
+    return verificar_magnitude(int((Decimal(numero) * 100).to_integral_value()))
 
 
 def formatar_brl(centavos: int) -> str:
