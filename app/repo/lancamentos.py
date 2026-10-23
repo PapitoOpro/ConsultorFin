@@ -2,6 +2,8 @@
 import sqlite3
 import uuid
 
+from app.db import sem_acento
+
 
 def chave_existe(con: sqlite3.Connection, chave: str) -> bool:
     row = con.execute(
@@ -200,3 +202,115 @@ def pendentes_ate(con: sqlite3.Connection, fim_iso: str) -> list[sqlite3.Row]:
         "SELECT * FROM lancamentos WHERE compensado = 0 AND data <= ? ORDER BY data, id",
         (fim_iso,),
     ).fetchall()
+
+
+# --- Extrato (tela Lançamentos) -------------------------------------------------------------
+
+def _escapar_like(texto: str) -> str:
+    return texto.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+
+
+def _where(
+    *, de: str | None, ate: str | None, conta_id: int | None, categoria_id: int | None,
+    sem_categoria: bool, tipo: str | None, texto: str | None, compensado: bool | None,
+) -> tuple[str, list[object]]:
+    """WHERE montado só de fragmentos fixos; valores sempre como parâmetros."""
+    partes: list[str] = []
+    params: list[object] = []
+    if de is not None:
+        partes.append("l.data >= ?")
+        params.append(de)
+    if ate is not None:
+        partes.append("l.data <= ?")
+        params.append(ate)
+    if conta_id is not None:
+        partes.append("l.conta_id = ?")
+        params.append(conta_id)
+    if sem_categoria:
+        partes.append("l.categoria_id IS NULL")
+    elif categoria_id is not None:
+        partes.append("(l.categoria_id = ? OR l.categoria_id IN"
+                      " (SELECT id FROM categorias WHERE pai_id = ?))")
+        params.extend((categoria_id, categoria_id))
+    if tipo is not None:
+        partes.append("l.tipo = ?")
+        params.append(tipo)
+    if texto:
+        partes.append("sem_acento(l.descricao) LIKE ? ESCAPE '!'")
+        params.append("%" + _escapar_like(sem_acento(texto)) + "%")
+    if compensado is not None:
+        partes.append("l.compensado = ?")
+        params.append(int(compensado))
+    return (" WHERE " + " AND ".join(partes)) if partes else "", params
+
+
+_ACUMULADO = (
+    "WITH acumulado AS (SELECT a.id AS id, c.saldo_inicial_centavos + SUM(a.valor_centavos)"
+    " OVER (PARTITION BY a.conta_id ORDER BY a.data_compensacao, a.id) AS saldo"
+    " FROM lancamentos a JOIN contas c ON c.id = a.conta_id WHERE a.compensado = 1) "
+)
+
+
+def listar_extrato(
+    con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
+    categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
+    compensado: bool | None, limite: int, deslocamento: int,
+) -> list[sqlite3.Row]:
+    """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
+    (saldo inicial + compensados até a linha; NULL nos pendentes)."""
+    where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
+                           sem_categoria=sem_categoria, tipo=tipo, texto=texto,
+                           compensado=compensado)
+    return con.execute(
+        _ACUMULADO
+        + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
+        " LEFT JOIN acumulado ac ON ac.id = l.id"
+        + where + " ORDER BY l.data, l.id LIMIT ? OFFSET ?",
+        (*params, limite, deslocamento),
+    ).fetchall()
+
+
+def totais_extrato(
+    con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
+    categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
+    compensado: bool | None,
+) -> sqlite3.Row:
+    """Contagem e somas do filtro. Entradas/saídas: só compensados (pagamento_fatura conta como
+    saída; transferência fora). Pendentes: soma dos não compensados, exceto transferências."""
+    where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
+                           sem_categoria=sem_categoria, tipo=tipo, texto=texto,
+                           compensado=compensado)
+    return con.execute(
+        "SELECT COUNT(*) AS total,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo = 'entrada'"
+        "   THEN l.valor_centavos END), 0) AS entradas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo IN ('saida', 'pagamento_fatura')"
+        "   THEN l.valor_centavos END), 0) AS saidas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'"
+        "   THEN l.valor_centavos END), 0) AS pendentes"
+        " FROM lancamentos l" + where,
+        params,
+    ).fetchone()
+
+
+def atualizar_categoria(
+    con: sqlite3.Connection, ids: list[int], categoria_id: int | None
+) -> int:
+    marcas = ",".join("?" for _ in ids)
+    cur = con.execute(
+        f"UPDATE lancamentos SET categoria_id = ? WHERE id IN ({marcas})",
+        (categoria_id, *ids),
+    )
+    return cur.rowcount
+
+
+def atualizar_tipo(con: sqlite3.Connection, lancamento_id: int, tipo: str) -> None:
+    con.execute("UPDATE lancamentos SET tipo = ? WHERE id = ?", (tipo, lancamento_id))
+
+
+def contar_existentes(con: sqlite3.Connection, ids: list[int]) -> int:
+    marcas = ",".join("?" for _ in ids)
+    row = con.execute(f"SELECT COUNT(*) AS n FROM lancamentos WHERE id IN ({marcas})", ids).fetchone()
+    return int(row["n"])

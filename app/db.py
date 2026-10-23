@@ -1,5 +1,6 @@
 """Acesso ao SQLite e migrações versionadas por PRAGMA user_version."""
 import sqlite3
+import unicodedata
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -124,6 +125,12 @@ MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
 ]
 
 
+def sem_acento(texto: str | None) -> str:
+    """Minúsculas e sem acentos (busca insensível a caixa e acento)."""
+    base = unicodedata.normalize("NFKD", (texto or "").casefold())
+    return "".join(c for c in base if not unicodedata.combining(c))
+
+
 def conectar(caminho: Path | str | None = None) -> sqlite3.Connection:
     destino = config.DB_PATH if caminho is None else caminho
     if destino != ":memory:":
@@ -131,6 +138,7 @@ def conectar(caminho: Path | str | None = None) -> sqlite3.Connection:
     con = sqlite3.connect(str(destino), check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    con.create_function("sem_acento", 1, sem_acento, deterministic=True)
     return con
 
 

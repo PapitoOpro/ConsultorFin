@@ -82,3 +82,19 @@ p.entrada { color: var(--entrada); }
 
 /* alerta (âmbar) */
 .alerta { color: var(--alerta); background: var(--superficie); border: 1px solid var(--alerta); border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; }
+
+/* lançamentos */
+.filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.filtros .campo { margin-bottom: 0; }
+.filtros input, .filtros select { width: 100%; box-sizing: border-box; }
+.acoes-barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.selo { display: inline-block; font-size: 11px; padding: 0 6px; margin-left: 6px; border: 1px solid var(--alerta); border-radius: 4px; color: var(--alerta); }
+.origem { font-size: 12px; color: var(--texto-secundario); }
+.origem.manual { color: var(--primaria); }
+.valor.neutro { color: var(--texto-secundario); }
+.valor.saldo { color: var(--texto-secundario); }
+td.categoria select { max-width: 160px; }
+details.linha-acoes summary { cursor: pointer; color: var(--primaria); }
+details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.paginacao { display: flex; gap: 16px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.radios label { display: inline; margin-right: 12px; }
