@@ -32,3 +32,31 @@ def remover_importados_da_importacao(con: sqlite3.Connection, importacao_id: int
         (importacao_id,),
     )
     return cur.rowcount
+
+
+def soma_compensados_ate(con: sqlite3.Connection, conta_id: int, data_iso: str) -> int:
+    """Soma dos lançamentos compensados com data_compensacao <= data_iso."""
+    row = con.execute(
+        "SELECT COALESCE(SUM(valor_centavos), 0) AS s FROM lancamentos"
+        " WHERE conta_id = ? AND compensado = 1 AND data_compensacao <= ?",
+        (conta_id, data_iso),
+    ).fetchone()
+    return int(row["s"])
+
+
+# Ponto único de extensão da conciliação (Ruling 2, Task 9: incluir também
+# "OR importacao_id IS NOT NULL").
+_FILTRO_CONCILIACAO = "origem = 'importado'"
+
+
+def somas_diarias_conciliacao(
+    con: sqlite3.Connection, conta_id: int
+) -> list[tuple[str, int]]:
+    """(data_compensacao, soma) dos compensados que contam na conciliação, em ordem crescente."""
+    rows = con.execute(
+        "SELECT data_compensacao AS d, SUM(valor_centavos) AS s FROM lancamentos"
+        f" WHERE conta_id = ? AND compensado = 1 AND ({_FILTRO_CONCILIACAO})"
+        " AND data_compensacao IS NOT NULL GROUP BY data_compensacao ORDER BY data_compensacao",
+        (conta_id,),
+    ).fetchall()
+    return [(str(r["d"]), int(r["s"])) for r in rows]

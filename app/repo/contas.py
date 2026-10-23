@@ -27,3 +27,14 @@ def uuid_da_conta(con: sqlite3.Connection, conta_id: int) -> str:
     if row is None:
         raise ValueError(f"Conta {conta_id} não encontrada.")
     return str(row["uuid"])
+
+
+def saldo_inicial_da_conta(con: sqlite3.Connection, conta_id: int) -> tuple[int, str | None]:
+    """Retorna (saldo_inicial_centavos, data_saldo_inicial ISO ou None)."""
+    row = con.execute(
+        "SELECT saldo_inicial_centavos, data_saldo_inicial FROM contas WHERE id = ?",
+        (conta_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"Conta {conta_id} não encontrada.")
+    return int(row["saldo_inicial_centavos"]), row["data_saldo_inicial"]
