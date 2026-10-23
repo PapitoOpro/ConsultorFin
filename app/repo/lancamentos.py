@@ -275,7 +275,7 @@ _ACUMULADO = (
 def listar_extrato(
     con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
     categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
-    compensado: bool | None, limite: int, deslocamento: int,
+    compensado: bool | None, limite: int, deslocamento: int, decrescente: bool = False,
 ) -> list[sqlite3.Row]:
     """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
     (saldo inicial + compensados até a linha; NULL nos pendentes)."""
@@ -288,7 +288,8 @@ def listar_extrato(
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
         " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
         " LEFT JOIN acumulado ac ON ac.id = l.id"
-        + where + " ORDER BY l.data, l.id LIMIT ? OFFSET ?",
+        + where + (" ORDER BY l.data DESC, l.id DESC" if decrescente else " ORDER BY l.data, l.id")
+        + " LIMIT ? OFFSET ?",
         (*params, limite, deslocamento),
     ).fetchall()
 

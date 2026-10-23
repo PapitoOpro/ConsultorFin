@@ -77,3 +77,9 @@ def test_detectar():
     assert isinstance(detectar(FIXTURE.read_bytes(), "extrato.csv"), ParserItauCsv)
     assert detectar(b"a;b;c\r\n", "x.csv") is None
     assert detectar(b"", "x.csv") is None
+
+
+def test_mensagem_de_erro_trunca_o_valor_ecoado() -> None:
+    from app.importacao.base import eco
+    assert eco("x" * 100) == "x" * 29 + "…"
+    assert eco("abc") == "abc"

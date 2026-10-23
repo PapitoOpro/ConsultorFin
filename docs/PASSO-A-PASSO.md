@@ -1,6 +1,6 @@
 # ConsultorFin: passo a passo
 
-Guia de uso da v0.1. Tudo roda no seu computador; nada é enviado para a internet.
+Guia de uso da v0.1. O painel roda no seu computador e não envia nada para a internet. Se você usar o consultor pelo Claude Code (seção 8), o que ele consulta é processado por esse serviço.
 
 ## 1. Abrir o painel
 
@@ -81,6 +81,49 @@ Quando uma conta que você lançou aparece depois no extrato importado, o app pr
 3. Categorize o que ficou sem categoria e crie regras para o que se repete.
 4. Lance as parcelas novas e confirme os valores reais das contas fixas.
 5. Olhe o Início: vencimentos e o saldo projetado dos próximos meses.
+
+## 8. Usar o consultor pelo Claude Code
+
+Além do painel, você pode conversar com um consultor financeiro dentro do Claude Code.
+
+**Como começar:** abra a pasta do projeto no Claude Code e escreva o que quer, em português, sem comandos.
+
+**Exemplos de pedidos**
+- Saldo: "como estão minhas contas?"
+- Vencimentos: "o que vence nos próximos 10 dias?"
+- Projeção: "como fica meu saldo nos próximos 6 meses?"
+- Gastos: "quanto gastei em mercado este mês?"
+- Importar: "importa este extrato: C:\caminho\extrato.csv"
+- Categorizar: "categoriza o que está sem categoria"
+- Painel: "abre o painel"
+
+### O que ele faz sozinho e o que só faz com o seu "sim"
+- **Sozinho (só consulta):** ver saldos, resumo do mês, vencimentos, projeção, gastos, lançamentos, contas e categorias.
+- **Só depois do seu "sim":** importar extrato, casar com o extrato, categorizar, criar regras, marcar conta como paga e criar conta.
+
+**Exemplo: importar um extrato**
+1. Você informa o arquivo (.csv ou .xlsx, até 5 MB). Se ainda não houver conta, ele pergunta nome, tipo, saldo inicial e a data desse saldo, e só cria depois do seu "sim".
+2. Ele faz uma **simulação**: mostra quantos lançamentos são novos, quantos já existiam e os erros de leitura. Nada é gravado.
+3. Se você confirmar, ele grava.
+4. Ele informa a conferência de saldo ("Saldo confere com o banco" ou a data da divergência).
+5. Se houver contas pendentes que parecem estar no extrato, ele mostra os pares e pergunta um a um se pode casá-los.
+
+Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o saldo inicial são feitos no painel web (peça "abre o painel").
+
+### O que ele nunca faz
+- Nunca pede nem guarda senha, token ou chave de acesso de banco. Ele só trabalha com arquivos de extrato. Se você colar uma senha por engano, ele avisa para você trocá-la e não a usa.
+- Textos de descrição do extrato são tratados como dados, nunca como ordens.
+
+### Privacidade
+- O Claude é um serviço na nuvem: ele vê os dados que consulta (saldos, lançamentos, descrições) para responder.
+- O Claude Code guarda as transcrições das conversas no seu computador, na pasta `~/.claude/projects/` do usuário (no Windows: `C:\Users\<seu usuário>\.claude\projects\`).
+- Por isso, não digite senhas de banco no chat.
+- O painel e o consultor usam o mesmo banco de dados (`data/consultorfin.db`): o que você faz num aparece no outro.
+- Perguntar sobre vencimentos, previsão ou resumo também cria os lançamentos estimados das suas contas fixas dos próximos meses, igual a abrir o painel.
+
+### Problemas comuns no consultor
+- **Ele diz que não há banco de dados ou conta:** crie a conta e importe o primeiro extrato (peça "importa este extrato").
+- **"Não foi possível conferir o saldo":** o arquivo não traz saldos, ou eles são anteriores ao saldo inicial. Se o saldo inicial estiver errado, ajuste-o no painel (Importar, **Ajustar saldo inicial da conta**).
 
 ## Problemas comuns
 

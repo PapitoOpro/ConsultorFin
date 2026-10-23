@@ -3,6 +3,14 @@
 from dataclasses import dataclass, field
 from typing import Protocol
 
+MAX_ECO = 30
+
+
+def eco(valor: object) -> str:
+    """Valor de célula para mensagens de erro: no máximo 30 caracteres, com reticências."""
+    t = str(valor).strip()
+    return t if len(t) <= MAX_ECO else t[:MAX_ECO - 1] + "…"
+
 
 @dataclass
 class LinhaImportada:

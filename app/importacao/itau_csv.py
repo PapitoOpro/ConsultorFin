@@ -4,7 +4,7 @@ import csv
 import re
 
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
-from app.importacao.base import ErroLeitura, LinhaImportada, ResultadoLeitura
+from app.importacao.base import ErroLeitura, LinhaImportada, ResultadoLeitura, eco
 
 CABECALHO = "data;lançamento;ag./origem;valor (R$);saldos (R$)"
 _BOM_UTF8 = b"\xef\xbb\xbf"
@@ -58,13 +58,13 @@ class ParserItauCsv:
         try:
             data = data_br_para_iso(data_txt)
         except ValueError:
-            res.erros.append(ErroLeitura(num, f"Linha {num}: data inválida '{data_txt}'"))
+            res.erros.append(ErroLeitura(num, f"Linha {num}: data inválida '{eco(data_txt)}'"))
             return
         if desc.upper().startswith("SALDO"):
             try:
                 saldo = para_centavos(saldo_txt or valor_txt)
             except ValueError:
-                res.erros.append(ErroLeitura(num, f"Linha {num}: saldo inválido '{saldo_txt or valor_txt}'"))
+                res.erros.append(ErroLeitura(num, f"Linha {num}: saldo inválido '{eco(saldo_txt or valor_txt)}'"))
                 return
             if desc.upper().startswith("SALDO ANTERIOR"):
                 res.saldo_anterior = (data, saldo)
@@ -74,7 +74,7 @@ class ParserItauCsv:
         try:
             valor = para_centavos(valor_txt)
         except ValueError:
-            res.erros.append(ErroLeitura(num, f"Linha {num}: valor inválido '{valor_txt}'"))
+            res.erros.append(ErroLeitura(num, f"Linha {num}: valor inválido '{eco(valor_txt)}'"))
             return
         res.linhas.append(LinhaImportada(data=data, descricao=desc, valor_centavos=valor))
 

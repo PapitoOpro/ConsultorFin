@@ -1,6 +1,6 @@
 # ConsultorFin
 
-Painel financeiro pessoal, local. Seus dados nunca saem do computador: a v0.1 não faz nenhuma chamada externa nem usa IA.
+Painel financeiro pessoal, local. O app em si não faz nenhuma chamada externa. Se você optar por usar o consultor pelo Claude Code, os dados que o Claude consulta são processados por esse serviço.
 
 Guia de uso completo: [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
 
@@ -19,6 +19,13 @@ pip install -r requirements.txt
 uvicorn app.main:create_app --factory --port 8000
 ```
 Abra http://localhost:8000.
+
+## Consultor pelo Claude Code
+Abra a pasta no Claude Code e converse em português. Skills: `saldo`, `vencimentos`, `projecao`, `gastos`, `importar`, `categorizar`, `painel`.
+Escritas (importar, casar, categorizar, regras, pagar, criar conta) só com o seu "sim".
+Ele nunca pede nem guarda senha, token ou chave de banco; só importa arquivos de extrato.
+Privacidade: o Claude vê os dados que consulta e o histórico das conversas fica salvo no seu computador.
+Detalhes: seção 8 de [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
 
 ## Onde ficam os dados
 `data/consultorfin.db` (SQLite, ignorado pelo git). Backup = copiar esse arquivo.
