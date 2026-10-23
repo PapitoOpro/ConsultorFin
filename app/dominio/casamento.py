@@ -97,9 +97,14 @@ def propor_casamentos(con: Any, conta_id: int, importacao_id: int | None = None)
     pendentes = lancamentos.candidatos_casamento_da_conta(con, conta_id)
     if not pendentes:
         return []
-    datas = [date.fromisoformat(_data_efetiva(p)) for p in pendentes]
+    # Valor zero nunca casa: nem a data é lida (como no algoritmo antigo).
+    datas = [None if int(p["valor_centavos"]) == 0 else date.fromisoformat(_data_efetiva(p))
+             for p in pendentes]
+    validas = [d for d in datas if d is not None]
+    if not validas:
+        return []
     janela = timedelta(days=JANELA_DIAS)
-    minimo, maximo = (min(datas) - janela).isoformat(), (max(datas) + janela).isoformat()
+    minimo, maximo = (min(validas) - janela).isoformat(), (max(validas) + janela).isoformat()
     linhas = (lancamentos.importados_da_conta(con, conta_id, minimo, maximo)
               if importacao_id is None
               else lancamentos.importados_da_importacao(con, importacao_id))
@@ -110,7 +115,7 @@ def propor_casamentos(con: Any, conta_id: int, importacao_id: int | None = None)
     fila: list[tuple[float, int, int, tuple[float, float] | None, int, int, int]] = []
     for pi, (p, dia) in enumerate(zip(pendentes, datas, strict=True)):
         vp = int(p["valor_centavos"])
-        if vp == 0:
+        if vp == 0 or dia is None:
             continue
         tol = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
         ini = bisect.bisect_left(chaves, (dia - janela).isoformat())
