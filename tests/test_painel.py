@@ -27,13 +27,13 @@ def test_top_com_outros_junta_categoria_outros() -> None:
 def test_gastos_por_categoria_soma_subcategorias_no_pai(con: sqlite3.Connection) -> None:
     cid = contas.criar_conta(con, "C", "corrente", saldo_inicial_centavos=0,
                              data_saldo_inicial="2026-01-01")
-    pai = int(con.execute("SELECT id FROM categorias WHERE nome='Lazer'").fetchone()[0])
-    sub = criar_subcategoria(con, pai, "Cinema")
+    pai = int(con.execute("SELECT id FROM categorias WHERE nome='Lazer e Entretenimento'").fetchone()[0])
+    sub = criar_subcategoria(con, pai, "Sub teste")
     for cat, v in ((pai, -300), (sub, -200)):
         criar_lancamento_manual(con, conta_id=cid, data=date(2026, 10, 3), descricao="x",
                                 valor_centavos=v, categoria_id=cat, compensado=True)
     g = gastos_por_categoria(con, 2026, 10)
-    assert [(x.nome, x.total_centavos) for x in g] == [("Lazer", 500)]
+    assert [(x.nome, x.total_centavos) for x in g] == [("Lazer e Entretenimento", 500)]
     assert g[0].total_centavos == despesas_do_mes(con, 2026, 10)
 
 

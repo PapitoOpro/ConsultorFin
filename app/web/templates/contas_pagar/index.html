@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import opcoes_categoria %}
 {% from "contas_pagar/_linhas.html" import tabela %}
 {% block titulo %}Contas a pagar{% endblock %}
 {% block mensagens %}
@@ -121,7 +122,7 @@
           <select id="p-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
         <div class="campo"><label for="p-cat">Categoria</label>
           <select id="p-cat" name="categoria_id"><option value="">Sem categoria</option>
-            {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+            {{ opcoes_categoria(categorias_saida) }}</select></div>
       </div>
       <button type="submit">Criar parcelamento</button>
     </form>
@@ -170,9 +171,12 @@
         <div class="campo"><label for="r-valor">Valor estimado</label><input id="r-valor" class="valor" name="valor_estimado" inputmode="decimal" placeholder="0,00" required></div>
         <div class="campo"><label for="r-conta">Conta</label>
           <select id="r-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
-        <div class="campo"><label for="r-cat">Categoria</label>
-          <select id="r-cat" name="categoria_id"><option value="">Sem categoria</option>
-            {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+        <div class="campo cat-sinal" data-sinal="saida"><label for="r-cat-saida">Categoria (conta fixa)</label>
+          <select id="r-cat-saida" name="categoria_saida"><option value="">Sem categoria</option>
+            {{ opcoes_categoria(categorias_saida) }}</select></div>
+        <div class="campo cat-sinal" data-sinal="entrada"><label for="r-cat-entrada">Categoria (receita)</label>
+          <select id="r-cat-entrada" name="categoria_entrada"><option value="">Sem categoria</option>
+            {{ opcoes_categoria(categorias_entrada) }}</select></div>
       </div>
       <button type="submit">Cadastrar</button>
     </form>
@@ -216,4 +220,19 @@
     </form>
   </details>
 </section>
+<script>
+  (function () {
+    var tipo = document.getElementById("r-tipo");
+    var campos = document.querySelectorAll(".cat-sinal");
+    function atualizar() {
+      campos.forEach(function (c) {
+        var ativo = c.getAttribute("data-sinal") === tipo.value;
+        c.hidden = !ativo;
+        c.querySelector("select").disabled = !ativo;
+      });
+    }
+    tipo.addEventListener("change", atualizar);
+    atualizar();
+  })();
+</script>
 {% endblock %}

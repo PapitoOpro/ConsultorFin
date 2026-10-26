@@ -124,3 +124,14 @@ details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6
 .detalhe details.sub { margin-left: 20px; }
 .detalhe details.sub table { margin-left: 20px; width: calc(100% - 20px); font-size: 13px; }
 .detalhe table.total td { font-weight: 600; border-bottom: 0; }
+
+/* Categorias */
+.abas { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--borda); }
+.abas a { padding: 8px 16px; color: var(--texto-secundario); border-bottom: 2px solid transparent; }
+.abas a:hover { color: var(--texto); text-decoration: none; }
+.abas a.ativa { color: var(--primaria); border-bottom-color: var(--primaria); }
+.alerta-bloco { border-color: var(--alerta); margin-bottom: 12px; }
+.lista-categorias { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+details.categoria > summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; cursor: pointer; }
+.acoes-linha { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 8px; }
+.linha-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }

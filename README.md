@@ -18,6 +18,9 @@ python -m venv .venv
 ```
 No Windows manual, use `.venv\Scripts\python` no lugar de `.venv/bin/python`. Abra http://localhost:8000.
 
+## Categorias
+Categorias em dois níveis (categoria › subcategoria), com tipo entrada ou saída, editáveis na tela **Categorias** do painel. Antes de atualizar para esta versão, copie `data/consultorfin.db` como backup. Detalhes: [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
+
 ## Consultor pelo Claude Code
 Abra a pasta no Claude Code e converse em português. Skills: `saldo`, `vencimentos`, `projecao`, `gastos`, `importar`, `categorizar`, `painel`.
 Escritas (importar, casar, categorizar, regras, pagar, criar conta) só com o seu "sim".

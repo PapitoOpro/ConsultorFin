@@ -186,7 +186,7 @@ def contas(con: Any, hoje: date) -> dict[str, Any]:
 
 def categorias(con: Any, hoje: date) -> dict[str, Any]:
     return {"categorias": [
-        {"id": int(c["id"]), "nome": c["nome"], "subcategorias": [
+        {"id": int(c["id"]), "nome": c["nome"], "tipo": c["tipo"], "subcategorias": [
             {"id": int(s["id"]), "nome": s["nome"]}
             for s in dom_categorias.listar_subcategorias(con, int(c["id"]))]}
         for c in dom_categorias.listar_categorias(con)]}

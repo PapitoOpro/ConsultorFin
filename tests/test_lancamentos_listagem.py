@@ -117,3 +117,15 @@ def test_pagar_pendente_recusa_data_futura(con: sqlite3.Connection, conta: int) 
     with pytest.raises(ErroLancamento, match="não pode ser no futuro"):
         pagar_pendente(con, a, None, date(2026, 3, 6), hoje=date(2026, 3, 5))
     pagar_pendente(con, a, None, date(2026, 3, 5), hoje=date(2026, 3, 5))
+
+
+@pytest.mark.parametrize("rotulo,msg", [
+    ("Categoria", "Categoria inválida."), ("Categoria de destino", "Categoria de destino inválida."),
+    ("Categoria substituta", "Categoria substituta inválida."), ("Conta", "Conta inválida."),
+    ("Página", "Página inválida."), ("Lançamento", "Lançamento inválido."),
+    ("Identificador", "Identificador inválido.")])
+def test_interpretar_id_concorda_genero(rotulo: str, msg: str) -> None:
+    from app.dominio.lancamentos import ErroLancamento, interpretar_id
+    with pytest.raises(ErroLancamento) as exc:
+        interpretar_id("x", rotulo)
+    assert str(exc.value) == msg
