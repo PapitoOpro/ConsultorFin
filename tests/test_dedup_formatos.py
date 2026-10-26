@@ -1,20 +1,22 @@
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from app.db import MIGRACOES
 from app.dominio.lancamentos import chave_deduplicacao_legada
+from app.importacao.base import LinhaImportada, ResultadoLeitura
 from app.importacao.itau_csv import ParserItauCsv
 from app.importacao.ofx import ParserOfx
-from app.importacao.servico import importar, simular_importacao
+from app.importacao.servico import ResumoImportacao, importar, simular_importacao
 from app.repo.contas import criar_conta, uuid_da_conta
 
 FIXTURE = Path(__file__).parent / "fixtures" / "extrato_itau_exemplo.csv"
 HOJE = date(2026, 10, 23)
 
 
-def _linhas():
+def _linhas() -> list[LinhaImportada]:
     return ParserItauCsv().ler(FIXTURE.read_bytes()).linhas
 
 
@@ -24,7 +26,7 @@ def _valor_ofx(centavos: int) -> str:
     return f"{sinal}{inteiro}.{resto:02d}"
 
 
-def _ofx(linhas) -> bytes:
+def _ofx(linhas: list[LinhaImportada]) -> bytes:
     """OFX 1.02 SGML com os mesmos eventos do CSV ('/' vira espaço na descrição)."""
     partes = ["OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nSECURITY:NONE\nENCODING:USASCII\n"
               "CHARSET:1252\nCOMPRESSION:NONE\nOLDFILEUID:NONE\nNEWFILEUID:NONE\n\n"
@@ -46,19 +48,19 @@ def _ofx(linhas) -> bytes:
     return "".join(partes).encode("cp1252")
 
 
-def _total(con) -> int:
+def _total(con: Any) -> int:
     return con.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0]
 
 
-def _conta(con) -> int:
+def _conta(con: Any) -> int:
     return criar_conta(con, "Itaú", "corrente")
 
 
-def _csv(con, conta, extra: bytes = b""):
+def _csv(con: Any, conta: int, extra: bytes = b"") -> ResumoImportacao:
     return importar(con, conta, "e.csv", FIXTURE.read_bytes() + extra, ParserItauCsv(), HOJE)
 
 
-def _ofx_imp(con, conta, linhas=None):
+def _ofx_imp(con: Any, conta: int, linhas: list[LinhaImportada] | None = None) -> ResumoImportacao:
     return importar(con, conta, "e.ofx", _ofx(linhas or _linhas()), ParserOfx(), HOJE)
 
 
@@ -67,7 +69,7 @@ def test_ofx_montado_le_as_mesmas_linhas() -> None:
     assert lidas.erros == [] and len(lidas.linhas) == 18
 
 
-def test_csv_depois_ofx_nao_cria_nada(con) -> None:
+def test_csv_depois_ofx_nao_cria_nada(con: Any) -> None:
     conta = _conta(con)
     _csv(con, conta)
     sim = simular_importacao(con, conta, "e.ofx", _ofx(_linhas()), ParserOfx())
@@ -77,7 +79,7 @@ def test_csv_depois_ofx_nao_cria_nada(con) -> None:
     assert _total(con) == 18
 
 
-def test_ofx_depois_csv_nao_cria_nada(con) -> None:
+def test_ofx_depois_csv_nao_cria_nada(con: Any) -> None:
     conta = _conta(con)
     _ofx_imp(con, conta)
     r = _csv(con, conta)
@@ -85,7 +87,7 @@ def test_ofx_depois_csv_nao_cria_nada(con) -> None:
     assert _total(con) == 18
 
 
-def test_periodos_sobrepostos_em_formatos_diferentes(con) -> None:
+def test_periodos_sobrepostos_em_formatos_diferentes(con: Any) -> None:
     conta = _conta(con)
     linhas = _linhas()
     datas = sorted({l.data for l in linhas})
@@ -97,7 +99,7 @@ def test_periodos_sobrepostos_em_formatos_diferentes(con) -> None:
     assert _total(con) == 18
 
 
-def test_identicos_no_mesmo_dia_continuam_dois(con) -> None:
+def test_identicos_no_mesmo_dia_continuam_dois(con: Any) -> None:
     conta = _conta(con)
     _ofx_imp(con, conta)
     padaria = con.execute(
@@ -107,7 +109,7 @@ def test_identicos_no_mesmo_dia_continuam_dois(con) -> None:
     assert _total(con) == 18
 
 
-def _para_chaves_legadas(con, conta) -> None:
+def _para_chaves_legadas(con: Any, conta: int) -> None:
     """Reescreve as chaves como o app antigo (pré-v7) as gravava."""
     u = uuid_da_conta(con, conta)
     oc: dict[tuple[str, str, int], int] = {}
@@ -120,7 +122,7 @@ def _para_chaves_legadas(con, conta) -> None:
     con.commit()
 
 
-def test_banco_pre_v7_sem_migrar_ignora_reimportacao(con) -> None:
+def test_banco_pre_v7_sem_migrar_ignora_reimportacao(con: Any) -> None:
     conta = _conta(con)
     _csv(con, conta)
     _para_chaves_legadas(con, conta)
@@ -129,7 +131,7 @@ def test_banco_pre_v7_sem_migrar_ignora_reimportacao(con) -> None:
     assert _total(con) == 18
 
 
-def test_banco_pre_v7_migrado_ignora_csv_e_ofx(con) -> None:
+def test_banco_pre_v7_migrado_ignora_csv_e_ofx(con: Any) -> None:
     conta = _conta(con)
     _csv(con, conta)
     _para_chaves_legadas(con, conta)
@@ -141,7 +143,7 @@ def test_banco_pre_v7_migrado_ignora_csv_e_ofx(con) -> None:
     assert _total(con) == 18
 
 
-def test_chaves_quitadas_legadas_continuam_ignoradas(con) -> None:
+def test_chaves_quitadas_legadas_continuam_ignoradas(con: Any) -> None:
     conta = _conta(con)
     _csv(con, conta)
     _para_chaves_legadas(con, conta)
@@ -158,22 +160,20 @@ def test_chaves_quitadas_legadas_continuam_ignoradas(con) -> None:
 
 # --- Espaço próprio da chave v2 (sem colisão com a legada) -------------------------------------
 
-def _linha_imp(data: str, desc: str, valor: int = -100):
-    from app.importacao.base import LinhaImportada
+def _linha_imp(data: str, desc: str, valor: int = -100) -> LinhaImportada:
     return LinhaImportada(data, desc, valor)
 
 
 class _ParserFixo:
-    def __init__(self, linhas) -> None:
+    def __init__(self, linhas: list[LinhaImportada]) -> None:
         self.linhas = linhas
 
-    def ler(self, conteudo: bytes):
-        from app.importacao.base import ResultadoLeitura
+    def ler(self, conteudo: bytes) -> ResultadoLeitura:
         return ResultadoLeitura(linhas=list(self.linhas))
 
 
 @pytest.mark.parametrize("par", [("123456.", "123456"), ("PIX ABC", "pix abc")])
-def test_descricoes_que_so_diferem_na_forma_sao_duas_linhas(con, par) -> None:
+def test_descricoes_que_so_diferem_na_forma_sao_duas_linhas(con: Any, par: tuple[str, str]) -> None:
     conta = _conta(con)
     parser = _ParserFixo([_linha_imp("2026-10-05", par[0]), _linha_imp("2026-10-05", par[1])])
     sim = simular_importacao(con, conta, "a.csv", b"a", parser)
@@ -186,7 +186,7 @@ def test_descricoes_que_so_diferem_na_forma_sao_duas_linhas(con, par) -> None:
 
 
 @pytest.mark.parametrize("par", [("123456.", "123456"), ("PIX ABC", "pix abc")])
-def test_ordem_inversa_tambem_da_duas_linhas(con, par) -> None:
+def test_ordem_inversa_tambem_da_duas_linhas(con: Any, par: tuple[str, str]) -> None:
     conta = _conta(con)
     parser = _ParserFixo([_linha_imp("2026-10-05", par[1]), _linha_imp("2026-10-05", par[0])])
     sim = simular_importacao(con, conta, "a.csv", b"a", parser)
@@ -210,25 +210,25 @@ def test_legada_identica_ao_algoritmo_antigo() -> None:
 
 # --- Casamento antes da v7 deixa lacuna: sobreviventes mantêm a ocorrência -----------------------
 
-def _inserir_pre_v7(con, conta, nome, desc, chave, imp) -> None:
+def _inserir_pre_v7(con: Any, conta: int, nome: str, desc: str, chave: str, imp: int) -> None:
     con.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos,"
                 " tipo, chave_deduplicacao, origem, importacao_id, data_compensacao,"
                 " compensado) VALUES (?,?,?,?,?,'saida',?,'importado',?,?,1)",
                 (nome, conta, "2026-10-05", desc, -100, chave, imp, "2026-10-05"))
 
 
-def _nova_importacao(con, conta) -> int:
+def _nova_importacao(con: Any, conta: int) -> int:
     return con.execute("INSERT INTO importacoes (arquivo_nome, arquivo_hash, conta_id, criado_em)"
                        " VALUES ('a', 'h', ?, '2026-10-23T00:00:00')", (conta,)).lastrowid
 
 
-def _migrar7(con) -> None:
+def _migrar7(con: Any) -> None:
     con.execute("BEGIN")
     MIGRACOES[6](con)
     con.execute("COMMIT")
 
 
-def test_casamento_no_meio_sobreviventes_1_e_3(con) -> None:
+def test_casamento_no_meio_sobreviventes_1_e_3(con: Any) -> None:
     from app.dominio.lancamentos import chave_deduplicacao
     conta = _conta(con)
     u = uuid_da_conta(con, conta)
@@ -250,7 +250,7 @@ def test_casamento_no_meio_sobreviventes_1_e_3(con) -> None:
     assert _total(con) == 2
 
 
-def test_lacuna_com_duas_grafias(con) -> None:
+def test_lacuna_com_duas_grafias(con: Any) -> None:
     from app.dominio.lancamentos import chave_deduplicacao
     conta = _conta(con)
     u = uuid_da_conta(con, conta)

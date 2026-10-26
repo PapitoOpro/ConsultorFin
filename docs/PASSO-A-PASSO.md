@@ -37,9 +37,9 @@ Cadastre as duas contas correntes e os cartões que você usa. Cartões não ent
    - Se o app avisar que há lançamentos **anteriores à data do saldo inicial**, use **Ajustar saldo inicial da conta** (o saldo anterior do extrato aparece como sugestão) e envie de novo.
 
 **O que muda na conferência de saldo com OFX**
-- O CSV traz um saldo por dia; o OFX do banco traz **um só saldo**, da hora em que você baixou o arquivo. Por isso, em vez de "Saldo confere", você pode ver uma caixa informativa: "Saldo do banco em DD/MM/AAAA ... O arquivo cobre até DD/MM/AAAA ... Diferença de R$ X". Não é erro: movimentos depois da última data do arquivo, como rendimentos, podem explicar uma diferença pequena.
-- O OFX não traz o saldo anterior. Ao ajustar o saldo inicial, o app sugere um valor **estimado** a partir do saldo do banco; confira antes de salvar.
-- O app sugere a conta pelo número que vem no arquivo, se o "Final da conta" cadastrado combinar.
+- O CSV traz um saldo por dia; o OFX do banco traz **um só saldo**, da hora em que você baixou o arquivo. Por isso, em vez de "Saldo confere", você pode ver uma caixa informativa: "Saldo do banco em DD/MM/AAAA ... O arquivo cobre até DD/MM/AAAA ... O saldo calculado está R$ X acima/abaixo do saldo do banco". Não é erro: movimentos depois da última data do arquivo, como rendimentos, podem explicar uma diferença pequena.
+- O OFX não traz o saldo anterior. O app calcula um valor **estimado** a partir do saldo do banco. Se o saldo do banco for de uma data depois do fim do arquivo, o valor não é preenchido (ele não inclui os movimentos do intervalo): confira o saldo no internet banking ou use o saldo anterior de um extrato CSV. Se você usar a estimativa como saldo inicial, o app não diz "confere" na mesma importação, pois seria circular.
+- O app sugere a conta pelo número que vem no arquivo, se o "Final da conta" cadastrado combinar: digite os últimos dígitos como aparecem no fim do número da conta no arquivo do banco (no OFX, o fim do ACCTID).
 - Você pode importar o mesmo período em OFX depois do CSV (ou o contrário) sem duplicar lançamentos.
 
 Importar o mesmo arquivo, ou outro com período sobreposto, não duplica lançamentos.
@@ -157,7 +157,7 @@ Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o
 ## Problemas comuns
 
 - **"Este arquivo já foi importado"**: o mesmo arquivo já está no histórico. Está tudo certo.
-- **Caixa "Saldo do banco em ... Diferença de R$ ..." (OFX)**: é informativa; o arquivo termina antes da data do saldo e movimentos posteriores (como rendimentos) podem explicar a diferença.
+- **Caixa "Saldo do banco em ... O saldo calculado está R$ ... acima/abaixo..." (OFX)**: é informativa; o arquivo termina antes da data do saldo e movimentos posteriores (como rendimentos) podem explicar a diferença.
 - **"OFC ainda não é suportado" ou "cartão de crédito ainda não é suportado"**: baixe o extrato da conta corrente em OFX.
 - **"O arquivo não parece ser um OFX"**: o arquivo .ofx está corrompido ou é de outro tipo; baixe de novo no banco.
 - **Saldo não confere**: veja a data da primeira divergência; confira se o saldo inicial e a data estão certos e se o extrato tem dias inteiros.
