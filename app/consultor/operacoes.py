@@ -5,14 +5,15 @@ from pathlib import Path
 from typing import Any
 
 from app.consultor.consultas import data, dinheiro
+from app.dominio.dinheiro import iso_para_br
 from app.dominio import contas_pagar_acoes as acoes
 from app.dominio.casamento import confirmar_casamento, propostas_com_detalhes
 from app.dominio.lancamentos import (
     ErroLancamento, alterar_categoria, criar_regra_e_aplicar,
 )
-from app.dominio.saldo import comparar_saldo_informado, conciliar
+from app.dominio.saldo import comparar_saldo_informado, conciliar, saldo_inicial_e_estimativa, texto_saldo_informado
 from app.importacao.base import FormatoNaoSuportado, ResultadoLeitura
-from app.importacao.deteccao import detectar
+from app.importacao.deteccao import detectar, exigir_ofx_valido
 from app.importacao.servico import (
     ArquivoJaImportado, LancamentosAnterioresAoSaldoInicial, importar as importar_arquivo,
     simular_importacao,
@@ -25,7 +26,7 @@ LIMITE_BYTES = 5 * 1024 * 1024
 EXTENSOES = {".csv", ".xlsx", ".ofx", ".ofc"}
 MSG_FORMATO = ("Formato do arquivo não reconhecido. Use o painel web (Importar) para mapear as "
                "colunas manualmente.")
-MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um CSV ou uma planilha Excel válida."
+MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um arquivo OFX, CSV ou uma planilha Excel válida."
 MSG_PADRAO_LONGO = "O padrão da regra pode ter no máximo 100 caracteres."
 
 
@@ -40,6 +41,10 @@ def _ler_arquivo(caminho: str) -> tuple[str, bytes]:
     conteudo = arq.read_bytes()
     if not conteudo.strip():
         raise ErroLancamento("O arquivo está vazio.")
+    try:
+        exigir_ofx_valido(arq.name, conteudo)
+    except FormatoNaoSuportado as exc:
+        raise ErroLancamento(str(exc)) from exc
     return arq.name[:200], conteudo
 
 
@@ -64,18 +69,31 @@ def _dados_leitura(leitura: ResultadoLeitura) -> dict[str, Any]:
         extra["periodo"] = {**data("de", leitura.periodo[0]), **data("ate", leitura.periodo[1])}
     if leitura.saldo_anterior_estimado is not None:
         d, c = leitura.saldo_anterior_estimado
-        extra["saldo_inicial_estimado"] = {**data("data", d), "centavos": c, "valor": dinheiro("v", c)["v"]}
+        prefill = leitura.saldo_informado is None
+        est: dict[str, Any] = {**data("data", d), "centavos": c, "valor": dinheiro("v", c)["v"],
+                               "prefill": prefill}
+        if leitura.saldo_informado is not None and leitura.periodo is not None:
+            fim, asof = iso_para_br(leitura.periodo[1]), iso_para_br(leitura.saldo_informado[0])
+            est["observacao"] = (
+                f"Estimativa que não inclui movimentos entre {fim[:5]} e {asof[:5]} do saldo do banco; "
+                f"confira o saldo de {asof} no internet banking (ou use o saldo anterior de um extrato CSV).")
+        extra["saldo_inicial_estimado"] = est
     return extra
 
 
 def _saldo_informado(con: Any, conta_id: int, leitura: ResultadoLeitura) -> dict[str, Any] | None:
-    if leitura.saldo_informado is None:
+    if leitura.saldo_informado is None or leitura.periodo is None:
         return None
     s = comparar_saldo_informado(con, conta_id, leitura.saldo_informado)
     if s is None:
         return None
     return {**data("data", s.data), **dinheiro("banco", s.banco_centavos),
-            **dinheiro("calculado", s.calculado_centavos), **dinheiro("diferenca", s.diferenca_centavos)}
+            **dinheiro("calculado", s.calculado_centavos), **dinheiro("diferenca", s.diferenca_centavos),
+            "mensagem": texto_saldo_informado(s, leitura.periodo[1])}
+
+
+MSG_CIRCULAR = ("Saldo inicial estimado a partir deste arquivo; a conferência só passa a ter sentido "
+                "nas próximas importações.")
 
 
 def importar(con: Any, hoje: date, caminho: str, conta_id: int, confirmar: bool) -> dict[str, Any]:
@@ -113,10 +131,15 @@ def importar(con: Any, hoje: date, caminho: str, conta_id: int, confirmar: bool)
         "erros": erros, **_dados_leitura(leitura), "conciliacao": None,
         "propostas_casamento": []}
     try:  # a importação já foi gravada: falha aqui não pode virar erro
-        saida["conciliacao"] = _conciliacao(con, conta_id, leitura)
-        informado = _saldo_informado(con, conta_id, leitura)
-        if informado is not None:
-            saida["saldo_informado"] = informado
+        if saldo_inicial_e_estimativa(con, conta_id, leitura.saldo_anterior_estimado):
+            saida["conciliacao"] = {"status": "saldo_inicial_estimado", "observacao": MSG_CIRCULAR}
+        else:
+            informado = _saldo_informado(con, conta_id, leitura)
+            if informado is not None:
+                saida["saldo_informado"] = informado
+                saida["conciliacao"] = {"status": "saldo_informado", **informado}
+            else:
+                saida["conciliacao"] = _conciliacao(con, conta_id, leitura)
         saida["propostas_casamento"] = [
             {"pendente_id": p.pendente_id, "linha_id": p.lancamento_id,
              "pendente_descricao": p.pendente_descricao, **data("pendente_data", p.pendente_data),

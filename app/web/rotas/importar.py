@@ -10,10 +10,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from app.dominio.casamento import confirmar_casamento
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
 from app.dominio.lancamentos import interpretar_id
-from app.dominio.saldo import ajustar_saldo_inicial, comparar_saldo_informado, conciliar
+from app.dominio.saldo import ajustar_saldo_inicial, comparar_saldo_informado, conciliar, saldo_inicial_e_estimativa, texto_saldo_informado
 from app.importacao.base import FormatoNaoSuportado, Parser, ResultadoLeitura
-from app.importacao.deteccao import detectar
-from app.importacao.ofx import tem_cabecalho_ofx
+from app.importacao.deteccao import detectar, exigir_ofx_valido
 from app.importacao.excel import ArquivoIlegivel, ParserExcel, listar_colunas
 from app.importacao.servico import (
     ArquivoJaImportado, ImportacaoNaoEncontrada, LancamentosAnterioresAoSaldoInicial, conta_detectada,
@@ -30,7 +29,7 @@ LIMITE_BYTES = 5 * 1024 * 1024
 EXTENSOES = {".csv", ".xlsx", ".ofx", ".ofc"}
 TIPOS_CONTA = {"corrente": "Conta corrente", "poupanca": "Poupança", "cartao": "Cartão"}
 LINHAS_PREVIA = 10
-MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um CSV ou uma planilha Excel válida."
+MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um arquivo OFX, CSV ou uma planilha Excel válida."
 
 
 class ErroImportacao(Exception):
@@ -64,8 +63,10 @@ def _ler_upload(arquivo: UploadFile) -> tuple[str, bytes]:
         raise ErroImportacao("O arquivo excede o limite de 5 MB.", 413)
     if not conteudo.strip():
         raise ErroImportacao("O arquivo está vazio.")
-    if Path(nome).suffix.lower() == ".ofx" and not tem_cabecalho_ofx(conteudo):
-        raise ErroImportacao("O arquivo não parece ser um OFX. No Itaú, baixe o extrato em OFX.")
+    try:
+        exigir_ofx_valido(nome, conteudo)
+    except FormatoNaoSuportado as exc:
+        raise ErroImportacao(str(exc)) from exc
     return nome, conteudo
 
 
@@ -131,9 +132,15 @@ def _previa(request: Request, con: Any, token: str, envio: Envio, conta_txt: str
     ctx = {**base, "conta_id": conta_id, "detectada": detectada is not None and detectada == conta_id,
            "leitura": leitura, "amostra": leitura.linhas[:LINHAS_PREVIA], "resumo": None,
            "ja_importado": None, "bloqueio": None,
-           "sugestao": leitura.saldo_anterior or leitura.saldo_anterior_estimado,
-           "sugestao_estimada": leitura.saldo_anterior is None and leitura.saldo_anterior_estimado is not None,
-           "saldo_posterior": leitura.saldo_informado is not None}
+           "sugestao": leitura.saldo_anterior, "sugestao_estimada": False, "estimativa_sem_prefill": None}
+    estimado = leitura.saldo_anterior_estimado
+    if leitura.saldo_anterior is None and estimado is not None:
+        if leitura.saldo_informado is None:  # DTASOF <= DTEND: estimativa exata
+            ctx["sugestao"], ctx["sugestao_estimada"] = estimado, True
+        elif leitura.periodo is not None:  # há movimentos entre DTEND e DTASOF: não preenche
+            ctx["estimativa_sem_prefill"] = {
+                "valor": estimado[1], "data": estimado[0], "fim": leitura.periodo[1],
+                "saldo_data": leitura.saldo_informado[0]}
     if conta_id is not None:
         try:
             ctx["resumo"] = simular_importacao(con, conta_id, envio.nome, envio.conteudo, parser)
@@ -254,12 +261,16 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
         ctx: dict[str, Any] = {"nome": envio.nome, "resumo": resumo,
                                "tem_saldos": bool(leitura.saldos_dia) or leitura.saldo_informado is not None, "conciliacao": None,
                                "data_saldo_inicial": None, "propostas": [], "falha_conferencia": False,
-                               "informado": None, "periodo": leitura.periodo}
+                               "informado": None, "texto_informado": None, "estimativa_circular": False}
         try:  # a importação já foi gravada: falha aqui não pode virar erro 500
             ctx["conciliacao"] = conciliar(con, conta, leitura.saldos_dia)
             ctx["data_saldo_inicial"] = contas.saldo_inicial_da_conta(con, conta)[1]
-            if leitura.saldo_informado is not None:
+            ctx["estimativa_circular"] = saldo_inicial_e_estimativa(
+                con, conta, leitura.saldo_anterior_estimado)
+            if leitura.saldo_informado is not None and leitura.periodo is not None:
                 ctx["informado"] = comparar_saldo_informado(con, conta, leitura.saldo_informado)
+                if ctx["informado"] is not None:
+                    ctx["texto_informado"] = texto_saldo_informado(ctx["informado"], leitura.periodo[1])
             ctx["propostas"] = propostas_com_detalhes(con, conta, resumo.importacao_id)
         except Exception as exc:  # noqa: BLE001
             log.error("event=conferencia_falhou erro=%s", type(exc).__name__)

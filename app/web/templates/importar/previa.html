@@ -86,7 +86,7 @@
 </form>
 {% endif %}
 
-{% if contas and not ja_importado and sugestao %}
+{% if contas and not ja_importado and (sugestao or estimativa_sem_prefill) %}
   {% include "importar/_form_conta.html" %}
 {% endif %}
 {% endblock %}

@@ -1,7 +1,9 @@
 {% if sugestao %}
   {% if sugestao_estimada %}
-  <p class="secundario">Valor estimado a partir do saldo do banco; confira antes de salvar (saldo em {{ sugestao[0] | data_br }}).{% if saldo_posterior %} Como o arquivo termina antes da data do saldo, o valor pode ter pequena diferença.{% endif %}</p>
+  <p class="secundario">Valor estimado a partir do saldo do banco; confira antes de salvar (saldo em {{ sugestao[0] | data_br }}).</p>
   {% else %}
   <p class="secundario">Sugestão baseada no saldo anterior do arquivo ({{ sugestao[0] | data_br }}).</p>
   {% endif %}
+{% elif estimativa_sem_prefill %}
+  <p class="secundario">Estimativa: {{ estimativa_sem_prefill.valor | brl }} em {{ estimativa_sem_prefill.data | data_br }}. Estimativa que não inclui movimentos entre {{ (estimativa_sem_prefill.fim | data_br)[:5] }} e {{ (estimativa_sem_prefill.saldo_data | data_br)[:5] }} do saldo do banco; confira o saldo de {{ estimativa_sem_prefill.saldo_data | data_br }} no internet banking (ou use o saldo anterior de um extrato CSV).</p>
 {% endif %}

@@ -1,5 +1,4 @@
 """Regras de lançamentos: chave de deduplicação, tipo inicial e a tela Lançamentos."""
-import hashlib
 import math
 import re
 from collections.abc import Mapping, Sequence

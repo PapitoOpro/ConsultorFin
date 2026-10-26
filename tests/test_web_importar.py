@@ -469,7 +469,9 @@ def test_ofx_previa_e_resultado_com_saldo_informativo(cliente: TestClient, db: P
     assert "Saldo do banco em 26/10/2026: R$ 2.000,00." in t
     assert "O arquivo cobre até 22/10/2026." in t
     assert "Saldo calculado em 26/10/2026: R$ 1.999,99." in t
-    assert "Diferença de R$ 0,01" in t and "rendimentos" in t
+    assert "O saldo calculado está R$ 0,01 abaixo do saldo do banco." in t
+    assert "Movimentos depois de 22/10 (como rendimentos) podem explicar" in t
+    assert "se a diferença se repetir em outras importações, confira o saldo inicial" in t
     assert "diverg" not in r.text.lower() and "não confere" not in r.text.lower()
     assert _total(db) == 12
     outra = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
@@ -477,20 +479,63 @@ def test_ofx_previa_e_resultado_com_saldo_informativo(cliente: TestClient, db: P
 
 
 def test_ofx_saldo_informativo_igual_confere(cliente: TestClient, db: Path) -> None:
-    conta = _conta(db, saldo=47112, data="2026-10-12", final="00000-0000")
+    conta = _conta(db, saldo=47112, data="2026-10-11", final="00000-0000")
     prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
     r = _confirmar(cliente, prev.text, conta)
     assert "Saldo confere com o banco em 26/10/2026" in _texto(r.text)
     assert "diverg" not in r.text.lower()
 
 
+def test_ofx_saldo_inicial_igual_a_estimativa_nao_diz_que_confere(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-12", final="00000-0000")
+    prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
+    r = _confirmar(cliente, prev.text, conta)
+    t = _texto(r.text)
+    assert "confere" not in t and "Saldo do banco em" not in t
+    assert ("Saldo inicial estimado a partir deste arquivo; a conferência só passa a ter sentido "
+            "nas próximas importações.") in t
+
+
 def test_ofx_dtasof_dentro_do_periodo_usa_conciliacao_normal(cliente: TestClient, db: Path) -> None:
-    conta = _conta(db, saldo=47112, data="2026-10-12")
+    conta = _conta(db, saldo=47112, data="2026-10-11")
     conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022")
     assert b"DTASOF>20261022" in conteudo
     prev = _upload(cliente, "extrato.ofx", conteudo, conta)
     r = _confirmar(cliente, prev.text, conta)
     assert "Saldo confere com o banco" in r.text and "Saldo do banco em" not in r.text
+
+
+def test_ofx_dtasof_dentro_do_periodo_circular_e_neutro(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-12")
+    conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022")
+    prev = _upload(cliente, "extrato.ofx", conteudo, conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "confere" not in _texto(r.text) and "Saldo inicial estimado a partir deste arquivo" in r.text
+
+
+def test_ofx_caixa_ignora_lancamento_manual_compensado(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-11", final="00000-0000")
+    con = conectar(db)
+    try:
+        lancamentos.inserir_manual(con, conta_id=conta, data="2026-10-14", descricao="PAGO NA MAO",
+                                   valor_centavos=-5000, tipo="saida", categoria_id=None,
+                                   compensado=True, observacao=None)
+        con.commit()
+    finally:
+        con.close()
+    prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "Saldo confere com o banco em 26/10/2026" in _texto(r.text)
+
+
+def test_ofx_caixa_com_linha_importada_faltando_mostra_diferenca(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-11", final="00000-0000")
+    bruto = FIXTURE_OFX.read_bytes()
+    ini = bruto.index(b"<STMTTRN>")
+    fim = bruto.index(b"</STMTTRN>") + len(b"</STMTTRN>")
+    prev = _upload(cliente, "extrato.ofx", bruto[:ini] + bruto[fim:], conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "O saldo calculado está R$ 512,30 acima do saldo do banco." in _texto(r.text)
 
 
 def test_ofx_que_nao_e_ofx_e_recusado(cliente: TestClient, db: Path) -> None:
@@ -521,14 +566,26 @@ def test_csv_depois_ofx_equivalente_nao_duplica(cliente: TestClient, db: Path) -
     assert _total(db) == 18
 
 
-def test_ofx_ajuste_de_saldo_inicial_mostra_estimativa(db: Path) -> None:
+def _prefill_com_conta_antiga(db: Path, conteudo: bytes) -> str:
     app = create_app(db)
     app.state.hoje_fn = lambda: date(2026, 10, 26)
     with TestClient(app) as c:
         conta = _conta(db, saldo=0, data="2026-10-20")
-        prev = _upload(c, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
-        t = _texto(prev.text)
-        assert 'action="/importar/confirmar"' not in prev.text
-        assert 'value="R$ 471,12"' in prev.text and 'value="2026-10-12"' in prev.text
-        assert "estimado a partir do saldo do banco; confira antes de salvar" in t
-        assert "o arquivo termina antes da data do saldo" in t
+        return _upload(c, "extrato.ofx", conteudo, conta).text
+
+
+def test_ofx_dtasof_depois_do_fim_nao_preenche_saldo_inicial(db: Path) -> None:
+    html = _prefill_com_conta_antiga(db, FIXTURE_OFX.read_bytes())
+    t = _texto(html)
+    assert 'action="/importar/confirmar"' not in html
+    assert 'value="R$ 471,12"' not in html and 'value="2026-10-12"' not in html
+    assert ("Estimativa que não inclui movimentos entre 22/10 e 26/10 do saldo do banco; "
+            "confira o saldo de 26/10/2026 no internet banking "
+            "(ou use o saldo anterior de um extrato CSV)") in t
+
+
+def test_ofx_dtasof_igual_ao_fim_preenche_saldo_inicial_estimado(db: Path) -> None:
+    conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022")
+    html = _prefill_com_conta_antiga(db, conteudo)
+    assert 'value="R$ 471,12"' in html and 'value="2026-10-12"' in html
+    assert "estimado a partir do saldo do banco; confira antes de salvar" in _texto(html)

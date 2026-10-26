@@ -11,7 +11,7 @@ import pytest
 
 from app.consultor import cli, consultas
 from app.db import MIGRACOES, conectar, migrar
-from app.repo import contas as repo_contas
+from app.repo import contas as repo_contas, lancamentos as lanc
 from app.dominio.recorrentes import criar_recorrente
 from app.dominio.lancamentos import criar_lancamento_manual
 from tests._consultor_base import EXTRATO, criar_banco
@@ -240,16 +240,64 @@ def test_importar_ofx_simulacao_e_confirmar(tmp_path: Path, capsys: pytest.Captu
     codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(OFX), "--conta", "1")
     assert codigo == 0 and r["novos"] == 12 and r["gravado"] is False and r["formato"] == "ofx"
     assert r["periodo"] == {"de": "2026-10-13", "de_br": "13/10/2026", "ate": "2026-10-22", "ate_br": "22/10/2026"}
-    assert r["saldo_inicial_estimado"] == {"data": "2026-10-12", "data_br": "12/10/2026",
-                                           "centavos": 47112, "valor": "R$ 471,12"}
+    est = r["saldo_inicial_estimado"]
+    assert (est["data"], est["data_br"], est["centavos"], est["valor"]) == (
+        "2026-10-12", "12/10/2026", 47112, "R$ 471,12")
+    assert est["prefill"] is False and "movimentos entre 22/10 e 26/10" in est["observacao"]
     assert hash_db(banco) == antes
     codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(OFX), "--conta", "1", "--confirmar")
     assert codigo == 0 and r["gravado"] is True and r["formato"] == "ofx"
-    assert r["saldo_informado"] == {
+    si = r["saldo_informado"]
+    assert {k: si[k] for k in ("data", "data_br", "banco_centavos", "banco", "calculado_centavos",
+                               "calculado", "diferenca_centavos", "diferenca")} == {
         "data": "2026-10-26", "data_br": "26/10/2026", "banco_centavos": 200000, "banco": "R$ 2.000,00",
         "calculado_centavos": 199999, "calculado": "R$ 1.999,99",
         "diferenca_centavos": 1, "diferenca": "R$ 0,01"}
-    assert r["conciliacao"]["status"] == "nao_comparavel"
+    assert "R$ 0,01 abaixo do saldo do banco" in si["mensagem"]
+    assert r["conciliacao"]["status"] == "saldo_informado" and "aviso" not in r["conciliacao"]
+    assert r["conciliacao"]["diferenca_centavos"] == 1
+
+
+def test_importar_ofx_prefill_true_quando_dtasof_no_fim(tmp_path: Path,
+                                                        capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path)
+    arq = tmp_path / "d.ofx"
+    arq.write_bytes(OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022"))
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(arq), "--conta", "1")
+    assert codigo == 0 and r["saldo_inicial_estimado"]["prefill"] is True
+
+
+def test_importar_ofx_saldo_inicial_igual_estimativa_e_neutro(tmp_path: Path,
+                                                             capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path, saldo=47112)
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(OFX), "--conta", "1", "--confirmar")
+    assert codigo == 0 and r["conciliacao"]["status"] == "saldo_inicial_estimado"
+    assert "saldo_informado" not in r and "confere" not in json.dumps(r["conciliacao"])
+
+
+def test_importar_ofx_caixa_ignora_manual_compensado(tmp_path: Path,
+                                                    capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path, saldo=47112)
+    con = conectar(banco)
+    try:
+        con.execute("UPDATE contas SET data_saldo_inicial='2026-10-11'")
+        lanc.inserir_manual(con, conta_id=1, data="2026-10-14", descricao="PAGO NA MAO",
+                            valor_centavos=-5000, tipo="saida", categoria_id=None,
+                            compensado=True, observacao=None)
+        con.commit()
+    finally:
+        con.close()
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(OFX), "--conta", "1", "--confirmar")
+    assert codigo == 0 and r["saldo_informado"]["diferenca_centavos"] == 0
+    assert r["conciliacao"]["status"] == "saldo_informado"
+
+
+def test_importar_ofx_que_nao_e_ofx(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path)
+    falso = tmp_path / "f.ofx"
+    falso.write_text("a;b\n1;2\n", encoding="utf-8")
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(falso), "--conta", "1")
+    assert codigo == 1 and "O arquivo não parece ser um OFX." in r["erro"]
 
 
 def test_importar_ofc_e_cartao_dao_erro(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
