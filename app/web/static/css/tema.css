@@ -346,6 +346,11 @@ details.categoria > summary { display: flex; flex-wrap: wrap; justify-content: s
   .grade-paineis, .grade-paineis.meio, .grade-paineis.recentes { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
+  .rot-compacto { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .cabecalho-pagina { gap: 8px; }
+  .cabecalho-titulo .subtitulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cabecalho-acoes { gap: 8px; }
+  .cabecalho-acoes .campo { margin-bottom: 0; }
   .conteudo { padding: 16px 16px 32px; }
   .cabecalho-pagina { padding: 16px; }
   .cabecalho-titulo h1 { font-size: 20px; }
@@ -369,3 +374,25 @@ details.categoria > summary { display: flex; flex-wrap: wrap; justify-content: s
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   button:active, .botao:active { transform: none; }
 }
+
+/* ===== Início: acabamento (fix round 1) ===== */
+.sr-only table { width: auto; }
+.detalhe table.total td { padding-left: 0; padding-right: 0; }
+.grade-paineis.recentes > .painel { display: flex; flex-direction: column; }
+.grade-paineis.recentes .lista-mov, .grade-paineis.recentes .lista-venc { flex: 1 1 auto; display: flex; flex-direction: column; }
+.grade-paineis.recentes .lista-mov li, .grade-paineis.recentes .lista-venc li { flex: 1 1 auto; }
+.grade-paineis.recentes .lista-mov li:first-child, .grade-paineis.recentes .lista-venc li:first-child { padding-top: 0; }
+.grade-paineis.recentes .lista-mov li:last-child, .grade-paineis.recentes .lista-venc li:last-child { padding-bottom: 0; }
+.grade-paineis.recentes .vazio { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.form-mes { display: flex; flex-wrap: nowrap; gap: 8px; align-items: end; }
+.form-mes .campo { margin-bottom: 0; }
+@media (max-width: 1150px) {
+  .grade-3 > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 480px) {
+  .cabecalho-acoes .form-mes .campo { flex: 1 1 auto; min-width: 0; }
+  .cabecalho-acoes .form-mes .campo-mes { width: 100%; }
+  .cabecalho-titulo h1 { margin-bottom: 0; }
+}
+.grade-paineis.analise > .painel { display: flex; flex-direction: column; }
+.grade-paineis.analise .grafico.grande { height: auto; flex: 1 1 340px; min-height: 340px; overflow: hidden; }

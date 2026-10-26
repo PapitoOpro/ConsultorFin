@@ -12,12 +12,25 @@
   var C = T.cores();
   var graficos = [];
 
+  var agendado = false;
+  function redimensionar() {
+    if (agendado) { return; }
+    agendado = true;
+    window.requestAnimationFrame(function () {
+      agendado = false;
+      graficos.forEach(function (g) { g.resize(); });
+    });
+  }
+  var observador = typeof ResizeObserver !== "undefined" ? new ResizeObserver(redimensionar) : null;
+
   function criar(id, opcoes) {
     var el = document.getElementById(id);
-    if (!el) { return; }
+    if (!el) { return null; }
     var g = echarts.init(el, null, { renderer: "svg" });
     g.setOption(Object.assign(T.base(C), opcoes));
     graficos.push(g);
+    if (observador) { observador.observe(el); }
+    return g;
   }
 
   var tip = T.textoTooltip;
@@ -43,6 +56,10 @@
     var total = fatias.reduce(function (t, f) { return t + f.valor_centavos; }, 0);
     criar("graf-rosca", {
       color: paleta,
+      tooltip: T.tooltip(C, {
+        confine: true,
+        position: function () { return [0, 0]; }  // canto do contêiner: nunca cobre o total central
+      }),
       title: {
         text: T.moeda(total), subtext: "total em saídas", left: "center", top: "center",
         itemGap: 4,
@@ -70,11 +87,12 @@
   }
 
   function fluxo(meses) {
+    var topo = 0;  // escala mínima de R$ 1.000 quando todos os meses são baixos/zero
+    meses.forEach(function (m) { topo = Math.max(topo, m.entradas_centavos, m.saidas_centavos); });
     function serie(nome, chave, fmt, cor) {
       return {
-        name: nome, type: "line", smooth: 0.35, symbol: "circle", symbolSize: 8, showSymbol: false,
+        name: nome, type: "line", smooth: 0.35, smoothMonotone: "x", symbol: "circle", symbolSize: 8, showSymbol: false,
         lineStyle: { width: 3, color: cor }, itemStyle: { color: cor, borderColor: C.superficie, borderWidth: 2 },
-        emphasis: { focus: "series" },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: cor + "55" }, { offset: 1, color: cor + "00" }])
@@ -99,12 +117,18 @@
         boundaryGap: false, axisLabel: { color: C.sec, fontSize: 11, margin: 12 }
       }),
       yAxis: T.eixoValor(C, {
-        show: true, min: 0, axisLabel: { color: C.aux, fontSize: 10, formatter: compacto },
+        show: true, min: 0, max: topo < 100000 ? 100000 : undefined,
+        axisLabel: { color: C.aux, fontSize: 10, formatter: compacto },
         splitLine: { lineStyle: { color: C.borda, type: "dashed", opacity: .6 } }
       }),
       series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.primaria),
                serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
     });
+  }
+
+  function larguraRotulo() {
+    var el = document.getElementById("graf-maiores");
+    return Math.max(70, Math.min(170, Math.round((el ? el.clientWidth : 300) * 0.4)));
   }
 
   function barras(itens) {
@@ -115,7 +139,7 @@
       yAxis: {
         type: "category", data: ord.map(function (i) { return i.nome; }),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 10, width: 70, overflow: "truncate" }
+        axisLabel: { color: C.sec, fontSize: 10, width: larguraRotulo(), overflow: "truncate" }
       },
       series: [{
         type: "bar", barMaxWidth: 8,
@@ -170,7 +194,10 @@
       aviso("Não foi possível carregar os gráficos. Os números estão na tabela de apoio.");
     });
 
-  window.addEventListener("resize", function () {
-    graficos.forEach(function (g) { g.resize(); });
+  window.addEventListener("resize", redimensionar);
+  window.addEventListener("pagehide", function () {
+    if (observador) { observador.disconnect(); }
+    graficos.forEach(function (g) { g.dispose(); });
+    graficos.length = 0;
   });
 })();

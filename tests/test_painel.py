@@ -125,7 +125,7 @@ def test_proximos_vencimentos_ordem_situacao_limite(con: sqlite3.Connection) -> 
                                 compensado=comp)
     p = proximos_vencimentos(con, HOJE)
     assert [x["descricao"] for x in p] == ["Internet", "Hoje", "Amanhã", "Luz"]
-    assert [x["situacao"] for x in p] == ["vencida", "vence hoje", "em 1 dia", "em 7 dias"]
+    assert [x["situacao"] for x in p] == ["vencida há 3 dias", "vence hoje", "em 1 dia", "em 7 dias"]
     assert [x["vencida"] for x in p] == [True, False, False, False]
     assert p[0]["valor_centavos"] == 11990 and p[0]["data"] == "2026-10-20"
     assert len(proximos_vencimentos(con, HOJE, limite=2)) == 2
@@ -145,3 +145,22 @@ def test_formatar_variacao() -> None:
     assert formatar_variacao(8.2) == "+8,2%"
     assert formatar_variacao(-12.0) == "-12,0%"
     assert formatar_variacao(0.0) == "0,0%"
+
+
+def test_situacao_vencida_singular_e_plural(con: sqlite3.Connection) -> None:
+    cid = contas.criar_conta(con, "C", "corrente", saldo_inicial_centavos=0,
+                             data_saldo_inicial="2026-01-01")
+    for d, desc in ((date(2026, 10, 22), "Ontem"), (date(2026, 10, 1), "Antiga")):
+        criar_lancamento_manual(con, conta_id=cid, data=d, descricao=desc, valor_centavos=-100,
+                                compensado=False)
+    assert [x["situacao"] for x in proximos_vencimentos(con, HOJE)] == [
+        "vencida há 22 dias", "vencida há 1 dia"]
+
+
+def test_proximos_vencimentos_traz_tipo_da_conta(con: sqlite3.Connection) -> None:
+    cartao = contas.criar_conta(con, "Nubank", "cartao", saldo_inicial_centavos=0,
+                                data_saldo_inicial="2026-01-01")
+    criar_lancamento_manual(con, conta_id=cartao, data=date(2026, 10, 30), descricao="Fatura",
+                            valor_centavos=-100, compensado=False)
+    p = proximos_vencimentos(con, HOJE)
+    assert p[0]["conta"] == "Nubank" and p[0]["conta_tipo"] == "cartao"

@@ -245,7 +245,7 @@ def ultimos_lancamentos(con: Any, limite: int = 5) -> list[dict[str, Any]]:
 def _situacao(data: str, hoje: date) -> str:
     dias = (date.fromisoformat(data) - hoje).days
     if dias < 0:
-        return "vencida"
+        return f"vencida há {-dias} dia{'s' if dias != -1 else ''}"
     if dias == 0:
         return "vence hoje"
     return f"em {dias} dia{'s' if dias != 1 else ''}"
@@ -255,7 +255,8 @@ def proximos_vencimentos(con: Any, hoje: date, limite: int = 6) -> list[dict[str
     """Saídas pendentes mais próximas (vencidas primeiro); `valor_centavos` é o valor a pagar."""
     return [{
         "id": int(r["id"]), "data": str(r["data"]), "descricao": str(r["descricao"]),
-        "conta": str(r["conta_nome"]), "valor_centavos": -int(r["valor_centavos"]),
+        "conta": str(r["conta_nome"]), "conta_tipo": str(r["conta_tipo"]),
+        "valor_centavos": -int(r["valor_centavos"]),
         "estimado": bool(r["estimado"]), "dias": (date.fromisoformat(str(r["data"])) - hoje).days,
         "situacao": _situacao(str(r["data"]), hoje),
         "vencida": str(r["data"]) < hoje.isoformat(),
@@ -306,15 +307,37 @@ def _variacao(atual: int, anterior: int, mais_e_bom: bool) -> Variacao | None:
     return Variacao(formatar_variacao(v), "subiu" if v > 0 else "caiu", (v > 0) == mais_e_bom)
 
 
+AVISO_SEM_HISTORICO = "sem mês anterior para comparar"
+AVISO_ANTERIOR_ZERO = "mês anterior sem movimento"
+AVISO_MES_FUTURO = "mês ainda sem movimento"
+
+
+def _comparacao(atual: int, anterior: int, mais_e_bom: bool, tem_historico: bool,
+                futuro: bool) -> tuple[Variacao | None, str]:
+    """(variação, aviso): só um dos dois vem preenchido."""
+    if futuro and atual == 0:
+        return None, AVISO_MES_FUTURO
+    v = _variacao(atual, anterior, mais_e_bom)
+    if v is not None:
+        return v, ""
+    return None, AVISO_ANTERIOR_ZERO if tem_historico else AVISO_SEM_HISTORICO
+
+
 def indicadores_inicio(con: Any, hoje: date, resumo: Resumo) -> dict[str, Any]:
     """Extras do dashboard: comparação com o mês anterior (só se calculável), lançamentos
     recentes e próximos vencimentos."""
-    ant = somar_meses(date(resumo.ano, resumo.mes, 1), -1)
+    primeiro = date(resumo.ano, resumo.mes, 1)
+    ant = somar_meses(primeiro, -1)
     e_ant, s_ant = entradas_do_mes(con, ant.year, ant.month), despesas_do_mes(con, ant.year, ant.month)
+    historico = painel.existe_compensado_antes(con, primeiro.isoformat())
+    futuro = (resumo.ano, resumo.mes) > (hoje.year, hoje.month)
+    v_e, aviso_e = _comparacao(resumo.entradas_centavos, e_ant, True, historico, futuro)
+    v_s, aviso_s = _comparacao(resumo.saidas_centavos, s_ant, False, historico, futuro)
     return {
         "mes_anterior": rotulo_mes(f"{ant.year:04d}-{ant.month:02d}"),
-        "var_entradas": _variacao(resumo.entradas_centavos, e_ant, mais_e_bom=True),
-        "var_saidas": _variacao(resumo.saidas_centavos, s_ant, mais_e_bom=False),
+        "mes_rotulo": rotulo_mes(resumo.mes_iso),
+        "var_entradas": v_e, "aviso_entradas": aviso_e,
+        "var_saidas": v_s, "aviso_saidas": aviso_s,
         "legenda_rosca": legenda_rosca(resumo),
         "recentes": ultimos_lancamentos(con),
         "vencimentos": proximos_vencimentos(con, hoje),

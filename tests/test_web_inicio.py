@@ -488,7 +488,7 @@ def test_janeiro_compara_com_dezembro_do_ano_anterior(cliente: TestClient, conta
 
 def test_rotulos_dos_graficos(cliente: TestClient, conta: int) -> None:
     html_ = cliente.get("/?mes=2026-10").text
-    assert "Saldo projetado · a partir de out/26" in html_
+    assert "A partir de out/26" in html_
     assert "Colunas de saldo projetado por mês, a partir de out/26" in html_
     assert "Entradas e saídas: out/26 comparado a set/26" in html_
     assert "<thead>" in _bloco(html_, "Parcelas")
@@ -498,3 +498,63 @@ def test_rosca_vazia_mostra_texto(cliente: TestClient, conta: int) -> None:
     html_ = cliente.get("/?mes=2026-05").text
     bloco = _bloco(html_, "Gastos por categoria")
     assert "Sem gastos neste mês" in bloco and 'id="graf-rosca"' not in bloco
+
+
+def _conta_simples(db: Path) -> int:
+    con = conectar(db)
+    try:
+        return contas.criar_conta(con, "Itaú", "corrente", saldo_inicial_centavos=0,
+                                  data_saldo_inicial="2026-01-01")
+    finally:
+        con.close()
+
+
+def test_vencida_mostra_dias_de_atraso(cliente: TestClient, conta: int, db: Path) -> None:
+    _manual(db, conta, date(2026, 10, 22), "Ontem", -100, False)
+    _manual(db, conta, date(2026, 10, 20), "Antes", -100, False)
+    venc = _bloco(cliente.get("/").text, "Próximos vencimentos")
+    assert "vencida há 1 dia" in venc and "vencida há 3 dias" in venc
+
+
+def test_vencimento_de_cartao_marcado(cliente: TestClient, conta: int, db: Path) -> None:
+    con = conectar(db)
+    cartao = contas.criar_conta(con, "Nubank", "cartao", saldo_inicial_centavos=0,
+                                data_saldo_inicial="2026-01-01")
+    con.close()
+    _manual(db, cartao, date(2026, 10, 30), "Fatura Nubank", -9000, False)
+    venc = _bloco(cliente.get("/").text, "Próximos vencimentos")
+    assert "Nubank (cartão)" in venc
+
+
+def test_aviso_mes_anterior_zerado_e_sem_historico(cliente: TestClient, db: Path) -> None:
+    cid = _conta_simples(db)
+    _manual(db, cid, date(2026, 8, 5), "Ago", -5000, True)
+    _manual(db, cid, date(2026, 10, 5), "Out", -3000, True)
+    out = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
+    assert out.count("mês anterior sem movimento") == 2 and "%" not in out
+    ago = _bloco(cliente.get("/?mes=2026-08").text, "Resumo do mês")
+    assert ago.count("sem mês anterior para comparar") == 2 and "%" not in ago
+
+
+def test_mes_futuro_sem_percentual(cliente: TestClient, conta: int) -> None:
+    resumo = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
+    assert resumo.count("mês ainda sem movimento") == 2
+    assert "%" not in resumo and "-100,0" not in resumo
+
+
+def test_tabelas_ocultas_dentro_de_wrapper_sr_only(cliente: TestClient, conta: int, db: Path) -> None:
+    longo = "Categoria com nome muito comprido " + "x" * 27  # 61 caracteres
+    assert len(longo) == 61
+    con = conectar(db)
+    cid = criar_categoria(con, longo)
+    con.close()
+    _manual(db, conta, date(2026, 10, 9), "Gasto", -5000, True, cid)
+    html = cliente.get("/?mes=2026-10").text
+    tabelas = re.findall(r"<table[^>]*>", html)
+    assert not [t for t in tabelas if "sr-only" in t]  # a classe nunca fica na própria tabela
+    ocultas = re.findall(r'<div class="sr-only"><table>', html)
+    assert len(ocultas) == 6  # fluxo, rosca, saldo, parcelas, maiores, comparativo
+    assert longo in html
+    css = (Path(__file__).parent.parent / "app/web/static/css/tema.css").read_text(encoding="utf-8")
+    regra = re.search(r"\.sr-only \{([^}]*)\}", css)
+    assert regra and "position: absolute" in regra.group(1) and "overflow: hidden" in regra.group(1)
