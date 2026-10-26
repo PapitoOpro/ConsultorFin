@@ -15,7 +15,8 @@ DATAS = ["2026-10-13"] * 3 + ["2026-10-15"] * 2 + ["2026-10-16"] + ["2026-10-20"
 
 
 def _bytes() -> bytes:
-    return FIXTURE.read_bytes()
+    """Fixture normalizada para LF (independe do autocrlf do git)."""
+    return FIXTURE.read_bytes().replace(b"\r\n", b"\n")
 
 
 def _texto() -> str:
@@ -296,3 +297,16 @@ def test_ultima_transacao_sem_fechamento_nao_e_truncada():
     corpo = _trn(n=1) + _trn(memo="ULTIMA", n=2).replace("</STMTTRN>\n", "")
     r = _ler(_ofx(corpo))
     assert r.erros == [] and [l.descricao for l in r.linhas] == ["PIX TESTE", "ULTIMA"]
+
+
+def test_fixture_lf_e_crlf_dao_o_mesmo_resultado():
+    lf = FIXTURE.read_bytes().replace(b"\r\n", b"\n")
+    crlf = lf.replace(b"\n", b"\r\n")
+    assert _ler(lf) == _ler(crlf)
+    assert len(_ler(crlf).linhas) == 12
+
+
+def test_cr_e_espacos_antes_de_tag_de_fechamento():
+    b = _ofx(_trn(valor="-1.00")).replace(b"-1.00\n", b"-1.00\r\t </TRNAMT>\n")
+    r = _ler(b)
+    assert r.erros == [] and r.linhas[0].valor_centavos == -100
