@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import opcoes_categoria %}
+{% from "_macros.html" import opcoes_categoria, estado_vazio %}
 {% from "contas_pagar/_linhas.html" import tabela %}
 {% block titulo %}Contas a pagar{% endblock %}
 {% block mensagens %}
@@ -71,7 +71,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p class="secundario">Nenhuma correspondência pendente com o extrato.</p>
+  {{ estado_vazio("Nenhuma correspondência pendente com o extrato.", "check-circle") }}
   {% endif %}
 </section>
 
@@ -108,7 +108,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p class="secundario">Nenhum parcelamento cadastrado.</p>
+  {{ estado_vazio("Nenhum parcelamento cadastrado.", "calendar-clock") }}
   {% endif %}
   <details style="margin-top:12px">
     <summary>Novo parcelamento</summary>
@@ -158,7 +158,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p class="secundario">Nenhuma conta fixa ou receita recorrente cadastrada.</p>
+  {{ estado_vazio("Nenhuma conta fixa ou receita recorrente cadastrada.", "calendar-clock") }}
   {% endif %}
   <details style="margin-top:12px">
     <summary>Nova conta fixa ou receita recorrente</summary>
@@ -201,7 +201,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p class="secundario">Nenhuma conta cadastrada. Cadastre uma para criar parcelamentos e contas fixas.</p>
+  {{ estado_vazio("Nenhuma conta cadastrada. Cadastre uma para criar parcelamentos e contas fixas.", "inbox") }}
   {% endif %}
   <details style="margin-top:12px">
     <summary>Nova conta ou cartão</summary>

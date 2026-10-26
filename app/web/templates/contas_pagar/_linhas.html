@@ -1,3 +1,4 @@
+{% from "_macros.html" import estado_vazio %}
 {% macro tabela(linhas, horizonte, hoje, vazio) %}
 {% if linhas %}
 <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
@@ -29,6 +30,6 @@
   </tbody>
 </table></div>
 {% else %}
-<p class="secundario">{{ vazio }}</p>
+{{ estado_vazio(vazio, "calendar-clock") }}
 {% endif %}
 {% endmacro %}

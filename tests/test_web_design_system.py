@@ -212,3 +212,44 @@ def test_tabelas_rolaveis_focaveis(cliente: TestClient) -> None:
     t = cliente.get("/importar").text
     for m in re.findall(r'<div class="tabela-rolavel"[^>]*>', t):
         assert 'tabindex="0"' in m and 'role="region"' in m and "aria-label=" in m
+
+
+def test_radios_e_caixas_fora_das_regras_de_largura_e_altura() -> None:
+    css = _css()
+    excl = '[type="checkbox"], [type="radio"]'
+    m = re.search(r"^\.filtros input:not\(([^)]*)\), \.filtros select \{ width: 100%; \}", css, re.M)
+    assert m and m.group(1) == excl
+    altura = re.search(r"^:is\([^)]*\) :is\(input:not\(([^)]*)\)", css, re.M)
+    assert altura and 'type="checkbox"' in altura.group(1) and 'type="radio"' in altura.group(1)
+    assert 'min-height: 0' in _regra('.filtros input[type="checkbox"], .filtros input[type="radio"]')
+    assert 'width: 18px' in _regra('.filtros input[type="checkbox"], .filtros input[type="radio"]')
+    base = _regra('input[type="checkbox"], input[type="radio"]')
+    assert "accent-color: var(--primaria)" in base and "width: 18px" in base and "height: 18px" in base
+    assert 'label:has(> input[type="checkbox"])' in css  # rótulo inline com área de toque
+    # nenhuma regra de largura total/altura mínima atinge radio/caixa sem exclusão
+    for linha in css.splitlines():
+        if re.search(r"(?<![-.\w])input(?![-\w])", linha) and (re.search(r"(?<![-\w])width: 100%", linha) or "min-height: 38px" in linha):
+            assert "checkbox" in linha, linha
+
+
+def test_espacamento_unico_sem_margens_duplas() -> None:
+    css = _css()
+    assert "main.conteudo > * { margin: 0; }" in css
+    assert ".abas { display: flex; gap: 4px; margin-bottom" not in css
+    assert "gap: var(--espaco)" in _regra(".lista-categorias")
+    assert "margin-top" not in _regra(".lista-categorias")
+
+
+def test_estados_vazios_usam_componente(cliente: TestClient) -> None:
+    t = cliente.get("/contas-a-pagar").text
+    assert 'class="vazio vazio-compacto"' in t and "Nenhuma conta vencida." in t
+    t = cliente.get("/lancamentos").text
+    assert "Nenhum lançamento encontrado para este filtro." in t and 'class="vazio vazio-compacto"' in t
+    env = cliente.app.state.templates.env  # type: ignore[attr-defined]
+    out = env.from_string('{% from "_macros.html" import estado_vazio %}{{ estado_vazio("Nenhuma categoria de entrada.", "tags") }}').render()
+    assert 'class="vazio-icone"' in out and "<svg" in out and "Nenhuma categoria de entrada." in out
+
+
+def test_summary_acoes_inline_com_marcador() -> None:
+    regra = _regra("details.linha-acoes summary")
+    assert "inline-flex" in regra and "list-style: none" in regra

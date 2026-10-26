@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import opcoes_categoria %}
+{% from "_macros.html" import opcoes_categoria, estado_vazio %}
 {% block titulo %}Categorias{% endblock %}
 {% block mensagens %}
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
@@ -114,7 +114,7 @@
     {% endif %}
   </details>
 {% else %}
-  <p class="secundario">Nenhuma categoria de {{ "entrada" if aba == "entrada" else "saída" }}.</p>
+  {{ estado_vazio("Nenhuma categoria de " ~ ("entrada" if aba == "entrada" else "saída") ~ ".", "tags") }}
 {% endfor %}
 </div>
 {% endblock %}

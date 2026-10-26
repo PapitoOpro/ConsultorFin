@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import estado_vazio %}
 {% block titulo %}Importar{% endblock %}
 {% block mensagens %}
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
@@ -64,7 +65,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p class="secundario">Nenhuma importação ainda.</p>
+  {{ estado_vazio("Nenhuma importação ainda.", "upload") }}
   {% endif %}
 </div>
 {% endblock %}

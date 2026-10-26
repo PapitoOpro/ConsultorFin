@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import opcoes_categoria %}
+{% from "_macros.html" import opcoes_categoria, estado_vazio %}
 {% block titulo %}Lançamentos{% endblock %}
 {% block mensagens %}
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
@@ -137,7 +137,7 @@
     </tbody>
   </table></div>
   {% else %}
-  <p class="secundario">Nenhum lançamento encontrado para este filtro.</p>
+  {{ estado_vazio("Nenhum lançamento encontrado para este filtro.", "receipt", "/importar", "Importar extrato") }}
   {% endif %}
   <div class="paginacao">
     {% if anterior %}<a href="/lancamentos?{{ anterior }}">Anterior</a>{% endif %}

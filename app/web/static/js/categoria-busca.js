@@ -68,22 +68,41 @@
   var ALTURA_MINIMA_ABAIXO = 200;
   var ALTURA_MAXIMA_LISTA = 320;
   var LARGURA_MAXIMA_LISTA = 420;
-  function posicionarLista(rect, largura, altura) {
-    var abaixo = altura - rect.bottom - MARGEM_LISTA;
-    var acima = rect.top - MARGEM_LISTA;
+  /* largura/altura: área útil do layout (clientWidth/clientHeight, sem barras de rolagem);
+     vv (opcional): visual viewport {left, top, width, height}, que restringe ainda mais a área. */
+  function posicionarLista(rect, largura, altura, vv) {
+    var a0 = vv ? vv.left : 0;
+    var t0 = vv ? vv.top : 0;
+    var a1 = vv ? Math.min(largura, vv.left + vv.width) : largura;
+    var b1 = vv ? Math.min(altura, vv.top + vv.height) : altura;
+    var abaixo = b1 - rect.bottom - MARGEM_LISTA;
+    var acima = rect.top - t0 - MARGEM_LISTA;
     var lado = (abaixo >= ALTURA_MINIMA_ABAIXO || abaixo >= acima) ? "abaixo" : "acima";
     var espaco = Math.max(0, lado === "abaixo" ? abaixo : acima);
     var minimo = Math.max(0, rect.right - rect.left);
-    var maxLarg = Math.max(minimo, Math.min(LARGURA_MAXIMA_LISTA, largura - 2 * MARGEM_LISTA));
-    var left = Math.max(MARGEM_LISTA, Math.min(rect.left, largura - MARGEM_LISTA - minimo));
+    var maxLarg = Math.max(minimo, Math.min(LARGURA_MAXIMA_LISTA, a1 - a0 - 2 * MARGEM_LISTA));
+    var left = Math.max(a0 + MARGEM_LISTA, Math.min(rect.left, a1 - MARGEM_LISTA - minimo));
     var r = { lado: lado, left: left, minWidth: minimo, maxWidth: maxLarg,
               maxHeight: Math.min(ALTURA_MAXIMA_LISTA, espaco) };
     if (lado === "abaixo") { r.top = rect.bottom + 4; } else { r.bottom = altura - rect.top + 4; }
     return r;
   }
 
+  /* O campo continua "à vista"? Metade (ou mais) da altura e da largura dentro da área visível
+     e, se houver, dentro do contêiner rolável. Retângulos: {top, bottom, left, right}. */
+  function sobreposicao(a0, a1, b0, b1) { return Math.min(a1, b1) - Math.max(a0, b0); }
+  function entradaVisivel(campo, area, contenedor) {
+    var alt = campo.bottom - campo.top;
+    var larg = campo.right - campo.left;
+    function dentro(r) {
+      return sobreposicao(campo.top, campo.bottom, r.top, r.bottom) >= alt / 2 &&
+             sobreposicao(campo.left, campo.right, r.left, r.right) >= larg / 2;
+    }
+    return dentro(area) && (!contenedor || dentro(contenedor));
+  }
+
   var API = { normalizar: normalizar, filtrar: filtrar, deveConfirmar: deveConfirmar,
-              posicionarLista: posicionarLista };
+              posicionarLista: posicionarLista, entradaVisivel: entradaVisivel };
   raiz.ConsultorFinBusca = API;
   if (typeof module !== "undefined" && module.exports) { module.exports = API; }
 
@@ -152,8 +171,27 @@
     return e;
   }
 
+  function areaUtil() {
+    var raizDoc = document.documentElement;
+    var v = window.visualViewport;
+    return {
+      largura: raizDoc.clientWidth, altura: raizDoc.clientHeight,
+      vv: v ? { left: v.offsetLeft, top: v.offsetTop, width: v.width, height: v.height } : null
+    };
+  }
+
+  function campoVisivel(input) {
+    var a = areaUtil();
+    var area = { top: a.vv ? a.vv.top : 0, left: a.vv ? a.vv.left : 0,
+                 bottom: a.vv ? Math.min(a.altura, a.vv.top + a.vv.height) : a.altura,
+                 right: a.vv ? Math.min(a.largura, a.vv.left + a.vv.width) : a.largura };
+    var rolavel = input.closest ? input.closest(".tabela-rolavel") : null;
+    return entradaVisivel(input.getBoundingClientRect(), area, rolavel ? rolavel.getBoundingClientRect() : null);
+  }
+
   function aplicarPosicao(input, lista) {
-    var pos = posicionarLista(input.getBoundingClientRect(), window.innerWidth, window.innerHeight);
+    var area = areaUtil();
+    var pos = posicionarLista(input.getBoundingClientRect(), area.largura, area.altura, area.vv);
     var st = lista.style;
     st.left = pos.left + "px";
     st.minWidth = pos.minWidth + "px";
@@ -162,8 +200,9 @@
     st.top = pos.lado === "abaixo" ? pos.top + "px" : "auto";
     st.bottom = pos.lado === "acima" ? pos.bottom + "px" : "auto";
     var larg = lista.offsetWidth; /* largura real (conteúdo): evita sair pela direita */
-    if (larg && pos.left + larg > window.innerWidth - 8) {
-      st.left = Math.max(8, window.innerWidth - 8 - larg) + "px";
+    var limiteD = areaUtil().largura;
+    if (larg && pos.left + larg > limiteD - 8) {
+      st.left = Math.max(8, limiteD - 8 - larg) + "px";
     }
   }
 
@@ -180,6 +219,7 @@
   function reposicionarPortais() {
     portais.slice().forEach(function (e) {
       if (!e.input.isConnected) { e.lista.hidden = true; devolverLista(e); return; }
+      if (!campoVisivel(e.input)) { e.fechar(); return; }
       aplicarPosicao(e.input, e.lista);
     });
   }
@@ -321,7 +361,7 @@
       if (aberto) { aplicarPosicao(input, lista); }
     }
 
-    var entrada = { input: input, lista: lista, wrap: wrap };
+    var entrada = { input: input, lista: lista, wrap: wrap, fechar: function () { fechar(); } };
     function recolher() { /* devolve a lista ao wrapper (sai do portal) */
       if (portais.indexOf(entrada) >= 0) { devolverLista(entrada); }
     }
