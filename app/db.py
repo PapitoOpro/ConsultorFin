@@ -232,30 +232,64 @@ def _migracao_6(con: sqlite3.Connection) -> None:
     _carregar_padrao(con)
 
 
+def _normalizar_v7(texto: str) -> str:
+    """Cópia congelada da normalização usada pela v7; mudanças futuras na função viva
+    (`normalizar_descricao`) exigem uma nova migração."""
+    import re
+
+    base = unicodedata.normalize("NFKD", texto.casefold())
+    sem_marcas = "".join(c for c in base if not unicodedata.combining(c))
+    return re.sub(r"[\W_]+", " ", sem_marcas).strip()
+
+
 def _migracao_7(con: sqlite3.Connection) -> None:
     """Chave de deduplicação independente do formato (CSV x OFX).
 
-    Recalcula `chave_deduplicacao` das linhas importadas: sha256(conta_uuid | data |
-    descricao_normalizada | valor | ocorrencia), ocorrencia = posição por id dentro de
-    (conta, data, descricao_normalizada, valor). Não toca `manual:` nem `chaves_quitadas`.
-    Tudo em memória, com checagem de unicidade antes de escrever; idempotente."""
-    import hashlib
-
-    from app.dominio.normalizacao import normalizar_descricao
+    Recalcula `chave_deduplicacao` das linhas importadas com a fórmula v2 (helper único
+    `hash_chave_v2`): ocorrência = posição dentro de (conta, data, descrição normalizada, valor).
+    Lacunas de casamento: uma linha casada antes da v7 saiu de `lancamentos` e deixou sua chave
+    legada em `chaves_quitadas`. Para cada descrição literal sobrevivente, a k-ésima ocorrência
+    legada cuja chave está em `chaves_quitadas` é um espaço OCUPADO; as sobreviventes (por id)
+    preenchem os demais k. No grupo normalizado, os espaços de todas as grafias são ordenados
+    (sobrevivente: pelo id; ocupado: logo após a sobrevivente anterior da mesma grafia, ou logo
+    antes da próxima) e numerados 1..n; assim as sobreviventes mantêm a ocorrência original.
+    Não toca `manual:` nem `chaves_quitadas`. Tudo em memória, com checagem de unicidade antes
+    de escrever; idempotente (só depende de `chaves_quitadas`, não das chaves atuais)."""
+    from app.dominio.normalizacao import hash_chave_legada, hash_chave_v2
 
     linhas = con.execute(
         "SELECT l.id, l.data, l.descricao, l.valor_centavos, l.chave_deduplicacao, c.uuid AS cu"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
         " WHERE l.origem = 'importado' ORDER BY l.id"
     ).fetchall()
-    ocorrencias: dict[tuple[str, str, str, int], int] = {}
-    novas: dict[int, str] = {}
+    quitadas = {str(r[0]) for r in con.execute("SELECT chave FROM chaves_quitadas")}
+    grupos: dict[tuple[str, str, str, int], dict[str, list[int]]] = {}
     for r in linhas:
-        grupo = (str(r["cu"]), str(r["data"]), normalizar_descricao(str(r["descricao"])),
-                 int(r["valor_centavos"]))
-        ocorrencias[grupo] = ocorrencias.get(grupo, 0) + 1
-        base = "|".join((grupo[0], grupo[1], grupo[2], str(grupo[3]), str(ocorrencias[grupo])))
-        novas[int(r["id"])] = hashlib.sha256(base.encode("utf-8")).hexdigest()
+        cu, data, valor = str(r["cu"]), str(r["data"]), int(r["valor_centavos"])
+        grupo = (cu, data, _normalizar_v7(str(r["descricao"])), valor)
+        grupos.setdefault(grupo, {}).setdefault(str(r["descricao"]), []).append(int(r["id"]))
+    novas: dict[int, str] = {}
+    for (cu, data, norm, valor), por_grafia in grupos.items():
+        itens: list[tuple[tuple[int, int], int | None]] = []
+        for literal, ids in por_grafia.items():
+            restantes = list(ids)
+            anterior: int | None = None
+            k = 0
+            while True:
+                k += 1
+                ocupado = hash_chave_legada(cu, data, literal, valor, k) in quitadas
+                if not ocupado and not restantes:
+                    break  # sobreviventes esgotadas e sem mais espaços ocupados em seguida
+                if ocupado:
+                    ordem = (anterior, 1) if anterior is not None else (restantes[0], -1)
+                    itens.append((ordem, None))
+                else:
+                    anterior = restantes.pop(0)
+                    itens.append(((anterior, 0), anterior))
+        itens.sort(key=lambda it: it[0])
+        for posicao, (_, lid) in enumerate(itens, 1):
+            if lid is not None:
+                novas[lid] = hash_chave_v2(cu, data, norm, valor, posicao)
     if len(set(novas.values())) != len(novas):
         raise RuntimeError("Migração v7: chaves novas repetidas; nada foi alterado.")
     ocupadas = {str(r[0]) for r in con.execute(

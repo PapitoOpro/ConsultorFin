@@ -10,7 +10,7 @@ from typing import Any
 from app.db import transacao
 from app.dominio.categorias import aplicar_regras, criar_regra
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
-from app.dominio.normalizacao import normalizar_descricao
+from app.dominio.normalizacao import hash_chave_legada, hash_chave_v2, normalizar_descricao
 from app.dominio.parcelas import marcar_pago
 from app.dominio.recorrentes import confirmar_recorrente
 from app.repo import categorias as repo_categorias
@@ -21,16 +21,14 @@ from app.repo import lancamentos as repo
 def chave_deduplicacao(conta_uuid: str, data: str, descricao: str, valor_centavos: int,
                        ocorrencia: int) -> str:
     """Chave v2: independe do formato (a descrição é normalizada; FITID não entra)."""
-    base = "|".join((conta_uuid, data, normalizar_descricao(descricao), str(valor_centavos),
-                     str(ocorrencia)))
-    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+    return hash_chave_v2(conta_uuid, data, normalizar_descricao(descricao), valor_centavos,
+                         ocorrencia)
 
 
 def chave_deduplicacao_legada(conta_uuid: str, data: str, descricao: str, valor_centavos: int,
                               ocorrencia: int) -> str:
     """Chave anterior à v7 (descrição literal); só para reconhecer linhas já importadas."""
-    base = "|".join((conta_uuid, data, descricao, str(valor_centavos), str(ocorrencia)))
-    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+    return hash_chave_legada(conta_uuid, data, descricao, valor_centavos, ocorrencia)
 
 
 def tipo_inicial(valor_centavos: int) -> str:

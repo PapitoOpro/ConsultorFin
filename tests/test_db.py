@@ -420,3 +420,55 @@ def test_migracao_7_colisao_com_chave_de_outra_linha_aborta(tmp_path) -> None:
     assert c.execute("SELECT chave_deduplicacao FROM lancamentos WHERE descricao='X'"
                      ).fetchone()[0] == "antiga"
     c.close()
+
+
+def test_migracao_7_usa_o_mesmo_helper_de_chave(tmp_path) -> None:
+    from app.dominio.lancamentos import chave_deduplicacao
+    c = _banco_v6(tmp_path / "v6.db")
+    _popular_v6(c)
+    migrar(c)
+    esperado = {}
+    oc: dict[tuple, int] = {}
+    for r in c.execute("SELECT l.id, l.data, l.descricao, l.valor_centavos, k.uuid cu, l.origem"
+                       " FROM lancamentos l JOIN contas k ON k.id = l.conta_id ORDER BY l.id"):
+        if r["origem"] != "importado":
+            continue
+        g = (r["cu"], r["data"], db._normalizar_v7(r["descricao"]), r["valor_centavos"])
+        oc[g] = oc.get(g, 0) + 1
+        esperado[r["id"]] = chave_deduplicacao(r["cu"], r["data"], r["descricao"],
+                                               r["valor_centavos"], oc[g])
+    atuais = {r["id"]: r["chave_deduplicacao"] for r in c.execute(
+        "SELECT id, chave_deduplicacao FROM lancamentos WHERE origem = 'importado'")}
+    assert atuais == esperado
+    c.close()
+
+
+@pytest.mark.parametrize("texto", [
+    "PIX TRANSF RR Supo22/10", "PIX TRANSF RR Supo22 10", "  Açaí -- CAFÉ!! ", "A.B*C_D", "",
+    "***", "ＡＢＣ １２３", "Ñandú", "日本 語", "ß Straße", "x\ty\nz"])
+def test_normalizacao_congelada_igual_a_viva_hoje(texto: str) -> None:
+    from app.dominio.normalizacao import normalizar_descricao
+    assert db._normalizar_v7(texto) == normalizar_descricao(texto)
+
+
+def test_migracao_7_com_linhas_da_fixture_csv(tmp_path) -> None:
+    from pathlib import Path
+    from app.dominio.lancamentos import chave_deduplicacao_legada as legada
+    from app.importacao.itau_csv import ParserItauCsv
+    fixture = Path(__file__).parent / "fixtures" / "extrato_itau_exemplo.csv"
+    linhas = ParserItauCsv().ler(fixture.read_bytes()).linhas
+    c = _banco_v6(tmp_path / "v6.db")
+    oc: dict[tuple, int] = {}
+    for l in linhas:
+        trio = (l.data, l.descricao, l.valor_centavos)
+        oc[trio] = oc.get(trio, 0) + 1
+        _inserir_v6(c, 1, l.data, l.descricao, l.valor_centavos, legada("conta-u", *trio, oc[trio]))
+    c.commit()
+    antes = _foto(c)
+    migrar(c)
+    assert _foto(c) == antes
+    assert antes[0][0] == len(linhas) == 18
+    chaves = [r[0] for r in c.execute("SELECT chave_deduplicacao FROM lancamentos")]
+    assert len(set(chaves)) == 18
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
+    c.close()

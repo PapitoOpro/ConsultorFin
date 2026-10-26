@@ -1,6 +1,8 @@
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from app.db import MIGRACOES
 from app.dominio.lancamentos import chave_deduplicacao_legada
 from app.importacao.itau_csv import ParserItauCsv
@@ -152,3 +154,122 @@ def test_chaves_quitadas_legadas_continuam_ignoradas(con) -> None:
     r = _csv(con, conta, b"\r\n")
     assert (r.novos, r.ignorados) == (0, 18)
     assert _total(con) == 15
+
+
+# --- Espaço próprio da chave v2 (sem colisão com a legada) -------------------------------------
+
+def _linha_imp(data: str, desc: str, valor: int = -100):
+    from app.importacao.base import LinhaImportada
+    return LinhaImportada(data, desc, valor)
+
+
+class _ParserFixo:
+    def __init__(self, linhas) -> None:
+        self.linhas = linhas
+
+    def ler(self, conteudo: bytes):
+        from app.importacao.base import ResultadoLeitura
+        return ResultadoLeitura(linhas=list(self.linhas))
+
+
+@pytest.mark.parametrize("par", [("123456.", "123456"), ("PIX ABC", "pix abc")])
+def test_descricoes_que_so_diferem_na_forma_sao_duas_linhas(con, par) -> None:
+    conta = _conta(con)
+    parser = _ParserFixo([_linha_imp("2026-10-05", par[0]), _linha_imp("2026-10-05", par[1])])
+    sim = simular_importacao(con, conta, "a.csv", b"a", parser)
+    r = importar(con, conta, "a.csv", b"a", parser, HOJE)
+    assert (sim.novos, sim.ignorados) == (2, 0)
+    assert (r.novos, r.ignorados) == (2, 0)
+    assert _total(con) == 2
+    r2 = importar(con, conta, "b.csv", b"b", parser, HOJE)  # reimportar não cria nada
+    assert (r2.novos, r2.ignorados) == (0, 2)
+
+
+@pytest.mark.parametrize("par", [("123456.", "123456"), ("PIX ABC", "pix abc")])
+def test_ordem_inversa_tambem_da_duas_linhas(con, par) -> None:
+    conta = _conta(con)
+    parser = _ParserFixo([_linha_imp("2026-10-05", par[1]), _linha_imp("2026-10-05", par[0])])
+    sim = simular_importacao(con, conta, "a.csv", b"a", parser)
+    r = importar(con, conta, "a.csv", b"a", parser, HOJE)
+    assert (sim.novos, r.novos, _total(con)) == (2, 2, 2)
+
+
+def test_chave_legada_nunca_igual_a_v2() -> None:
+    from app.dominio.lancamentos import chave_deduplicacao
+    for desc in ("123456", "pix abc", "x"):
+        assert chave_deduplicacao("u", "2026-10-05", desc, -1, 1) != chave_deduplicacao_legada(
+            "u", "2026-10-05", desc, -1, 1)
+
+
+def test_legada_identica_ao_algoritmo_antigo() -> None:
+    import hashlib
+    base = "u|2026-10-05|Pix/Abc|-1|2"
+    assert chave_deduplicacao_legada("u", "2026-10-05", "Pix/Abc", -1, 2) == hashlib.sha256(
+        base.encode()).hexdigest()
+
+
+# --- Casamento antes da v7 deixa lacuna: sobreviventes mantêm a ocorrência -----------------------
+
+def _inserir_pre_v7(con, conta, nome, desc, chave, imp) -> None:
+    con.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos,"
+                " tipo, chave_deduplicacao, origem, importacao_id, data_compensacao,"
+                " compensado) VALUES (?,?,?,?,?,'saida',?,'importado',?,?,1)",
+                (nome, conta, "2026-10-05", desc, -100, chave, imp, "2026-10-05"))
+
+
+def _nova_importacao(con, conta) -> int:
+    return con.execute("INSERT INTO importacoes (arquivo_nome, arquivo_hash, conta_id, criado_em)"
+                       " VALUES ('a', 'h', ?, '2026-10-23T00:00:00')", (conta,)).lastrowid
+
+
+def _migrar7(con) -> None:
+    con.execute("BEGIN")
+    MIGRACOES[6](con)
+    con.execute("COMMIT")
+
+
+def test_casamento_no_meio_sobreviventes_1_e_3(con) -> None:
+    from app.dominio.lancamentos import chave_deduplicacao
+    conta = _conta(con)
+    u = uuid_da_conta(con, conta)
+    imp = _nova_importacao(con, conta)
+    for k in (1, 2, 3):
+        chave = chave_deduplicacao_legada(u, "2026-10-05", "X/1", -100, k)
+        if k == 2:
+            con.execute("INSERT INTO chaves_quitadas (chave) VALUES (?)", (chave,))
+        else:
+            _inserir_pre_v7(con, conta, f"u{k}", "X/1", chave, imp)
+    con.commit()
+    _migrar7(con)
+    chaves = [r[0] for r in con.execute("SELECT chave_deduplicacao FROM lancamentos ORDER BY id")]
+    assert chaves == [chave_deduplicacao(u, "2026-10-05", "X/1", -100, 1),
+                      chave_deduplicacao(u, "2026-10-05", "X/1", -100, 3)]
+    parser = _ParserFixo([_linha_imp("2026-10-05", "X/1", -100)] * 3)
+    r = importar(con, conta, "novo", b"novo", parser, HOJE)
+    assert (r.novos, r.ignorados) == (0, 3)
+    assert _total(con) == 2
+
+
+def test_lacuna_com_duas_grafias(con) -> None:
+    from app.dominio.lancamentos import chave_deduplicacao
+    conta = _conta(con)
+    u = uuid_da_conta(con, conta)
+    imp = _nova_importacao(con, conta)
+    # grafia "X/1": ocorrência 1 sobrevive e a 2 foi casada; grafia "X 1": ocorrência 1 sobrevive
+    con.execute("INSERT INTO chaves_quitadas (chave) VALUES (?)",
+                (chave_deduplicacao_legada(u, "2026-10-05", "X/1", -100, 2),))
+    for nome, desc in (("a", "X/1"), ("b", "X 1")):
+        _inserir_pre_v7(con, conta, nome, desc,
+                        chave_deduplicacao_legada(u, "2026-10-05", desc, -100, 1), imp)
+    con.commit()
+    _migrar7(con)
+    esperado = [chave_deduplicacao(u, "2026-10-05", "x 1", -100, 1),
+                chave_deduplicacao(u, "2026-10-05", "x 1", -100, 3)]
+    sql = "SELECT chave_deduplicacao FROM lancamentos ORDER BY id"
+    assert [r[0] for r in con.execute(sql)] == esperado
+    _migrar7(con)  # idempotente
+    assert [r[0] for r in con.execute(sql)] == esperado
+    parser = _ParserFixo([_linha_imp("2026-10-05", "X/1", -100)] * 2
+                         + [_linha_imp("2026-10-05", "X/1", -100)])
+    r = importar(con, conta, "n", b"n", parser, HOJE)
+    assert (r.novos, r.ignorados) == (0, 3)

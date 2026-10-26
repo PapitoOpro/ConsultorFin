@@ -48,7 +48,13 @@ def _frontmatter(texto: str) -> dict[str, str]:
 
 
 def _arquivos_texto() -> list[Path]:
-    return [CLAUDE_MD, *sorted(p for p in (RAIZ / ".claude").rglob("*") if p.is_file())]
+    """CLAUDE.md e arquivos de .claude, exceto skills extras do usuário (fora de ESPERADAS)."""
+    def nosso(p: Path) -> bool:
+        rel = p.relative_to(SKILLS).parts if SKILLS in p.parents else ()
+        return not rel or rel[0] in ESPERADAS
+
+    return [CLAUDE_MD, *sorted(p for p in (RAIZ / ".claude").rglob("*")
+                               if p.is_file() and nosso(p))]
 
 
 def _ler(arq: Path) -> str | None:
@@ -59,7 +65,7 @@ def _ler(arq: Path) -> str | None:
 
 
 def test_skills_esperadas_existem() -> None:
-    assert {p.name for p in SKILLS.iterdir() if p.is_dir()} == ESPERADAS
+    assert ESPERADAS <= {p.name for p in SKILLS.iterdir() if p.is_dir()}
 
 
 @pytest.mark.parametrize("nome", sorted(ESPERADAS))
