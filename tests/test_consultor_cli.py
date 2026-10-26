@@ -455,3 +455,13 @@ def test_banco_travado_tem_mensagem_propria(db_cheio: Path, capsys: pytest.Captu
     assert cli.main(["saldos", "--db", str(db_cheio)]) == 1
     assert "gravando no banco" in json.loads(capsys.readouterr().out)["erro"]
     assert cli.mensagem_inesperada(RuntimeError("x")) == cli.MSG_INESPERADO
+
+
+def test_importar_ofx_todas_as_linhas_depois_do_dtasof_sem_estimativa(tmp_path: Path,
+                                                                     capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path)
+    arq = tmp_path / "e.ofx"
+    arq.write_bytes(OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261012"))
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(arq), "--conta", "1")
+    assert codigo == 0 and r["novos"] == 12
+    assert r.get("saldo_inicial_estimado") is None

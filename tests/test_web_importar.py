@@ -589,3 +589,12 @@ def test_ofx_dtasof_igual_ao_fim_preenche_saldo_inicial_estimado(db: Path) -> No
     html = _prefill_com_conta_antiga(db, conteudo)
     assert 'value="R$ 471,12"' in html and 'value="2026-10-12"' in html
     assert "estimado a partir do saldo do banco; confira antes de salvar" in _texto(html)
+
+
+def test_ofx_todas_as_linhas_depois_do_dtasof_nao_preenche_nem_rotula_estimado(db: Path) -> None:
+    conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261012")
+    html = _prefill_com_conta_antiga(db, conteudo)
+    t = _texto(html)
+    assert "Traceback" not in html and "estimado a partir do saldo do banco" not in t
+    assert "Estimativa que não inclui movimentos" not in t
+    assert 'value="R$ 471,12"' not in html and 'value="2026-10-12"' not in html

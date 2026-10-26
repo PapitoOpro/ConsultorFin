@@ -252,7 +252,7 @@ def test_ano_implausivel_e_extremos_nao_estouram() -> None:
 def test_saldo_anterior_estimado_fronteiras() -> None:
     for dt, esperado in (("20260301", "2026-02-28"), ("20240301", "2024-02-29"),
                          ("20270101", "2026-12-31"), ("20260101", "2025-12-31")):
-        assert _ler(_ofx(_trn(data=dt))).saldo_anterior_estimado[0] == esperado
+        assert _ler(_ofx(_trn(data=dt)).replace(b"<DTASOF>20261026", b"<DTASOF>20271231")).saldo_anterior_estimado[0] == esperado
 
 
 def test_dtasof_mesmo_dia_horas_diferentes() -> None:
@@ -310,3 +310,26 @@ def test_cr_e_espacos_antes_de_tag_de_fechamento() -> None:
     b = _ofx(_trn(valor="-1.00")).replace(b"-1.00\n", b"-1.00\r\t </TRNAMT>\n")
     r = _ler(b)
     assert r.erros == [] and r.linhas[0].valor_centavos == -100
+
+
+def _com_dtasof(dia: str) -> ResultadoLeitura:
+    return _ler(_texto().replace("<DTASOF>20261026", f"<DTASOF>{dia}").encode("latin-1"))
+
+
+def test_estimado_dtasof_no_meio_do_periodo_soma_so_ate_dtasof():
+    ate = sum(v for d, v in zip(DATAS, VALORES) if d <= "2026-10-20")
+    assert ate == 143018
+    r = _com_dtasof("20261020")
+    assert r.saldo_anterior_estimado == ("2026-10-12", 200000 - ate) == ("2026-10-12", 56982)
+
+
+def test_estimado_dtasof_antes_da_primeira_linha_e_none():
+    r = _com_dtasof("20261012")
+    assert r.saldo_anterior_estimado is None
+    assert r.saldos_dia == {"2026-10-12": 200000}
+
+
+def test_estimado_dtasof_igual_a_data_da_ultima_linha_e_depois():
+    for dia in ("20261022", "20261026"):
+        assert _com_dtasof(dia).saldo_anterior_estimado == ("2026-10-12", 200000 - sum(VALORES))
+    assert _com_dtasof("20261013").saldo_anterior_estimado == ("2026-10-12", 200000 - sum(VALORES[:3]))

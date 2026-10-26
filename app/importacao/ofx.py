@@ -222,4 +222,7 @@ class ParserOfx:
                 anterior = (date.fromisoformat(primeiro) - timedelta(days=1)).isoformat()
             except OverflowError:
                 return
-            res.saldo_anterior_estimado = (anterior, saldo - sum(l.valor_centavos for l in res.linhas))
+            if primeiro > data_saldo:  # todas as linhas são posteriores ao saldo: sem estimativa válida
+                return
+            ate_saldo = sum(l.valor_centavos for l in res.linhas if l.data <= data_saldo)
+            res.saldo_anterior_estimado = (anterior, saldo - ate_saldo)
