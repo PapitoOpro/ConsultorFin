@@ -4,7 +4,6 @@
   {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
 {% endblock %}
 {% block conteudo %}
-<h1>Prévia da importação</h1>
 <p class="secundario">Arquivo: {{ nome }}</p>
 {% if leitura and leitura.formato == "ofx" %}
 <p class="secundario">Formato: OFX{% if leitura.periodo %} · Período: {{ leitura.periodo[0] | data_br }} a {{ leitura.periodo[1] | data_br }}{% endif %}</p>
@@ -59,7 +58,7 @@
 <div class="bloco">
   <h2>Primeiras linhas</h2>
   {% if amostra %}
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr><th>Data</th><th>Descrição</th><th class="valor">Valor</th></tr></thead>
     <tbody>
     {% for l in amostra %}
@@ -67,7 +66,7 @@
           <td class="valor {{ 'saida' if l.valor_centavos < 0 else 'entrada' }}">{{ l.valor_centavos | brl }}</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}<p class="secundario">Nenhuma linha válida encontrada.</p>{% endif %}
 </div>
 

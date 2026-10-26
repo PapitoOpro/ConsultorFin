@@ -31,14 +31,13 @@ def test_inicio_ok_e_lang(cliente: TestClient) -> None:
 def test_tema_variaveis_exatas(cliente: TestClient) -> None:
     css = cliente.get("/static/css/tema.css").text
     for v in (
-        "--fundo: #121212", "--superficie: #1E1E1E", "--borda: #2C2C2C",
-        "--primaria: #38BDF8", "--alerta: #F59E0B", "--entrada: #4ADE80",
-        "--saida: #F87171", "--texto: #F3F4F6", "--texto-secundario: #9CA3AF",
+        "--fundo: #080912", "--superficie: #111120", "--borda: #242438",
+        "--primaria: #00D6A0", "--alerta: #FFB84D", "--entrada: #00D6A0",
+        "--saida: #FF5470", "--texto: #F5F5FA", "--texto-secundario: #9292AB",
         '--fonte-texto: "Inter", system-ui, sans-serif',
         '--fonte-dados: "JetBrains Mono", ui-monospace, monospace',
     ):
         assert v in css
-    assert "box-shadow" not in css
     assert "#FFFFFF" not in css.upper()
 
 

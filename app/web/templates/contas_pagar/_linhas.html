@@ -1,6 +1,6 @@
 {% macro tabela(linhas, horizonte, hoje, vazio) %}
 {% if linhas %}
-<table>
+<div class="tabela-rolavel"><table>
   <thead><tr><th>Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
   <tbody>
   {% for l in linhas %}
@@ -27,7 +27,7 @@
     </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 {% else %}
 <p class="secundario">{{ vazio }}</p>
 {% endif %}

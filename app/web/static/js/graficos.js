@@ -7,49 +7,27 @@
   var raiz = document.getElementById("inicio");
   if (!raiz || typeof echarts === "undefined") { return; }
 
-  var estilo = getComputedStyle(document.documentElement);
-  function cor(nome) { return estilo.getPropertyValue(nome).trim(); }
-  var C = {
-    primaria: cor("--primaria"), alerta: cor("--alerta"), entrada: cor("--entrada"),
-    saida: cor("--saida"), texto: cor("--texto"), sec: cor("--texto-secundario"),
-    borda: cor("--borda"), superficie: cor("--superficie"), fonte: cor("--fonte-texto")
-  };
+  var T = window.ConsultorFinTema;
+  if (!T) { return; }
+  var C = T.cores();
   var graficos = [];
-
-  function esc(t) {
-    return String(t).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
 
   function criar(id, opcoes) {
     var el = document.getElementById(id);
     if (!el) { return; }
     var g = echarts.init(el, null, { renderer: "svg" });
-    g.setOption(Object.assign({
-      animation: false,
-      textStyle: { color: C.sec, fontFamily: C.fonte, fontSize: 10 },
-      tooltip: {
-        trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-        textStyle: { color: C.texto, fontSize: 11 }
-      }
-    }, opcoes));
+    g.setOption(Object.assign(T.base(C), opcoes));
     graficos.push(g);
   }
 
-  function tip(p) { return esc(p.name) + ": " + esc(p.data.fmt); }
+  var tip = T.textoTooltip;
 
   function colunas(id, pontos, corDe) {
     criar(id, {
-      grid: { left: 4, right: 4, top: 8, bottom: 18 },
-      xAxis: {
-        type: "category", data: pontos.map(function (p) { return p.rotulo; }),
-        axisLine: { lineStyle: { color: C.borda } }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 9, interval: 0 }
-      },
-      yAxis: { type: "value", show: false },
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
+      grid: T.grade(),
+      xAxis: T.eixoCategoria(pontos.map(function (p) { return p.rotulo; }), C,
+                             { axisLabel: { color: C.sec, fontSize: 9, interval: 0 } }),
+      yAxis: T.eixoValor(C),
       series: [{
         type: "bar", barMaxWidth: 18,
         data: pontos.map(function (p) {
@@ -61,13 +39,10 @@
   }
 
   function rosca(fatias) {
-    var paleta = [C.primaria, C.alerta, C.entrada, C.saida, C.texto, C.sec];
+    var paleta = T.paleta(C);
     criar("graf-rosca", {
       color: paleta,
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
-      legend: { orient: "vertical", right: 0, top: "middle", icon: "roundRect",
-                itemWidth: 8, itemHeight: 8, textStyle: { color: C.sec, fontSize: 10 } },
+      legend: T.legenda(C, { orient: "vertical", right: 0, top: "middle" }),
       series: [{
         type: "pie", radius: ["52%", "80%"], center: ["28%", "50%"],
         label: { show: false }, labelLine: { show: false },
@@ -90,8 +65,6 @@
         axisLine: { show: false }, axisTick: { show: false },
         axisLabel: { color: C.sec, fontSize: 10, width: 70, overflow: "truncate" }
       },
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
       series: [{
         type: "bar", barMaxWidth: 8,
         data: ord.map(function (i) {
@@ -113,17 +86,10 @@
       };
     }
     criar("graf-comparativo", {
-      grid: { left: 4, right: 4, top: 8, bottom: 18 },
-      legend: { right: 0, top: 0, icon: "roundRect", itemWidth: 8, itemHeight: 8,
-                textStyle: { color: C.sec, fontSize: 10 } },
-      xAxis: {
-        type: "category", data: meses.map(function (m) { return m.rotulo; }),
-        axisLine: { lineStyle: { color: C.borda } }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 10 }
-      },
-      yAxis: { type: "value", show: false },
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
+      grid: T.grade(),
+      legend: T.legenda(C, { right: 0, top: 0 }),
+      xAxis: T.eixoCategoria(meses.map(function (m) { return m.rotulo; }), C),
+      yAxis: T.eixoValor(C),
       series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.entrada),
                serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
     });

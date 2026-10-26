@@ -1,0 +1,143 @@
+import re
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import create_app
+
+WEB = Path(__file__).resolve().parent.parent / "app" / "web"
+PAGINAS = {
+    "/": "Início", "/lancamentos": "Lançamentos", "/importar": "Importar",
+    "/contas-a-pagar": "Contas a pagar", "/categorias": "Categorias",
+}
+HREFS = ("/", "/lancamentos", "/importar", "/contas-a-pagar", "/categorias")
+
+
+@pytest.fixture
+def cliente(tmp_path: Path) -> Iterator[TestClient]:
+    with TestClient(create_app(tmp_path / "t.db")) as c:
+        yield c
+
+
+def _css() -> str:
+    return (WEB / "static" / "css" / "tema.css").read_text(encoding="utf-8")
+
+
+def _token(nome: str) -> str:
+    m = re.search(rf"^\s*{re.escape(nome)}:\s*(#[0-9A-Fa-f]{{6}})\s*;", _css(), re.M)
+    assert m, nome
+    return m.group(1)
+
+
+def _lum(hex_: str) -> float:
+    canais = [int(hex_[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in canais]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def _razao(a: str, b: str) -> float:
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def test_tokens_novos_em_tema_css() -> None:
+    css = _css()
+    for v in (
+        "--fundo: #080912", "--fundo-menu: #0D0D19", "--superficie: #111120",
+        "--superficie-2: #171728", "--borda: #242438", "--texto: #F5F5FA",
+        "--texto-secundario: #9292AB", "--texto-auxiliar: #6D6D88",
+        "--primaria: #00D6A0", "--entrada: #00D6A0", "--saida: #FF5470",
+        "--alerta: #FFB84D", "--info: #4DA3FF", "--roxo: #A78BFA",
+        "--raio: 14px", "--raio-pequeno: 10px", "--sombra:", "--transicao:",
+    ):
+        assert v in css, v
+    assert "prefers-reduced-motion" in css
+    assert ":focus-visible" in css
+
+
+@pytest.mark.parametrize("fundo", ["--fundo", "--fundo-menu", "--superficie", "--superficie-2"])
+def test_contraste_texto(fundo: str) -> None:
+    bg = _token(fundo)
+    assert _razao(_token("--texto"), bg) >= 4.5
+    assert _razao(_token("--texto-secundario"), bg) >= 4.5
+
+
+def test_contraste_texto_auxiliar_decorativo() -> None:
+    for fundo in ("--fundo", "--superficie"):
+        assert _razao(_token("--texto-auxiliar"), _token(fundo)) >= 3.0
+
+
+def test_contraste_cores_semanticas_sobre_superficie() -> None:
+    for nome in ("--primaria", "--saida", "--alerta", "--info"):
+        assert _razao(_token(nome), _token("--superficie")) >= 4.5, nome
+
+
+def test_sem_urls_externas_no_shell() -> None:
+    for p in (
+        WEB / "templates" / "base.html", WEB / "templates" / "_icones.html",
+        WEB / "static" / "css" / "tema.css", WEB / "static" / "js" / "graficos-tema.js",
+    ):
+        assert not re.search(r"https?://", p.read_text(encoding="utf-8")), p
+
+
+def test_graficos_tema_js_seguro() -> None:
+    js = (WEB / "static" / "js" / "graficos-tema.js").read_text(encoding="utf-8")
+    assert "window.ConsultorFinTema" in js
+    assert "innerHTML" not in js
+    assert "prefers-reduced-motion" in js
+    graficos = (WEB / "static" / "js" / "graficos.js").read_text(encoding="utf-8")
+    assert "ConsultorFinTema" in graficos
+    assert "innerHTML" not in graficos
+
+
+@pytest.mark.parametrize("rota", list(PAGINAS))
+def test_shell_pagina(cliente: TestClient, rota: str) -> None:
+    r = cliente.get(rota)
+    assert r.status_code == 200
+    assert 'lang="pt-BR"' in r.text
+    assert len(re.findall(r'<a [^>]*class="[^"]*\bitem-menu\b', r.text)) == 5
+    for h in HREFS:
+        assert f'href="{h}"' in r.text
+    ativos = re.findall(r'<a [^>]*aria-current="page"[^>]*>', r.text)
+    assert len(ativos) == 1
+    assert f'href="{rota}"' in ativos[0]
+    assert 'id="botao-menu"' in r.text and 'aria-expanded="false"' in r.text
+    assert 'aria-controls="menu-principal"' in r.text
+    assert 'id="menu-principal"' in r.text
+    assert 'class="cabecalho-pagina"' in r.text
+    assert r.text.count("<h1") == 1
+    assert PAGINAS[rota] in re.search(r"<h1[^>]*>(.*?)</h1>", r.text, re.S).group(1)  # type: ignore[union-attr]
+    assert '<script src="/static/js/graficos-tema.js"' in r.text
+
+
+def test_graficos_tema_carregado_antes_de_graficos() -> None:
+    base = (WEB / "templates" / "base.html").read_text(encoding="utf-8")
+    assert base.index("graficos-tema.js") < base.index("block cabecalho %}")
+
+
+def _icone(cliente: TestClient, expr: str) -> str:
+    env = cliente.app.state.templates.env  # type: ignore[attr-defined]
+    return str(env.from_string("{% from '_icones.html' import icone %}" + expr).render())
+
+
+def test_macro_icone(cliente: TestClient) -> None:
+    for nome in ("layout-dashboard", "receipt", "upload", "calendar-clock", "tags", "menu", "x",
+                 "arrow-up-right", "arrow-down-right", "trending-up", "trending-down",
+                 "alert-triangle", "check-circle", "info", "plus", "pencil", "trash",
+                 "chevron-down", "inbox"):
+        out = _icone(cliente, f"{{{{ icone('{nome}') }}}}")
+        assert out.startswith("<svg") and 'aria-hidden="true"' in out, nome
+        assert 'width="18"' in out
+    assert 'width="24"' in _icone(cliente, "{{ icone('menu', 24) }}")
+
+
+def test_macro_icone_desconhecido_vazio(cliente: TestClient) -> None:
+    assert _icone(cliente, "{{ icone('nao-existe') }}").strip() == ""
+    assert _icone(cliente, "{{ icone('<script>') }}").strip() == ""
+
+
+def test_lucide_licenca_em_third_party() -> None:
+    txt = (WEB / "static" / "THIRD_PARTY.txt").read_text(encoding="utf-8")
+    assert "lucide" in txt.lower() and "ISC" in txt

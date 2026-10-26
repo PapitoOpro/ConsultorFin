@@ -6,9 +6,10 @@
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
   {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
 {% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Contas a pagar</h1><p class="subtitulo">Vencimentos, parcelas e contas fixas.</p></div>
+{% endblock %}
 {% block conteudo %}
-<h1>Contas a pagar</h1>
-
 <form method="get" action="/contas-a-pagar" class="bloco acoes-barra">
   <div class="campo" style="margin-bottom:0"><label for="horizonte">Horizonte</label>
     <select id="horizonte" name="horizonte">
@@ -47,7 +48,7 @@
   <h2>Possíveis correspondências no extrato</h2>
   {% if correspondencias %}
   <p class="secundario">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr><th>Conta</th><th>Item</th><th class="valor">Valor</th><th>Linha do extrato</th><th class="valor">Valor</th><th></th></tr></thead>
     <tbody>
     {% for conta_nome, p in correspondencias %}
@@ -68,7 +69,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p class="secundario">Nenhuma correspondência pendente com o extrato.</p>
   {% endif %}
@@ -77,7 +78,7 @@
 <section id="parcelamentos" class="bloco" style="margin-top:12px">
   <h2>Parcelamentos</h2>
   {% if parcelamentos %}
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr><th>Descrição</th><th>Progresso</th><th>Próximo vencimento</th><th class="valor">Total / restante</th><th>Ações</th></tr></thead>
     <tbody>
     {% for g in parcelamentos %}
@@ -105,7 +106,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p class="secundario">Nenhum parcelamento cadastrado.</p>
   {% endif %}
@@ -132,7 +133,7 @@
 <section id="recorrentes" class="bloco" style="margin-top:12px">
   <h2>Contas fixas e receitas recorrentes</h2>
   {% if recorrentes %}
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr><th>Nome</th><th>Tipo</th><th>Dia</th><th>Conta</th><th class="valor">Valor estimado</th><th class="valor">Último valor real</th><th>Situação</th><th>Ações</th></tr></thead>
     <tbody>
     {% for r in recorrentes %}
@@ -155,7 +156,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p class="secundario">Nenhuma conta fixa ou receita recorrente cadastrada.</p>
   {% endif %}
@@ -186,7 +187,7 @@
 <section id="contas" class="bloco" style="margin-top:12px">
   <h2>Contas e cartões</h2>
   {% if contas %}
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr><th>Nome</th><th>Tipo</th><th>Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
     <tbody>
     {% for c in contas %}
@@ -198,7 +199,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p class="secundario">Nenhuma conta cadastrada. Cadastre uma para criar parcelamentos e contas fixas.</p>
   {% endif %}

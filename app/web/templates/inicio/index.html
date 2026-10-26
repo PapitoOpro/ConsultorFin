@@ -13,19 +13,19 @@
 /lancamentos?{{ {'de': resumo.de_iso, 'ate': resumo.ate_iso, 'categoria_id': ('sem' if cat_id is none else cat_id), 'tipo': 'saida', 'status': 'compensados'}|urlencode }}
 {%- endmacro %}
 {% macro classe(v) %}{{ 'entrada' if v >= 0 else 'saida' }}{% endmacro %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Início</h1><p class="subtitulo">Panorama do mês, vencimentos e projeção de saldo.</p></div>
+<form method="get" action="/" class="cabecalho-acoes seletores">
+  <div class="campo"><label for="f-mes">Mês</label>
+    <input id="f-mes" type="month" name="mes" value="{{ mes_iso }}"></div>
+  <div class="campo"><label for="f-hor">Horizonte</label>
+    <select id="f-hor" name="horizonte">
+      {% for h in horizontes %}<option value="{{ h }}"{{ " selected" if h == horizonte }}>{{ h }} meses</option>{% endfor %}
+    </select></div>
+  <button type="submit" class="secundario">Atualizar</button>
+</form>
+{% endblock %}
 {% block conteudo %}
-<div class="topo">
-  <h1>Início</h1>
-  <form method="get" action="/" class="seletores">
-    <div class="campo"><label for="f-mes">Mês</label>
-      <input id="f-mes" type="month" name="mes" value="{{ mes_iso }}"></div>
-    <div class="campo"><label for="f-hor">Horizonte</label>
-      <select id="f-hor" name="horizonte">
-        {% for h in horizontes %}<option value="{{ h }}"{{ " selected" if h == horizonte }}>{{ h }} meses</option>{% endfor %}
-      </select></div>
-    <button type="submit" class="secundario">Atualizar</button>
-  </form>
-</div>
 
 {% if resumo %}
 {% if resumo.contas %}
@@ -123,11 +123,11 @@
     {% for sub in cat.subs %}
     <details class="sub">
       <summary><span>{{ sub.nome }}</span><span class="valor saida">{{ sub.total_centavos|brl }}</span></summary>
-      <table><tbody>
+      <div class="tabela-rolavel"><table><tbody>
         {% for l in sub.lancamentos %}
         <tr><td>{{ l.data|data_br }}</td><td>{{ l.descricao }}</td><td class="valor saida">{{ l.valor_centavos|brl }}</td></tr>
         {% endfor %}
-      </tbody></table>
+      </tbody></table></div>
       {% if sub.n > sub.lancamentos|length %}<p class="secundario">Mostrando {{ sub.lancamentos|length }} de {{ sub.n }} lançamentos.</p>{% endif %}
       {% if sub.id is not none or cat.id is none %}
       <p><a href="{{ link_lanc(resumo, sub.id if sub.id is not none else cat.id) }}">Ver no extrato</a>
@@ -139,7 +139,7 @@
   {% else %}
   <p class="secundario">Nenhuma saída neste mês.</p>
   {% endfor %}
-  <table class="total"><tbody><tr><td>Total</td><td class="valor saida">{{ resumo.saidas_centavos|brl }}</td></tr></tbody></table>
+  <div class="tabela-rolavel"><table class="total"><tbody><tr><td>Total</td><td class="valor saida">{{ resumo.saidas_centavos|brl }}</td></tr></tbody></table></div>
 </section>
 {% endif %}
 {% endif %}

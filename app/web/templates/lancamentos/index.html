@@ -5,9 +5,10 @@
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
   {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
 {% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Lançamentos</h1><p class="subtitulo">Extrato consolidado de todas as contas, com filtros.</p></div>
+{% endblock %}
 {% block conteudo %}
-<h1>Lançamentos</h1>
-
 <form method="get" action="/lancamentos" class="bloco filtros">
   <div class="campo"><label for="f-de">De</label><input id="f-de" type="date" name="de" value="{{ filtros.de or '' }}"></div>
   <div class="campo"><label for="f-ate">Até</label><input id="f-ate" type="date" name="ate" value="{{ filtros.ate or '' }}"></div>
@@ -80,7 +81,7 @@
 <div class="bloco" style="margin-top:12px">
   <p class="secundario">{{ pagina.total }} lançamentos · Página {{ pagina.pagina }} de {{ pagina.paginas }}</p>
   {% if pagina.linhas %}
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr>
       <th></th><th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
       <th class="valor">Valor</th><th class="valor">Saldo</th><th>Tipo</th><th>Origem</th><th>Ações</th>
@@ -134,7 +135,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p class="secundario">Nenhum lançamento encontrado para este filtro.</p>
   {% endif %}

@@ -4,8 +4,10 @@
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
   {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
 {% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Importar extrato</h1><p class="subtitulo">Envie um arquivo OFX, CSV ou Excel para lançar as movimentações.</p></div>
+{% endblock %}
 {% block conteudo %}
-<h1>Importar extrato</h1>
 <form method="post" action="/importar/previa" enctype="multipart/form-data" class="bloco">
   <label id="area" class="dropzone" for="arquivo">
     <strong>Arraste o extrato aqui</strong> ou clique para escolher
@@ -43,7 +45,7 @@
 <div class="bloco">
   <h2>Histórico de importações</h2>
   {% if historico %}
-  <table>
+  <div class="tabela-rolavel"><table>
     <thead><tr><th>Arquivo</th><th>Conta</th><th>Período</th><th class="valor">Novos</th><th class="valor">Ignorados</th><th>Situação</th><th></th></tr></thead>
     <tbody>
     {% for i in historico %}
@@ -60,7 +62,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p class="secundario">Nenhuma importação ainda.</p>
   {% endif %}

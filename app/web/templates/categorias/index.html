@@ -21,9 +21,10 @@
     <button type="submit" class="secundario">Renomear</button>
   </form>
 {% endmacro %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Categorias</h1><p class="subtitulo">Organize entradas e saídas em categorias e subcategorias.</p></div>
+{% endblock %}
 {% block conteudo %}
-<h1>Categorias</h1>
-
 <nav class="abas" aria-label="Tipo de categoria">
   <a href="/categorias?aba=saida" class="{{ 'ativa' if aba == 'saida' }}">Saídas</a>
   <a href="/categorias?aba=entrada" class="{{ 'ativa' if aba == 'entrada' }}">Entradas</a>
@@ -84,7 +85,7 @@
     </div>
     <p class="secundario">Mudar o tipo também muda o tipo de todas as subcategorias.</p>
     {% if c.filhas %}
-    <table>
+    <div class="tabela-rolavel"><table>
       <thead><tr><th>Subcategoria</th><th>Uso</th><th>Ações</th></tr></thead>
       <tbody>
       {% for f in c.filhas %}
@@ -107,7 +108,7 @@
         </tr>
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     {% else %}
     <p class="secundario">Sem subcategorias.</p>
     {% endif %}

@@ -1,3 +1,7 @@
+{% from "_icones.html" import icone %}
+{% macro item_menu(chave, href, nome, icone_nome) -%}
+<a class="item-menu" href="{{ href }}"{% if ativo == chave %} aria-current="page"{% endif %}>{{ icone(icone_nome, 18) }}<span>{{ nome }}</span></a>
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -7,36 +11,60 @@
   <link rel="stylesheet" href="/static/css/tema.css">
   <script src="/static/js/htmx.min.js" defer></script>
   <script src="/static/js/categoria-busca.js" defer></script>
+  <script src="/static/js/graficos-tema.js" defer></script>
   {% block cabecalho %}{% endblock %}
 </head>
 <body>
-  <div class="layout">
-    <nav class="menu" aria-label="Menu principal">
-      <div class="marca">ConsultorFin</div>
-      <a href="/" class="{{ 'ativo' if ativo == 'inicio' }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
-        <span>Início</span></a>
-      <a href="/lancamentos" class="{{ 'ativo' if ativo == 'lancamentos' }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-        <span>Lançamentos</span></a>
-      <a href="/importar" class="{{ 'ativo' if ativo == 'importar' }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
-        <span>Importar</span></a>
-      <a href="/contas-a-pagar" class="{{ 'ativo' if ativo == 'contas' }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-        <span>Contas a pagar</span></a>
-      <a href="/categorias" class="{{ 'ativo' if ativo == 'categorias' }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
-        <span>Categorias</span></a>
-    </nav>
-    <main class="conteudo">
-      <div id="mensagens" class="mensagens" role="alert" aria-live="polite">
-        {% block mensagens %}{% endblock %}
+  <div class="app" id="app">
+    <aside class="menu-lateral">
+      <div class="menu-topo">
+        <a class="marca" href="/" aria-label="ConsultorFin, ir para o Início"><span class="marca-logo" aria-hidden="true">C</span><span class="marca-nome">ConsultorFin</span></a>
+        <button type="button" id="botao-menu" class="botao-menu" aria-expanded="false" aria-controls="menu-principal" aria-label="Menu de navegação"><span class="icone-abrir">{{ icone("menu", 20) }}</span><span class="icone-fechar">{{ icone("x", 20) }}</span></button>
       </div>
-      {% block conteudo %}{% endblock %}
-    </main>
+      <nav class="menu-nav" id="menu-principal" aria-label="Menu principal">
+        <p class="grupo-menu">Visão geral</p>
+        {{ item_menu("inicio", "/", "Início", "layout-dashboard") }}
+        {{ item_menu("lancamentos", "/lancamentos", "Lançamentos", "receipt") }}
+        <p class="grupo-menu">Operações</p>
+        {{ item_menu("importar", "/importar", "Importar", "upload") }}
+        {{ item_menu("contas", "/contas-a-pagar", "Contas a pagar", "calendar-clock") }}
+        <p class="grupo-menu">Organização</p>
+        {{ item_menu("categorias", "/categorias", "Categorias", "tags") }}
+      </nav>
+    </aside>
+    <div class="principal">
+      <header class="cabecalho-pagina">
+        {% block cabecalho_pagina %}
+        <div class="cabecalho-titulo"><h1>{{ self.titulo() }}</h1></div>
+        {% endblock %}
+      </header>
+      <main class="conteudo">
+        <div id="mensagens" class="mensagens" role="alert" aria-live="polite">
+          {% block mensagens %}{% endblock %}
+        </div>
+        {% block conteudo %}{% endblock %}
+      </main>
+    </div>
   </div>
   <script>
+    (function () {
+      var app = document.getElementById("app");
+      var botao = document.getElementById("botao-menu");
+      app.classList.add("menu-js");
+      function definir(aberto) {
+        app.classList.toggle("menu-aberto", aberto);
+        botao.setAttribute("aria-expanded", aberto ? "true" : "false");
+      }
+      botao.addEventListener("click", function () {
+        definir(botao.getAttribute("aria-expanded") !== "true");
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && botao.getAttribute("aria-expanded") === "true") {
+          definir(false);
+          botao.focus();
+        }
+      });
+    })();
     document.body.addEventListener("htmx:responseError", function (e) {
       var alvo = document.getElementById("mensagens");
       var p = document.createElement("div");
