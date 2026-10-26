@@ -138,6 +138,7 @@ a.cartao:hover, a.kpi:hover, button.cartao:hover, a.painel:hover { border-color:
 .painel-acao { font-size: 13px; }
 .grade-paineis { display: grid; grid-template-columns: minmax(0, 65fr) minmax(0, 35fr); gap: 16px; margin-bottom: 16px; }
 .grade-paineis.meio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grade-paineis.recentes { grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); }
 /* estado vazio: .vazio > .vazio-icone + p */
 .vazio { text-align: center; padding: 32px 16px; color: var(--texto-secundario); }
 .vazio-icone { display: inline-grid; place-items: center; width: 48px; height: 48px; margin-bottom: 12px; border-radius: 50%; background: var(--superficie-2); color: var(--texto-secundario); }
@@ -257,7 +258,49 @@ details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6
 .grafico { height: 160px; width: 100%; }
 .grafico.pequeno { height: 110px; }
 .bloco.vazio { text-align: center; padding: 32px 16px; }
-.detalhe { margin-top: 12px; }
+.detalhe { margin-top: 0; }
+.dashboard { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dashboard > * { margin: 0; }
+.dashboard .grade-kpi, .dashboard .grade-paineis { margin-bottom: 0; }
+.rotulo-campo { display: block; margin-bottom: 4px; color: var(--texto-secundario); font-size: 12px; font-weight: 500; }
+.grade-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.grafico.grande { height: 340px; }
+.grafico.rosca { height: 210px; }
+.dashboard .grafico.pequeno { height: 190px; }
+.kpi-variacao strong { font-weight: 600; }
+.kpi-destaque .kpi-variacao { font-weight: 500; opacity: .85; }
+/* legenda da rosca: .amostra.c0..c5 acompanham a ordem da paleta do gráfico */
+.legenda-rosca { list-style: none; margin: 12px 0 0; padding: 0; }
+.legenda-rosca li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--borda); font-size: 13px; }
+.legenda-rosca li:last-child { border-bottom: 0; }
+.legenda-nome { display: inline-flex; align-items: center; gap: 10px; min-width: 0; color: var(--texto-secundario); overflow-wrap: anywhere; }
+.legenda-rosca .valor { color: var(--texto); font-family: var(--fonte-texto); font-weight: 600; }
+.amostra { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--texto-secundario); }
+.amostra.c0 { background: var(--primaria); } .amostra.c1 { background: var(--info); } .amostra.c2 { background: var(--roxo); }
+.amostra.c3 { background: var(--alerta); } .amostra.c4 { background: var(--saida); } .amostra.c5 { background: var(--texto-secundario); }
+/* listas de movimentos e vencimentos */
+.lista-mov, .lista-venc, .contas-lista { list-style: none; margin: 0; padding: 0; }
+.lista-mov li, .lista-venc li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--borda); }
+.lista-mov li:first-child, .lista-venc li:first-child { padding-top: 0; }
+.lista-mov li:last-child, .lista-venc li:last-child { border-bottom: 0; padding-bottom: 0; }
+.mov-icone { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--raio-pequeno); background: var(--superficie-2); color: var(--texto-secundario); }
+.mov-icone.entrada { background: rgba(0, 214, 160, .12); color: var(--entrada); }
+.mov-icone.saida { background: rgba(255, 84, 112, .12); color: var(--saida); }
+.mov-icone.alerta { background: rgba(255, 184, 77, .12); color: var(--alerta); }
+.mov-texto { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.mov-texto strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mov-texto .secundario { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mov-valor { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.mov-valor .valor { font-weight: 500; }
+.mov-valor .valor.neutro { color: var(--texto); }
+.mov-valor .selo { margin-left: 0; }
+.mov-valor .selo + .selo { margin-top: 0; }
+.lista-venc li.vencida .mov-texto strong { color: var(--texto); }
+.contas-lista li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borda); }
+.contas-lista li:last-child { border-bottom: 0; }
+.contas-lista .valor { font-weight: 600; }
+.detalhe details.cat > summary { font-weight: 500; }
+.detalhe summary { align-items: center; padding: 10px 0; }
 .detalhe summary { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; cursor: pointer; border-bottom: 1px solid var(--borda); }
 .detalhe details.sub { margin-left: 20px; }
 .detalhe details.sub table { margin-left: 20px; width: calc(100% - 20px); font-size: 13px; }
@@ -300,7 +343,7 @@ details.categoria > summary { display: flex; flex-wrap: wrap; justify-content: s
   .app.menu-js .botao-menu { display: inline-flex; }
   .app.menu-js .menu-nav { display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100vh - 60px); overflow-y: auto; background: var(--fundo-menu); border-bottom: 1px solid var(--borda); box-shadow: var(--sombra); }
   .app.menu-js.menu-aberto .menu-nav { display: block; }
-  .grade-paineis, .grade-paineis.meio { grid-template-columns: minmax(0, 1fr); }
+  .grade-paineis, .grade-paineis.meio, .grade-paineis.recentes { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
   .conteudo { padding: 16px 16px 32px; }

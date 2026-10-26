@@ -34,7 +34,7 @@ def _html(request: Request, ctx: dict[str, Any], status: int = 200) -> HTMLRespo
 
 def _pagina_erro(request: Request, msg: str, status: int) -> HTMLResponse:
     hoje: date = request.app.state.hoje_fn()
-    return _html(request, {"erro": msg, "resumo": None, "dados": None, "horizonte": 6,
+    return _html(request, {"erro": msg, "resumo": None, "dados": None, "horizonte": 6, "ind": None,
                            "mes_iso": f"{hoje.year:04d}-{hoje.month:02d}"}, status)
 
 
@@ -47,7 +47,8 @@ def inicio(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
     try:
         resumo = painel.resumo_inicio(con, hoje, ano, mes, horizonte)
         dados = None if resumo.vazio else painel.dados_graficos(con, hoje, resumo, horizonte)
-        return _html(request, {"erro": None, "resumo": resumo, "dados": dados,
+        ind = None if resumo.vazio else painel.indicadores_inicio(con, hoje, resumo)
+        return _html(request, {"erro": None, "resumo": resumo, "dados": dados, "ind": ind,
                                "horizonte": horizonte, "mes_iso": resumo.mes_iso})
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
         log.error("event=inicio_falhou erro=%s", type(exc).__name__)

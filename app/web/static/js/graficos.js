@@ -26,7 +26,7 @@
     criar(id, {
       grid: T.grade(),
       xAxis: T.eixoCategoria(pontos.map(function (p) { return p.rotulo; }), C,
-                             { axisLabel: { color: C.sec, fontSize: 9, interval: 0 } }),
+                             { axisLabel: { color: C.sec, fontSize: 9, interval: pontos.length > 6 ? 1 : 0, hideOverlap: true } }),
       yAxis: T.eixoValor(C),
       series: [{
         type: "bar", barMaxWidth: 18,
@@ -40,18 +40,70 @@
 
   function rosca(fatias) {
     var paleta = T.paleta(C);
+    var total = fatias.reduce(function (t, f) { return t + f.valor_centavos; }, 0);
     criar("graf-rosca", {
       color: paleta,
-      legend: T.legenda(C, { orient: "vertical", right: 0, top: "middle" }),
+      title: {
+        text: T.moeda(total), subtext: "total em saídas", left: "center", top: "center",
+        itemGap: 4,
+        textStyle: { color: C.texto, fontSize: 18, fontWeight: 700, fontFamily: C.fonte },
+        subtextStyle: { color: C.sec, fontSize: 11, fontFamily: C.fonte }
+      },
       series: [{
-        type: "pie", radius: ["52%", "80%"], center: ["28%", "50%"],
-        label: { show: false }, labelLine: { show: false },
-        itemStyle: { borderColor: C.superficie, borderWidth: 2 },
+        type: "pie", radius: ["62%", "86%"], center: ["50%", "50%"],
+        label: { show: false }, labelLine: { show: false }, avoidLabelOverlap: false,
+        itemStyle: { borderColor: C.superficie, borderWidth: 3, borderRadius: 4 },
+        emphasis: { scaleSize: 4 },
         data: fatias.map(function (f, i) {
           return { value: f.valor_centavos, name: f.nome, fmt: f.valor_fmt,
                    itemStyle: { color: paleta[i % paleta.length] } };
         })
       }]
+    });
+  }
+
+  function compacto(centavos) {
+    var n = Math.abs(centavos) / 100;
+    var txt = n >= 1000000 ? (n / 1000000).toFixed(1) + " mi"
+      : n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + " mil" : String(Math.round(n));
+    return "R$ " + txt.replace(".", ",");
+  }
+
+  function fluxo(meses) {
+    function serie(nome, chave, fmt, cor) {
+      return {
+        name: nome, type: "line", smooth: 0.35, symbol: "circle", symbolSize: 8, showSymbol: false,
+        lineStyle: { width: 3, color: cor }, itemStyle: { color: cor, borderColor: C.superficie, borderWidth: 2 },
+        emphasis: { focus: "series" },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: cor + "55" }, { offset: 1, color: cor + "00" }])
+        },
+        data: meses.map(function (m) { return { value: m[chave], fmt: m[fmt], name: m.rotulo }; })
+      };
+    }
+    criar("graf-fluxo", {
+      grid: { left: 4, right: 26, top: 36, bottom: 4, containLabel: true },
+      legend: T.legenda(C, { right: 0, top: 0 }),
+      tooltip: T.tooltip(C, {
+        trigger: "axis", axisPointer: { type: "line", lineStyle: { color: C.borda } },
+        formatter: function (ps) {
+          var linhas = [T.esc(ps[0].name)];
+          ps.forEach(function (p) {
+            linhas.push(T.esc(p.seriesName) + ": " + T.esc(p.data.fmt));
+          });
+          return linhas.join("<br>");
+        }
+      }),
+      xAxis: T.eixoCategoria(meses.map(function (m) { return m.rotulo; }), C, {
+        boundaryGap: false, axisLabel: { color: C.sec, fontSize: 11, margin: 12 }
+      }),
+      yAxis: T.eixoValor(C, {
+        show: true, min: 0, axisLabel: { color: C.aux, fontSize: 10, formatter: compacto },
+        splitLine: { lineStyle: { color: C.borda, type: "dashed", opacity: .6 } }
+      }),
+      series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.primaria),
+               serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
     });
   }
 
@@ -107,10 +159,11 @@
       return r.json();
     })
     .then(function (d) {
+      fluxo(d.fluxo);
       if (d.rosca.length) { rosca(d.rosca); }
       colunas("graf-parcelas", d.parcelas, function () { return C.primaria; });
       colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.alerta : C.primaria; });
-      barras(d.maiores);
+      if (d.maiores.length) { barras(d.maiores); }
       comparativo(d.comparativo);
     })
     .catch(function () {

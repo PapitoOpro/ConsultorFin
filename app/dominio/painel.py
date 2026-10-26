@@ -19,6 +19,8 @@ TOP_ROSCA = 5
 TOP_BARRAS = 5
 LIMITE_LANCAMENTOS = 50
 _MES = re.compile(r"[0-9]{4}-[0-9]{2}")
+_MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+          "setembro", "outubro", "novembro", "dezembro")
 _ABREV = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
 
 
@@ -37,6 +39,11 @@ def interpretar_mes(texto: str | None, hoje: date) -> tuple[int, int]:
 def rotulo_mes(mes_iso: str) -> str:
     """'2027-01' -> 'jan/27'."""
     return f"{_ABREV[int(mes_iso[5:7]) - 1]}/{mes_iso[2:4]}"
+
+
+def nome_mes(ano: int, mes: int) -> str:
+    """(2026, 10) -> 'outubro de 2026'."""
+    return f"{_MESES[mes - 1]} de {ano}"
 
 
 def _limites(ano: int, mes: int) -> tuple[str, str, str]:
@@ -140,6 +147,10 @@ class Resumo:
         return f"{self.ano:04d}-{self.mes:02d}"
 
     @property
+    def nome_mes(self) -> str:
+        return nome_mes(self.ano, self.mes)
+
+    @property
     def de_iso(self) -> str:
         return _limites(self.ano, self.mes)[0]
 
@@ -196,4 +207,115 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
             {**_ponto(p.mes, rotulo_mes(p.mes), p.saldo_final_centavos),
              "negativo": p.saldo_final_centavos < 0} for p in pontos],
         "comparativo": comparativo,
+        "fluxo": fluxo_caixa(con, resumo.ano, resumo.mes),
+    }
+
+
+def fluxo_caixa(con: Any, ano: int, mes: int, meses: int = 6) -> list[dict[str, Any]]:
+    """Entradas e saídas dos `meses` meses que terminam em ano/mes (ordem cronológica), com as
+    mesmas funções do resumo do mês (`entradas_do_mes`/`despesas_do_mes`)."""
+    fim = date(ano, mes, 1)
+    saida: list[dict[str, Any]] = []
+    for i in range(meses - 1, -1, -1):
+        d = somar_meses(fim, -i)
+        chave = f"{d.year:04d}-{d.month:02d}"
+        e, s = entradas_do_mes(con, d.year, d.month), despesas_do_mes(con, d.year, d.month)
+        saida.append({
+            "mes": chave, "rotulo": rotulo_mes(chave), "entradas_centavos": e,
+            "saidas_centavos": s, "entradas_fmt": formatar_brl(e), "saidas_fmt": formatar_brl(s)})
+    return saida
+
+
+def _rotulo_categoria(cat: Any, pai: Any) -> str:
+    if cat is None:
+        return SEM_CATEGORIA
+    return f"{pai} › {cat}" if pai is not None else str(cat)
+
+
+def ultimos_lancamentos(con: Any, limite: int = 5) -> list[dict[str, Any]]:
+    """Últimos lançamentos efetivados (compensados), mais recentes primeiro; valor com sinal."""
+    return [{
+        "id": int(r["id"]), "data": str(r["data"]), "descricao": str(r["descricao"]),
+        "conta": str(r["conta_nome"]), "conta_tipo": str(r["conta_tipo"]),
+        "categoria": _rotulo_categoria(r["cat_nome"], r["pai_nome"]), "tipo": str(r["tipo"]),
+        "valor_centavos": int(r["valor_centavos"]),
+    } for r in painel.ultimos_efetivados(con, limite)]
+
+
+def _situacao(data: str, hoje: date) -> str:
+    dias = (date.fromisoformat(data) - hoje).days
+    if dias < 0:
+        return "vencida"
+    if dias == 0:
+        return "vence hoje"
+    return f"em {dias} dia{'s' if dias != 1 else ''}"
+
+
+def proximos_vencimentos(con: Any, hoje: date, limite: int = 6) -> list[dict[str, Any]]:
+    """Saídas pendentes mais próximas (vencidas primeiro); `valor_centavos` é o valor a pagar."""
+    return [{
+        "id": int(r["id"]), "data": str(r["data"]), "descricao": str(r["descricao"]),
+        "conta": str(r["conta_nome"]), "valor_centavos": -int(r["valor_centavos"]),
+        "estimado": bool(r["estimado"]), "dias": (date.fromisoformat(str(r["data"])) - hoje).days,
+        "situacao": _situacao(str(r["data"]), hoje),
+        "vencida": str(r["data"]) < hoje.isoformat(),
+        "categoria": _rotulo_categoria(r["cat_nome"], r["pai_nome"]),
+    } for r in painel.saidas_pendentes_proximas(con, limite)]
+
+
+def variacao_percentual(atual: int, anterior: int) -> float | None:
+    """Variação (%) de `atual` sobre `anterior`, 1 casa; None se `anterior` <= 0."""
+    if anterior <= 0:
+        return None
+    return round((atual - anterior) / anterior * 100, 1)
+
+
+def _pct_texto(valor: float) -> str:
+    return f"{abs(valor):,.1f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def formatar_variacao(valor: float) -> str:
+    """8.2 -> '+8,2%'; -12.0 -> '-12,0%'; 0 -> '0,0%'; milhar com ponto."""
+    texto = _pct_texto(valor)
+    sinal = "+" if valor > 0 else "-" if valor < 0 else ""
+    return f"{sinal}{texto}%"
+
+
+def legenda_rosca(resumo: Resumo) -> list[dict[str, Any]]:
+    """Itens da legenda da rosca (mesma ordem/agrupamento do gráfico): nome, valor e % do total."""
+    itens = top_com_outros([(c.nome, c.total_centavos) for c in resumo.categorias], TOP_ROSCA)
+    total = sum(v for _, v in itens)
+    return [{"nome": n, "valor_centavos": v, "valor_fmt": formatar_brl(v),
+             "percentual": f"{_pct_texto(round(v * 1000 / total) / 10)}%" if total > 0 else "0,0%"}
+            for n, v in itens]
+
+
+@dataclass(frozen=True)
+class Variacao:
+    texto: str          # '+8,2%'
+    sentido: str        # 'subiu' | 'caiu' | 'estavel'
+    bom: bool | None    # True = favorável, False = desfavorável, None = neutro
+
+
+def _variacao(atual: int, anterior: int, mais_e_bom: bool) -> Variacao | None:
+    v = variacao_percentual(atual, anterior)
+    if v is None:
+        return None
+    if v == 0:
+        return Variacao(formatar_variacao(v), "estavel", None)
+    return Variacao(formatar_variacao(v), "subiu" if v > 0 else "caiu", (v > 0) == mais_e_bom)
+
+
+def indicadores_inicio(con: Any, hoje: date, resumo: Resumo) -> dict[str, Any]:
+    """Extras do dashboard: comparação com o mês anterior (só se calculável), lançamentos
+    recentes e próximos vencimentos."""
+    ant = somar_meses(date(resumo.ano, resumo.mes, 1), -1)
+    e_ant, s_ant = entradas_do_mes(con, ant.year, ant.month), despesas_do_mes(con, ant.year, ant.month)
+    return {
+        "mes_anterior": rotulo_mes(f"{ant.year:04d}-{ant.month:02d}"),
+        "var_entradas": _variacao(resumo.entradas_centavos, e_ant, mais_e_bom=True),
+        "var_saidas": _variacao(resumo.saidas_centavos, s_ant, mais_e_bom=False),
+        "legenda_rosca": legenda_rosca(resumo),
+        "recentes": ultimos_lancamentos(con),
+        "vencimentos": proximos_vencimentos(con, hoje),
     }
