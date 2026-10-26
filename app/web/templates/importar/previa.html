@@ -6,6 +6,9 @@
 {% block conteudo %}
 <h1>Prévia da importação</h1>
 <p class="secundario">Arquivo: {{ nome }}</p>
+{% if leitura and leitura.formato == "ofx" %}
+<p class="secundario">Formato: OFX{% if leitura.periodo %} · Período: {{ leitura.periodo[0] | data_br }} a {{ leitura.periodo[1] | data_br }}{% endif %}</p>
+{% endif %}
 
 {% if not contas %}
   <div class="alerta">Cadastre uma conta para continuar.</div>
@@ -83,7 +86,7 @@
 </form>
 {% endif %}
 
-{% if contas and not ja_importado and sugestao %}
+{% if contas and not ja_importado and (sugestao or estimativa_sem_prefill) %}
   {% include "importar/_form_conta.html" %}
 {% endif %}
 {% endblock %}

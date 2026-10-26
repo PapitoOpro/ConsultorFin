@@ -14,6 +14,7 @@ from app.main import create_app
 from app.repo import contas, lancamentos
 
 FIXTURE = Path(__file__).parent / "fixtures" / "extrato_itau_exemplo.csv"
+FIXTURE_OFX = Path(__file__).parent / "fixtures" / "extrato_itau_exemplo.ofx"
 CSV_GENERICO = "Dia;Histórico;Quanto\n01/10/2026;LOJA A;-10,50\n02/10/2026;LOJA B;-20,00\n03/10/2026;SALARIO;100,00\n"
 MAPA = {"mapa_data": "Dia", "mapa_descricao": "Histórico", "mapa_valor": "Quanto"}
 XLS_ANTIGO = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64
@@ -143,8 +144,8 @@ def test_confirmar_revalida_arquivo_repetido(cliente: TestClient, db: Path) -> N
 
 @pytest.mark.parametrize("nome,conteudo,msg", [
     ("extrato.csv", b"", "O arquivo está vazio."),
-    ("extrato.txt", b"abc", "Formato não aceito. Envie um arquivo .csv ou .xlsx."),
-    ("antigo.xls", XLS_ANTIGO, "Formato não aceito. Envie um arquivo .csv ou .xlsx."),
+    ("extrato.txt", b"abc", "Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx."),
+    ("antigo.xls", XLS_ANTIGO, "Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx."),
     ("disfarcado.xlsx", XLS_ANTIGO, "Planilhas .xls (Excel antigo) não são aceitas."),
     ("extrato.csv", b"x" * (5 * 1024 * 1024 + 1), "O arquivo excede o limite de 5 MB."),
     ("planilha.xlsx", b"PK\x03\x04lixo", "Não foi possível ler o arquivo."),
@@ -434,3 +435,157 @@ def test_desfazer_erro_inesperado_e_amigavel(
     monkeypatch.setattr(rota, "desfazer_importacao", quebra)
     r = cliente.post("/importar/1/desfazer")
     assert r.status_code == 500 and "Não foi possível desfazer a importação." in r.text
+
+
+# ---- OFX ----
+
+def _ofx_do_csv() -> bytes:
+    linhas = ["OFXHEADER:100", "DATA:OFXSGML", "", "<OFX>", "<BANKACCTFROM>", "<ACCTID>0000000000", "</BANKACCTFROM>",
+              "<BANKTRANLIST>", "<DTSTART>20260724", "<DTEND>20261022"]
+    for bruta in FIXTURE.read_bytes().decode("latin-1").splitlines():
+        c = bruta.split(";")
+        if len(c) < 5 or "SALDO" in c[1] or not re.fullmatch(r"\d\d/\d\d/\d{4}", c[0]) or not c[3]:
+            continue
+        d, m, a = c[0].split("/")
+        valor = c[3].replace(".", "").replace(",", ".")
+        descricao = c[1].replace("/", " ")
+        linhas += ["<STMTTRN>", f"<DTPOSTED>{a}{m}{d}100000[-03:EST]", f"<TRNAMT>{valor}",
+                   f"<MEMO>{descricao}", "</STMTTRN>"]
+    linhas += ["</BANKTRANLIST>", "</OFX>"]
+    return "\r\n".join(linhas).encode("latin-1")
+
+
+def test_ofx_previa_e_resultado_com_saldo_informativo(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47111, data="2026-10-12", final="00000-0000")
+    prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes())
+    assert prev.status_code == 200
+    t = _texto(prev.text)
+    assert "Formato: OFX" in t and "13/10/2026 a 22/10/2026" in t
+    assert "12 novos" in t and "0 com erro" in t
+    assert f'<option value="{conta}" selected>' in prev.text and "Conta detectada pelo arquivo" in t
+    r = _confirmar(cliente, prev.text, conta)
+    assert r.status_code == 200
+    t = _texto(r.text)
+    assert "Saldo do banco em 26/10/2026: R$ 2.000,00." in t
+    assert "O arquivo cobre até 22/10/2026." in t
+    assert "Saldo calculado em 26/10/2026: R$ 1.999,99." in t
+    assert "O saldo calculado está R$ 0,01 abaixo do saldo do banco." in t
+    assert "Movimentos depois de 22/10 (como rendimentos) podem explicar" in t
+    assert "se a diferença se repetir em outras importações, confira o saldo inicial" in t
+    assert "diverg" not in r.text.lower() and "não confere" not in r.text.lower()
+    assert _total(db) == 12
+    outra = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
+    assert "já foi importado" in outra.text
+
+
+def test_ofx_saldo_informativo_igual_confere(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-11", final="00000-0000")
+    prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "Saldo confere com o banco em 26/10/2026" in _texto(r.text)
+    assert "diverg" not in r.text.lower()
+
+
+def test_ofx_saldo_inicial_igual_a_estimativa_nao_diz_que_confere(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-12", final="00000-0000")
+    prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
+    r = _confirmar(cliente, prev.text, conta)
+    t = _texto(r.text)
+    assert "confere" not in t and "Saldo do banco em" not in t
+    assert ("Saldo inicial estimado a partir deste arquivo; a conferência só passa a ter sentido "
+            "nas próximas importações.") in t
+
+
+def test_ofx_dtasof_dentro_do_periodo_usa_conciliacao_normal(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-11")
+    conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022")
+    assert b"DTASOF>20261022" in conteudo
+    prev = _upload(cliente, "extrato.ofx", conteudo, conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "Saldo confere com o banco" in r.text and "Saldo do banco em" not in r.text
+
+
+def test_ofx_dtasof_dentro_do_periodo_circular_e_neutro(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-12")
+    conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022")
+    prev = _upload(cliente, "extrato.ofx", conteudo, conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "confere" not in _texto(r.text) and "Saldo inicial estimado a partir deste arquivo" in r.text
+
+
+def test_ofx_caixa_ignora_lancamento_manual_compensado(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-11", final="00000-0000")
+    con = conectar(db)
+    try:
+        lancamentos.inserir_manual(con, conta_id=conta, data="2026-10-14", descricao="PAGO NA MAO",
+                                   valor_centavos=-5000, tipo="saida", categoria_id=None,
+                                   compensado=True, observacao=None)
+        con.commit()
+    finally:
+        con.close()
+    prev = _upload(cliente, "extrato.ofx", FIXTURE_OFX.read_bytes(), conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "Saldo confere com o banco em 26/10/2026" in _texto(r.text)
+
+
+def test_ofx_caixa_com_linha_importada_faltando_mostra_diferenca(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db, saldo=47112, data="2026-10-11", final="00000-0000")
+    bruto = FIXTURE_OFX.read_bytes()
+    ini = bruto.index(b"<STMTTRN>")
+    fim = bruto.index(b"</STMTTRN>") + len(b"</STMTTRN>")
+    prev = _upload(cliente, "extrato.ofx", bruto[:ini] + bruto[fim:], conta)
+    r = _confirmar(cliente, prev.text, conta)
+    assert "O saldo calculado está R$ 512,30 acima do saldo do banco." in _texto(r.text)
+
+
+def test_ofx_que_nao_e_ofx_e_recusado(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    r = _upload(cliente, "extrato.ofx", b"Data;Valor\n01/10/2026;10,00\n", conta)
+    assert r.status_code == 400
+    assert "não parece ser um OFX" in r.text and "Traceback" not in r.text
+    assert _total(db) == 0
+
+
+def test_ofc_e_cartao_dao_mensagem_amigavel(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    r = _upload(cliente, "extrato.ofc", b"<OFC>\n<ACCTSTMT>\n</OFC>", conta)
+    assert r.status_code == 400 and "OFC ainda não é suportado" in r.text
+    cartao = FIXTURE_OFX.read_bytes().replace(b"<STMTRS>", b"<CCSTMTRS>")
+    r = _upload(cliente, "fatura.ofx", cartao, conta)
+    assert r.status_code == 400 and "cartão de crédito" in r.text and "Traceback" not in r.text
+    assert _total(db) == 0
+
+
+def test_csv_depois_ofx_equivalente_nao_duplica(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    prev = _upload(cliente, "extrato.csv", FIXTURE.read_bytes(), conta)
+    _confirmar(cliente, prev.text, conta)
+    r = _upload(cliente, "mesmo.ofx", _ofx_do_csv(), conta)
+    t = _texto(r.text)
+    assert "0 novos" in t and "18 já existentes" in t
+    assert _total(db) == 18
+
+
+def _prefill_com_conta_antiga(db: Path, conteudo: bytes) -> str:
+    app = create_app(db)
+    app.state.hoje_fn = lambda: date(2026, 10, 26)
+    with TestClient(app) as c:
+        conta = _conta(db, saldo=0, data="2026-10-20")
+        return _upload(c, "extrato.ofx", conteudo, conta).text
+
+
+def test_ofx_dtasof_depois_do_fim_nao_preenche_saldo_inicial(db: Path) -> None:
+    html = _prefill_com_conta_antiga(db, FIXTURE_OFX.read_bytes())
+    t = _texto(html)
+    assert 'action="/importar/confirmar"' not in html
+    assert 'value="R$ 471,12"' not in html and 'value="2026-10-12"' not in html
+    assert ("Estimativa que não inclui movimentos entre 22/10 e 26/10 do saldo do banco; "
+            "confira o saldo de 26/10/2026 no internet banking "
+            "(ou use o saldo anterior de um extrato CSV)") in t
+
+
+def test_ofx_dtasof_igual_ao_fim_preenche_saldo_inicial_estimado(db: Path) -> None:
+    conteudo = FIXTURE_OFX.read_bytes().replace(b"<DTASOF>20261026", b"<DTASOF>20261022")
+    html = _prefill_com_conta_antiga(db, conteudo)
+    assert 'value="R$ 471,12"' in html and 'value="2026-10-12"' in html
+    assert "estimado a partir do saldo do banco; confira antes de salvar" in _texto(html)

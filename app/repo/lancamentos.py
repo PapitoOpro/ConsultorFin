@@ -50,6 +50,17 @@ def soma_compensados_ate(con: sqlite3.Connection, conta_id: int, data_iso: str) 
 _FILTRO_CONCILIACAO = "origem = 'importado' OR importacao_id IS NOT NULL"
 
 
+def soma_conciliacao_ate(con: sqlite3.Connection, conta_id: int, data_iso: str) -> int:
+    """Soma dos compensados que contam na conciliação com data_compensacao <= data_iso."""
+    row = con.execute(
+        "SELECT COALESCE(SUM(valor_centavos), 0) AS s FROM lancamentos"
+        f" WHERE conta_id = ? AND compensado = 1 AND ({_FILTRO_CONCILIACAO})"
+        " AND data_compensacao <= ?",
+        (conta_id, data_iso),
+    ).fetchone()
+    return int(row["s"])
+
+
 def somas_diarias_conciliacao(
     con: sqlite3.Connection, conta_id: int
 ) -> list[tuple[str, int]]:

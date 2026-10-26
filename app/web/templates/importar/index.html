@@ -9,9 +9,9 @@
 <form method="post" action="/importar/previa" enctype="multipart/form-data" class="bloco">
   <label id="area" class="dropzone" for="arquivo">
     <strong>Arraste o extrato aqui</strong> ou clique para escolher
-    <span class="secundario">CSV ou Excel (.csv, .xlsx), até 5 MB</span>
+    <span class="secundario">OFX, CSV ou Excel (.ofx, .csv, .xlsx), até 5 MB</span>
   </label>
-  <input id="arquivo" name="arquivo" type="file" accept=".csv,.xlsx" required>
+  <input id="arquivo" name="arquivo" type="file" accept=".ofx,.csv,.xlsx" required>
   <div class="campo">
     <label for="conta_id">Conta de destino</label>
     <select id="conta_id" name="conta_id">

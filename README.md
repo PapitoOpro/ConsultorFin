@@ -31,9 +31,9 @@ Detalhes: seção 8 de [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
 ## Onde ficam os dados
 `data/consultorfin.db` (SQLite, ignorado pelo git). Backup = copiar esse arquivo.
 
-## Importar o primeiro extrato (Itaú CSV)
+## Importar o primeiro extrato (Itaú OFX ou CSV)
 1. Crie a conta informando o saldo na data do primeiro lançamento do extrato.
-2. Em Importar, envie o CSV do extrato.
+2. Em Importar, envie o extrato (OFX baixado do Itaú, recomendado, ou CSV).
 3. Confira a prévia e confirme.
 4. Verifique o aviso "Saldo confere com o banco".
 
@@ -52,8 +52,8 @@ pytest
 `CONSULTORFIN_HOSTS`: nomes de Host extras aceitos, separados por vírgula.
 
 ## Limitações conhecidas da v0.1
-- Só Itaú CSV tem detecção automática; outros formatos via mapeamento manual.
-- OFX, PDF e faturas de cartão ficam para a v0.2.
+- Itaú CSV e OFX (conta corrente) têm detecção automática; outros formatos via mapeamento manual.
+- OFC, PDF e faturas de cartão (inclusive OFX de cartão) não são suportados: o app recusa com uma mensagem.
 - Pagamento de fatura conta como despesa até a v0.2.
 - Os links "Ver no extrato" do Início são aproximados.
 - Linhas idênticas no mesmo dia em arquivos que cortam o dia ao meio podem ser chaveadas de forma diferente (exporte dias inteiros).

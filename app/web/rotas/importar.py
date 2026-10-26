@@ -10,9 +10,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from app.dominio.casamento import confirmar_casamento
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
 from app.dominio.lancamentos import interpretar_id
-from app.dominio.saldo import ajustar_saldo_inicial, conciliar
-from app.importacao.base import Parser, ResultadoLeitura
-from app.importacao.deteccao import detectar
+from app.dominio.saldo import ajustar_saldo_inicial, comparar_saldo_informado, conciliar, saldo_inicial_e_estimativa, texto_saldo_informado
+from app.importacao.base import FormatoNaoSuportado, Parser, ResultadoLeitura
+from app.importacao.deteccao import detectar, exigir_ofx_valido
 from app.importacao.excel import ArquivoIlegivel, ParserExcel, listar_colunas
 from app.importacao.servico import (
     ArquivoJaImportado, ImportacaoNaoEncontrada, LancamentosAnterioresAoSaldoInicial, conta_detectada,
@@ -26,10 +26,10 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 LIMITE_BYTES = 5 * 1024 * 1024
-EXTENSOES = {".csv", ".xlsx"}
+EXTENSOES = {".csv", ".xlsx", ".ofx", ".ofc"}
 TIPOS_CONTA = {"corrente": "Conta corrente", "poupanca": "Poupança", "cartao": "Cartão"}
 LINHAS_PREVIA = 10
-MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um CSV ou uma planilha Excel válida."
+MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um arquivo OFX, CSV ou uma planilha Excel válida."
 
 
 class ErroImportacao(Exception):
@@ -57,12 +57,16 @@ def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: 
 def _ler_upload(arquivo: UploadFile) -> tuple[str, bytes]:
     nome = Path((arquivo.filename or "").replace("\\", "/")).name[:200]
     if Path(nome).suffix.lower() not in EXTENSOES:
-        raise ErroImportacao("Formato não aceito. Envie um arquivo .csv ou .xlsx.")
+        raise ErroImportacao("Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx.")
     conteudo = arquivo.file.read(LIMITE_BYTES + 1)
     if len(conteudo) > LIMITE_BYTES:
         raise ErroImportacao("O arquivo excede o limite de 5 MB.", 413)
     if not conteudo.strip():
         raise ErroImportacao("O arquivo está vazio.")
+    try:
+        exigir_ofx_valido(nome, conteudo)
+    except FormatoNaoSuportado as exc:
+        raise ErroImportacao(str(exc)) from exc
     return nome, conteudo
 
 
@@ -76,7 +80,10 @@ def _parser(nome: str, conteudo: bytes, mapa: dict[str, str] | None) -> Parser |
     """Parser pelo mapeamento manual ou pela detecção automática (revalidado a cada passo)."""
     if mapa is not None:
         return ParserExcel(mapa)
-    return detectar(conteudo, nome)
+    try:
+        return detectar(conteudo, nome)
+    except FormatoNaoSuportado as exc:
+        raise ErroImportacao(str(exc)) from exc
 
 
 def _ler(parser: Parser, conteudo: bytes) -> ResultadoLeitura:
@@ -124,7 +131,16 @@ def _previa(request: Request, con: Any, token: str, envio: Envio, conta_txt: str
         conta_id = int(lista_contas[0]["id"])
     ctx = {**base, "conta_id": conta_id, "detectada": detectada is not None and detectada == conta_id,
            "leitura": leitura, "amostra": leitura.linhas[:LINHAS_PREVIA], "resumo": None,
-           "ja_importado": None, "bloqueio": None, "sugestao": leitura.saldo_anterior}
+           "ja_importado": None, "bloqueio": None,
+           "sugestao": leitura.saldo_anterior, "sugestao_estimada": False, "estimativa_sem_prefill": None}
+    estimado = leitura.saldo_anterior_estimado
+    if leitura.saldo_anterior is None and estimado is not None:
+        if leitura.saldo_informado is None:  # DTASOF <= DTEND: estimativa exata
+            ctx["sugestao"], ctx["sugestao_estimada"] = estimado, True
+        elif leitura.periodo is not None:  # há movimentos entre DTEND e DTASOF: não preenche
+            ctx["estimativa_sem_prefill"] = {
+                "valor": estimado[1], "data": estimado[0], "fim": leitura.periodo[1],
+                "saldo_data": leitura.saldo_informado[0]}
     if conta_id is not None:
         try:
             ctx["resumo"] = simular_importacao(con, conta_id, envio.nome, envio.conteudo, parser)
@@ -243,11 +259,18 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
             raise ErroImportacao("Não foi possível concluir a importação. Nada foi gravado.", 500) from exc
         request.app.state.uploads.descartar(token)
         ctx: dict[str, Any] = {"nome": envio.nome, "resumo": resumo,
-                               "tem_saldos": bool(leitura.saldos_dia), "conciliacao": None,
-                               "data_saldo_inicial": None, "propostas": [], "falha_conferencia": False}
+                               "tem_saldos": bool(leitura.saldos_dia) or leitura.saldo_informado is not None, "conciliacao": None,
+                               "data_saldo_inicial": None, "propostas": [], "falha_conferencia": False,
+                               "informado": None, "texto_informado": None, "estimativa_circular": False}
         try:  # a importação já foi gravada: falha aqui não pode virar erro 500
             ctx["conciliacao"] = conciliar(con, conta, leitura.saldos_dia)
             ctx["data_saldo_inicial"] = contas.saldo_inicial_da_conta(con, conta)[1]
+            ctx["estimativa_circular"] = saldo_inicial_e_estimativa(
+                con, conta, leitura.saldo_anterior_estimado)
+            if leitura.saldo_informado is not None and leitura.periodo is not None:
+                ctx["informado"] = comparar_saldo_informado(con, conta, leitura.saldo_informado)
+                if ctx["informado"] is not None:
+                    ctx["texto_informado"] = texto_saldo_informado(ctx["informado"], leitura.periodo[1])
             ctx["propostas"] = propostas_com_detalhes(con, conta, resumo.importacao_id)
         except Exception as exc:  # noqa: BLE001
             log.error("event=conferencia_falhou erro=%s", type(exc).__name__)

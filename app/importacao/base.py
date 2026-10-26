@@ -12,6 +12,10 @@ def eco(valor: object) -> str:
     return t if len(t) <= MAX_ECO else t[:MAX_ECO - 1] + "…"
 
 
+class FormatoNaoSuportado(ValueError):
+    """Formato de extrato reconhecido, mas não suportado (mensagem em português)."""
+
+
 @dataclass
 class LinhaImportada:
     data: str  # ISO AAAA-MM-DD
@@ -31,6 +35,11 @@ class ResultadoLeitura:
     saldos_dia: dict[str, int] = field(default_factory=dict)
     saldo_anterior: tuple[str, int] | None = None
     erros: list[ErroLeitura] = field(default_factory=list)
+    formato: str = ""
+    periodo: tuple[str, str] | None = None  # (início, fim) ISO
+    conta_numero: str | None = None
+    saldo_informado: tuple[str, int] | None = None  # saldo do banco em data posterior ao fim do período
+    saldo_anterior_estimado: tuple[str, int] | None = None
 
 
 class Parser(Protocol):
