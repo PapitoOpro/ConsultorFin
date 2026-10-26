@@ -211,3 +211,12 @@ def test_node_nomes_hostis_inalterados() -> None:
     esperado = ['<script>alert("x")</script> › O\'Neil "q"']
     assert [i["rotulo"] for i in _filtrar("script")] == esperado
     assert [i["rotulo"] for i in _filtrar("neil")] == esperado
+
+
+def test_node_enter_so_confirma_escolha_explicita() -> None:
+    r = _rodar_node(PRE + "console.log(JSON.stringify(["
+                    "B.deveConfirmar('', false),"      # vazia e sem interação: não confirma
+                    "B.deveConfirmar('   ', false),"
+                    "B.deveConfirmar('merc', false),"  # digitou: confirma o destacado
+                    "B.deveConfirmar('', true)]));")   # setas/hover/clique: confirma
+    assert r == [False, False, True, True]

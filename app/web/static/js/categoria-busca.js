@@ -57,7 +57,12 @@
     return achados.slice(0, limite).map(function (a) { return a.item; });
   }
 
-  var API = { normalizar: normalizar, filtrar: filtrar };
+  /* Enter só confirma escolha explícita: consulta digitada ou navegação/hover/clique na lista. */
+  function deveConfirmar(consulta, interagiu) {
+    return normalizar(consulta) !== "" || interagiu === true;
+  }
+
+  var API = { normalizar: normalizar, filtrar: filtrar, deveConfirmar: deveConfirmar };
   raiz.ConsultorFinBusca = API;
   if (typeof module !== "undefined" && module.exports) { module.exports = API; }
 
@@ -67,6 +72,14 @@
 
   var contador = 0;
   var focoPendente = null; /* id da <tr> cujo combobox deve recuperar o foco após o swap */
+  var TEMPO_FOCO_MS = 3000;
+  var timerFoco = null;
+
+  function definirFocoPendente(id) {
+    focoPendente = id;
+    if (timerFoco) { clearTimeout(timerFoco); timerFoco = null; }
+    if (id) { timerFoco = setTimeout(function () { focoPendente = null; }, TEMPO_FOCO_MS); }
+  }
 
   function lerRecentes() {
     try {
@@ -152,6 +165,8 @@
     var ativo = -1;
     var aberto = false;
     var suprimirAbrir = false;
+    var interagiu = false; /* ↓/↑, hover ou clique na lista desde a abertura / última digitação */
+    var compondo = false;  /* IME / tecla morta em composição */
 
     function rotuloAtual() {
       var op = select.options[select.selectedIndex];
@@ -185,6 +200,11 @@
       var tipo = marcaTipo(item.grupo);
       if (tipo) { li.appendChild(el("span", "busca-tipo", tipo)); }
       li.addEventListener("mousedown", function (ev) { ev.preventDefault(); });
+      li.addEventListener("mousemove", function () {
+        var i = linhas.findIndex(function (l) { return l.li === li; });
+        if (i >= 0 && i !== ativo) { destacar(i); }
+        interagiu = true;
+      });
       li.addEventListener("click", function () { escolher(item); });
       return li;
     }
@@ -224,7 +244,15 @@
         dica.setAttribute("role", "presentation");
         lista.appendChild(dica);
       }
-      destacar(linhas.length ? 0 : -1);
+      if (vazia) {
+        var atual = -1;
+        for (var q = 0; q < linhas.length; q++) {
+          if (linhas[q].item.id === select.value) { atual = q; break; }
+        }
+        destacar(atual);
+      } else {
+        destacar(linhas.length ? 0 : -1);
+      }
     }
 
     function abrir() {
@@ -232,6 +260,7 @@
       aberto = true;
       lista.hidden = false;
       input.setAttribute("aria-expanded", "true");
+      interagiu = false;
       desenhar("");
     }
     function fechar() {
@@ -251,7 +280,8 @@
       gravarRecente(item.id);
       if (mudou) {
         var tr = select.closest ? select.closest("tr[id]") : null;
-        focoPendente = tr ? tr.id : null;
+        var viaHtmx = select.hasAttribute("hx-post") || select.hasAttribute("hx-trigger");
+        definirFocoPendente(tr && viaHtmx ? tr.id : null);
         select.value = item.id;
         mostrarRotulo();
         select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -266,29 +296,49 @@
       abrir();
     });
     input.addEventListener("click", function () { abrir(); });
-    input.addEventListener("input", function () {
+    input.addEventListener("compositionstart", function () { compondo = true; });
+    input.addEventListener("compositionend", function () {
+      compondo = false;
       if (!aberto) { abrir(); }
+      interagiu = false;
+      desenhar(input.value);
+    });
+    input.addEventListener("input", function () {
+      if (compondo) { return; }
+      if (!aberto) { abrir(); }
+      interagiu = false;
       desenhar(input.value);
     });
     input.addEventListener("blur", fechar);
     input.addEventListener("keydown", function (ev) {
       var k = ev.key;
+      if (ev.isComposing || ev.keyCode === 229 || compondo) { return; }
       if (k === "ArrowDown" || k === "ArrowUp") {
         ev.preventDefault();
         if (!aberto) { abrir(); return; }
         if (!linhas.length) { return; }
+        interagiu = true;
         var passo = k === "ArrowDown" ? 1 : -1;
-        destacar((ativo + passo + linhas.length) % linhas.length);
+        if (ativo < 0) { destacar(passo > 0 ? 0 : linhas.length - 1); }
+        else { destacar((ativo + passo + linhas.length) % linhas.length); }
       } else if (k === "Enter") {
         if (aberto) {
           ev.preventDefault();
-          if (ativo >= 0 && linhas[ativo]) { escolher(linhas[ativo].item); }
+          if (deveConfirmar(input.value, interagiu) && ativo >= 0 && linhas[ativo]) {
+            escolher(linhas[ativo].item);
+          } else {
+            fechar();
+          }
         }
       } else if (k === "Escape") {
-        if (aberto) { ev.preventDefault(); fechar(); }
+        if (aberto) { ev.preventDefault(); fechar(); input.select(); }
       }
     });
 
+    lista.addEventListener("mousedown", function (ev) { ev.preventDefault(); });
+    if (select.form) {
+      select.form.addEventListener("reset", function () { setTimeout(mostrarRotulo, 0); });
+    }
     select.addEventListener("change", mostrarRotulo);
     select.addEventListener("focus", function () { input.focus(); });
     select.addEventListener("invalid", function () { input.focus(); });
@@ -320,5 +370,7 @@
   } else {
     iniciar(document);
   }
+  document.addEventListener("htmx:responseError", function () { definirFocoPendente(null); });
+  document.addEventListener("htmx:sendError", function () { definirFocoPendente(null); });
   document.addEventListener("htmx:load", function (ev) { iniciar(ev.target); });
 })(typeof window !== "undefined" ? window : globalThis);
