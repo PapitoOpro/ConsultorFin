@@ -40,7 +40,7 @@
     <input type="hidden" name="aba" value="{{ aba }}">
     <div class="filtros">
       <div class="campo"><label for="subst">Substituir por…</label>
-        <select id="subst" name="substituir_por"><option value="">Escolha uma categoria</option>
+        <select id="subst" data-busca name="substituir_por"><option value="">Escolha uma categoria</option>
           {{ opcoes_categoria(excluindo.destinos) }}</select></div>
     </div>
     <div class="acoes-barra">

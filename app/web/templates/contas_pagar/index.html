@@ -121,7 +121,7 @@
         <div class="campo"><label for="p-conta">Conta</label>
           <select id="p-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
         <div class="campo"><label for="p-cat">Categoria</label>
-          <select id="p-cat" name="categoria_id"><option value="">Sem categoria</option>
+          <select id="p-cat" data-busca name="categoria_id"><option value="">Sem categoria</option>
             {{ opcoes_categoria(categorias_saida) }}</select></div>
       </div>
       <button type="submit">Criar parcelamento</button>
@@ -172,10 +172,10 @@
         <div class="campo"><label for="r-conta">Conta</label>
           <select id="r-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
         <div class="campo cat-sinal" data-sinal="saida"><label for="r-cat-saida">Categoria (conta fixa)</label>
-          <select id="r-cat-saida" name="categoria_saida"><option value="">Sem categoria</option>
+          <select id="r-cat-saida" data-busca name="categoria_saida"><option value="">Sem categoria</option>
             {{ opcoes_categoria(categorias_saida) }}</select></div>
         <div class="campo cat-sinal" data-sinal="entrada"><label for="r-cat-entrada">Categoria (receita)</label>
-          <select id="r-cat-entrada" name="categoria_entrada"><option value="">Sem categoria</option>
+          <select id="r-cat-entrada" data-busca name="categoria_entrada"><option value="">Sem categoria</option>
             {{ opcoes_categoria(categorias_entrada) }}</select></div>
       </div>
       <button type="submit">Cadastrar</button>
