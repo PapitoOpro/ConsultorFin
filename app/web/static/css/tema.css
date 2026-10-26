@@ -135,3 +135,15 @@ details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6
 details.categoria > summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; cursor: pointer; }
 .acoes-linha { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 8px; }
 .linha-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+
+/* Combobox de busca (categoria-busca.js) */
+.busca { position: relative; display: inline-block; min-width: 200px; max-width: 100%; vertical-align: middle; }
+.busca-input { width: 100%; box-sizing: border-box; }
+.busca-oculto { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; clip: rect(0 0 0 0); }
+.busca-lista { position: absolute; z-index: 20; left: 0; top: 100%; margin: 2px 0 0; padding: 4px 0; min-width: 100%; width: max-content; max-width: 420px; max-height: 320px; overflow-y: auto; list-style: none; background: var(--superficie); border: 1px solid var(--borda); border-radius: 4px; }
+.busca-lista[hidden] { display: none; }
+.busca-opcao { display: flex; justify-content: space-between; gap: 12px; padding: 5px 10px; cursor: pointer; color: var(--texto); }
+.busca-opcao.ativo, .busca-opcao:hover { background: var(--fundo); border-left: 2px solid var(--primaria); padding-left: 8px; }
+.busca-tipo { color: var(--texto-secundario); font-size: 12px; white-space: nowrap; }
+.busca-titulo { padding: 6px 10px 2px; color: var(--texto-secundario); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.busca-nada { padding: 6px 10px; color: var(--texto-secundario); font-size: 12px; }

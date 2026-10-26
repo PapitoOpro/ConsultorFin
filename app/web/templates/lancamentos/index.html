@@ -16,7 +16,7 @@
       {% for c in contas %}<option value="{{ c.id }}"{{ " selected" if filtros.conta_id == c.id }}>{{ c.nome }}</option>{% endfor %}
     </select></div>
   <div class="campo"><label for="f-cat">Categoria</label>
-    <select id="f-cat" name="categoria_id"><option value="">Todas</option>
+    <select id="f-cat" data-busca name="categoria_id"><option value="">Todas</option>
       <option value="sem"{{ " selected" if filtros.sem_categoria }}>Sem categoria</option>
       {{ opcoes_categoria(categorias, filtros.categoria_id, true) }}
     </select></div>
@@ -57,10 +57,10 @@
       <div class="campo"><label for="n-conta">Conta</label>
         <select id="n-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
       <div class="campo cat-sinal" data-sinal="saida"><label for="n-cat-saida">Categoria (saída)</label>
-        <select id="n-cat-saida" name="categoria_saida"><option value="">Sem categoria</option>
+        <select id="n-cat-saida" data-busca name="categoria_saida"><option value="">Sem categoria</option>
           {{ opcoes_categoria(categorias_saida) }}</select></div>
       <div class="campo cat-sinal" data-sinal="entrada"><label for="n-cat-entrada">Categoria (entrada)</label>
-        <select id="n-cat-entrada" name="categoria_entrada"><option value="">Sem categoria</option>
+        <select id="n-cat-entrada" data-busca name="categoria_entrada"><option value="">Sem categoria</option>
           {{ opcoes_categoria(categorias_entrada) }}</select></div>
       <div class="campo"><label for="n-obs">Observação</label><input id="n-obs" name="observacao" maxlength="500"></div>
       <div class="campo"><label><input type="checkbox" name="compensado" value="1"> Já compensado</label></div>
@@ -72,7 +72,7 @@
 <form id="lote" method="post" action="/lancamentos/lote" class="bloco acoes-barra" style="margin-top:12px">
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <div class="campo" style="margin-bottom:0"><label for="l-cat">Categorizar selecionados em</label>
-    <select id="l-cat" name="categoria_id" required>
+    <select id="l-cat" data-busca name="categoria_id" required>
       {{ opcoes_categoria(categorias, none, true) }}</select></div>
   <button type="submit">Aplicar às linhas marcadas</button>
 </form>
@@ -111,7 +111,7 @@
             <form method="post" action="/lancamentos/{{ l.id }}/regra">
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <input name="padrao" value="{{ l.descricao }}" maxlength="100" aria-label="Quando a descrição contiver">
-              <select name="categoria_id" aria-label="Categoria da regra">
+              <select name="categoria_id" aria-label="Categoria da regra" data-busca>
                 {{ opcoes_categoria(categorias, none, true) }}</select>
               <button type="submit" class="secundario">Criar regra</button>
             </form>

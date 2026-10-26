@@ -1,4 +1,4 @@
-{% from "_macros.html" import opcoes_categoria %}<select name="categoria_id" aria-label="Categoria" hx-post="/lancamentos/{{ l.id }}/categoria" hx-trigger="change" hx-target="closest td" hx-swap="innerHTML">
+{% from "_macros.html" import opcoes_categoria %}<select name="categoria_id" aria-label="Categoria" data-busca hx-post="/lancamentos/{{ l.id }}/categoria" hx-trigger="change" hx-target="closest td" hx-swap="innerHTML">
   <option value=""{{ " selected" if l.categoria_id is none }}>Sem categoria</option>
   {{ opcoes_categoria(categorias, l.categoria_id, true) }}
 </select>
