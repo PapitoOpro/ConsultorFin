@@ -67,7 +67,6 @@ class _Subs:
 
 
 _NUMERO = re.compile(r"-?[0-9]{1,6}")
-_FEMININOS = {"Conta", "Categoria", "Linha"}
 
 
 def _int(texto: str, rotulo: str) -> int:
@@ -78,12 +77,7 @@ def _int(texto: str, rotulo: str) -> int:
 
 
 def _id(texto: str | None, rotulo: str) -> int:
-    try:
-        return interpretar_id(texto, rotulo)
-    except ErroLancamento as exc:
-        if rotulo in _FEMININOS:
-            raise ErroLancamento(f"{rotulo} inválida.") from exc
-        raise
+    return interpretar_id(texto, rotulo)
 
 
 def construir_parser() -> argparse.ArgumentParser:

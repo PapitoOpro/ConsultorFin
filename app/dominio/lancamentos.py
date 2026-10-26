@@ -62,11 +62,15 @@ class NaoEncontrado(ErroLancamento):
     """Registro inexistente (a rota responde 404)."""
 
 
+_ROTULOS_FEMININOS = frozenset({"Conta", "Categoria", "Página", "Linha"})
+
+
 def interpretar_id(texto: str | None, rotulo: str = "Identificador") -> int:
     """Id vindo de formulário/URL: somente dígitos ASCII."""
     t = (texto or "").strip()
     if not (t.isascii() and t.isdigit() and len(t) <= 18):
-        raise ErroLancamento(f"{rotulo} inválido.")
+        feminino = rotulo.split(" ", 1)[0] in _ROTULOS_FEMININOS
+        raise ErroLancamento(f"{rotulo} {'inválida' if feminino else 'inválido'}.")
     return int(t)
 
 

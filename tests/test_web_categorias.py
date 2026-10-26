@@ -123,7 +123,7 @@ def test_mudar_tipo_propaga(cliente: TestClient, db: Path) -> None:
     assert "Moradia" in cliente.get("/categorias?aba=entrada").text
     sub = _id(db, "Aluguel", "Moradia")
     r = _post(cliente, f"/categorias/{sub}/tipo", tipo="saida")
-    assert r.status_code == 400
+    assert r.status_code == 400 and "segue o da categoria" in r.text
 
 
 def test_mover_subcategoria(cliente: TestClient, db: Path) -> None:
@@ -137,7 +137,7 @@ def test_mover_subcategoria(cliente: TestClient, db: Path) -> None:
     assert r.status_code == 400 and "mesmo tipo" in r.text
     assert _sql(db, "SELECT pai_id FROM categorias WHERE id = ?", sub) == [(casa,)]
     r = _post(cliente, f"/categorias/{_id(db, 'Moradia')}/mover", destino_id=str(casa))
-    assert r.status_code == 400
+    assert r.status_code == 400 and "Só subcategorias podem ser movidas" in r.text
 
 
 def test_excluir_sem_uso(cliente: TestClient, db: Path) -> None:
@@ -207,7 +207,7 @@ def test_excluir_substituir_invalido(cliente: TestClient, db: Path, conta: int) 
     r = _post(cliente, f"/categorias/{sub}/excluir", acao="substituir", substituir_por=str(sub))
     assert r.status_code == 400
     r = _post(cliente, f"/categorias/{sub}/excluir", acao="substituir", substituir_por="99999")
-    assert r.status_code in (400, 404)
+    assert r.status_code == 400 and "não encontrada" in r.text
     assert _existe(db, sub)
 
 
@@ -221,19 +221,63 @@ def test_excluir_deixar_sem_categoria(cliente: TestClient, db: Path, conta: int)
     assert _sql(db, "SELECT COUNT(*) FROM regras_categoria") == [(0,)]
 
 
-@pytest.mark.parametrize("caminho", ["criar", "abc/renomear", "9999999/renomear", "abc/excluir",
-                                     "٣/tipo", "1;DROP/mover", "99999/subcategoria"])
-def test_ids_invalidos_amigaveis(cliente: TestClient, caminho: str) -> None:
+@pytest.mark.parametrize("caminho,status,msg", [
+    ("criar", 400, "não pode ser vazio"),
+    ("abc/renomear", 400, "Categoria inválida."),
+    ("9999999/renomear", 404, "Categoria não encontrada."),
+    ("abc/excluir", 400, "Categoria inválida."),
+    ("٣/tipo", 400, "Categoria inválida."),
+    ("1;DROP/mover", 400, "Categoria inválida."),
+    ("99999/subcategoria", 404, "Categoria não encontrada.")])
+def test_ids_invalidos_amigaveis(cliente: TestClient, caminho: str, status: int, msg: str) -> None:
     r = _post(cliente, f"/categorias/{caminho}", nome="", tipo="saida", destino_id="1")
-    assert r.status_code in (400, 404) and "Traceback" not in r.text
-    assert "Categorias" in r.text
+    assert r.status_code == status and "Traceback" not in r.text
+    assert "Categorias" in r.text and msg in r.text
+
+
+def test_destino_e_substituta_invalidos_no_feminino(cliente: TestClient, db: Path) -> None:
+    sub = _id(db, "Aluguel", "Moradia")
+    r = _post(cliente, f"/categorias/{sub}/mover", destino_id="x")
+    assert r.status_code == 400 and "Categoria de destino inválida." in r.text
+
+
+@pytest.mark.parametrize("nome", ["Ruim\x00", "Casa\u202eodnum", "A\u200bB", "y" * 81])
+def test_nome_invalido_vira_400_sem_alterar(cliente: TestClient, db: Path, nome: str) -> None:
+    antes = _sql(db, "SELECT COUNT(*) FROM categorias")
+    r = _post(cliente, "/categorias/criar", nome=nome, tipo="saida", aba="saida")
+    assert r.status_code == 400 and ("caracteres inválidos" in r.text or "até 80" in r.text)
+    pai = _id(db, "Moradia")
+    r = _post(cliente, f"/categorias/{pai}/subcategoria", nome=nome)
+    assert r.status_code == 400
+    r = _post(cliente, f"/categorias/{pai}/renomear", nome=nome)
+    assert r.status_code == 400
+    assert _sql(db, "SELECT COUNT(*) FROM categorias") == antes
+
+
+def test_aba_entradas_vazia(cliente: TestClient, db: Path) -> None:
+    con = conectar(db)
+    try:
+        con.execute("DELETE FROM categorias WHERE pai_id IS NOT NULL AND tipo = 'entrada'")
+        con.execute("DELETE FROM categorias WHERE tipo = 'entrada'")
+        con.commit()
+    finally:
+        con.close()
+    r = cliente.get("/categorias?aba=entrada")
+    assert r.status_code == 200 and "Nenhuma categoria de entrada." in r.text
+    assert "Nenhuma categoria de saída." not in r.text
+
+
+def test_aviso_de_mudanca_de_tipo_na_tela(cliente: TestClient) -> None:
+    t = cliente.get("/categorias?aba=saida").text
+    assert "Mudar o tipo também muda o tipo de todas as subcategorias." in t
+    assert "Mudar o tipo desta categoria também muda o tipo de todas as subcategorias. Continuar?" in t
 
 
 def test_destino_invalido_no_mover(cliente: TestClient, db: Path) -> None:
     sub = _id(db, "Aluguel", "Moradia")
     for destino in ("", "x", "99999"):
         r = _post(cliente, f"/categorias/{sub}/mover", destino_id=destino)
-        assert r.status_code in (400, 404)
+        assert r.status_code == (404 if destino == "99999" else 400)
 
 
 def test_origin_cruzado_403(cliente: TestClient, db: Path) -> None:

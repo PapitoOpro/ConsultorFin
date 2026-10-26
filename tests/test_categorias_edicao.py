@@ -275,3 +275,28 @@ def test_mover_em_transacao_do_chamador_reverte(
         mover_subcategoria(con, s, b)
     assert _cat(con, s)["pai_id"] == a
     assert con.execute("SELECT COUNT(*) FROM configuracoes WHERE chave = 'meu'").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("nome", ["A\x00B", "A\tB\x07", "Casa\u202eodnum", "A\u200bB", "A\u2066B"])
+def test_nome_com_controle_ou_bidi_recusado(con: sqlite3.Connection, nome: str) -> None:
+    antes = con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0]
+    with pytest.raises(ErroCategoria, match="caracteres inválidos"):
+        criar_categoria(con, nome, "saida")
+    pai = criar_categoria(con, "Pai", "saida")
+    with pytest.raises(ErroCategoria, match="caracteres inválidos"):
+        criar_subcategoria(con, pai, nome)
+    with pytest.raises(ErroCategoria, match="caracteres inválidos"):
+        renomear_categoria(con, pai, nome)
+    assert con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == antes + 1
+
+
+def test_nome_limite_de_tamanho(con: sqlite3.Connection) -> None:
+    assert criar_categoria(con, "  " + "x" * 80 + "  ", "saida")
+    assert con.execute("SELECT nome FROM categorias WHERE nome = ?", ("x" * 80,)).fetchone()
+    with pytest.raises(ErroCategoria, match="até 80 caracteres"):
+        criar_categoria(con, "y" * 81, "saida")
+
+
+def test_nome_vazio_msg(con: sqlite3.Connection) -> None:
+    with pytest.raises(ErroCategoria, match="não pode ser vazio"):
+        criar_categoria(con, "   ", "saida")

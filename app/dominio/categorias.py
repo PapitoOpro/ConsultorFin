@@ -1,4 +1,5 @@
 """Tipos de lançamento, categorias, regras e totais mensais."""
+import unicodedata
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -89,10 +90,17 @@ def _escrita(con: Any) -> Iterator[None]:
         con.execute(f"RELEASE {ponto}")
 
 
+_NOME_MAX = 80
+
+
 def _nome_valido(nome: str, rotulo: str) -> str:
     limpo = " ".join(nome.split())
     if not limpo:
         raise ErroCategoria(f"O nome da {rotulo} não pode ser vazio.")
+    if len(limpo) > _NOME_MAX:
+        raise ErroCategoria(f"O nome da {rotulo} pode ter até {_NOME_MAX} caracteres.")
+    if any(unicodedata.category(c) in ("Cc", "Cf") for c in limpo):
+        raise ErroCategoria(f"O nome da {rotulo} tem caracteres inválidos.")
     return limpo
 
 

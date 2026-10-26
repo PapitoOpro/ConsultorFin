@@ -106,8 +106,15 @@ def test_lancamentos_limite_atravessa_paginas(banco: Any) -> None:
 def test_contas_e_categorias(banco: Any) -> None:
     assert consultas.contas(banco, HOJE)["contas"][0]["nome"] == "Itaú"
     cats = consultas.categorias(banco, HOJE)["categorias"]
-    assert {"id", "nome", "subcategorias"} <= set(cats[0])
-    assert "Alimentação" in [c["nome"] for c in cats]
+    assert set(cats[0]) == {"id", "nome", "tipo", "subcategorias"}
+    por_nome = {c["nome"]: c for c in cats}
+    assert por_nome["Moradia"]["tipo"] == "saida"
+    assert por_nome["Salário e Trabalho"]["tipo"] == "entrada"
+    subs = por_nome["Moradia"]["subcategorias"]
+    assert {"Aluguel", "Prestação do imóvel"} <= {s["nome"] for s in subs}
+    assert all(set(s) == {"id", "nome"} and isinstance(s["id"], int) for s in subs)
+    assert "13º salário" in [s["nome"] for s in por_nome["Salário e Trabalho"]["subcategorias"]]
+    assert "Alimentação" not in por_nome or por_nome["Alimentação"]["tipo"] == "saida"
 
 
 def test_lancamentos_recentes_primeiro_e_janela(banco: Any) -> None:
