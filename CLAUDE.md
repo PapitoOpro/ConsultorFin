@@ -70,7 +70,7 @@ sincronização, mas **a v0.1 é 100% local**.
 | Armazenamento | SQLite local (arquivo na pasta `data/`) |
 | Linguagem | Python 3.11+ |
 | Leitura de arquivos | pandas e openpyxl (CSV/Excel); OFX/OFC e PDF entram na v0.2 |
-| Visual | Estilo "Cyber-Minimalista": fundo escuro, sem sombras pesadas |
+| Visual | Estilo "Dark Fintech Premium": fundo escuro, cards arredondados, sombras suaves |
 | Idioma da interface | Português brasileiro |
 | Moeda e datas | R$ 1.234,56 e DD/MM/AAAA na tela; ISO (AAAA-MM-DD) no banco |
 | Escopo da v0.1 | Telas Início, Importar e Lançamentos |

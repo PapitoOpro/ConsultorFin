@@ -1,6 +1,6 @@
 {% macro tabela(linhas, horizonte, hoje, vazio) %}
 {% if linhas %}
-<div class="tabela-rolavel"><table>
+<div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
   <thead><tr><th>Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
   <tbody>
   {% for l in linhas %}

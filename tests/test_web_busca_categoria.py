@@ -220,3 +220,34 @@ def test_node_enter_so_confirma_escolha_explicita() -> None:
                     "B.deveConfirmar('merc', false),"  # digitou: confirma o destacado
                     "B.deveConfirmar('', true)]));")   # setas/hover/clique: confirma
     assert r == [False, False, True, True]
+
+
+def _pos(rect: dict[str, float], largura: int, altura: int) -> dict[str, Any]:
+    r = _rodar_node(PRE + f"console.log(JSON.stringify(B.posicionarLista({json.dumps(rect)}, {largura}, {altura})));")
+    assert isinstance(r, dict)
+    return r
+
+
+def test_node_posicionar_lista_abaixo_quando_ha_espaco() -> None:
+    r = _pos({"left": 100, "right": 300, "top": 100, "bottom": 138}, 1280, 900)
+    assert r["lado"] == "abaixo" and r["top"] == 142 and r["left"] == 100
+    assert r["minWidth"] == 200 and r["maxHeight"] == 320
+
+
+def test_node_posicionar_lista_acima_na_ultima_linha() -> None:
+    r = _pos({"left": 100, "right": 300, "top": 800, "bottom": 838}, 1280, 900)
+    assert r["lado"] == "acima" and r["bottom"] == 104 and "top" not in r
+    assert r["maxHeight"] == 320
+
+
+def test_node_posicionar_lista_limita_altura_ao_espaco_do_lado_maior() -> None:
+    r = _pos({"left": 10, "right": 210, "top": 300, "bottom": 338}, 390, 400)
+    assert r["lado"] == "acima" and r["maxHeight"] == 292  # 300 - margem 8
+    r2 = _pos({"left": 10, "right": 210, "top": 120, "bottom": 158}, 390, 400)
+    assert r2["lado"] == "abaixo" and r2["maxHeight"] == 234  # 400 - 158 - 8
+
+
+def test_node_posicionar_lista_nao_sai_da_janela() -> None:
+    r = _pos({"left": 330, "right": 380, "top": 100, "bottom": 138}, 390, 900)
+    assert r["left"] >= 8 and r["left"] + r["minWidth"] <= 390 - 8
+    assert r["maxWidth"] <= 390 - 16

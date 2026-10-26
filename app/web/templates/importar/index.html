@@ -45,7 +45,7 @@
 <div class="bloco">
   <h2>Histórico de importações</h2>
   {% if historico %}
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Arquivo</th><th>Conta</th><th>Período</th><th class="valor">Novos</th><th class="valor">Ignorados</th><th>Situação</th><th></th></tr></thead>
     <tbody>
     {% for i in historico %}

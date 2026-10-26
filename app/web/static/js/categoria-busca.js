@@ -62,7 +62,28 @@
     return normalizar(consulta) !== "" || interagiu === true;
   }
 
-  var API = { normalizar: normalizar, filtrar: filtrar, deveConfirmar: deveConfirmar };
+  /* Posição da lista aberta (portal, position: fixed) a partir do retângulo do campo e da janela.
+     Escolhe o lado com mais espaço (abaixo se couber um mínimo útil); altura máxima limitada a `teto`. */
+  var MARGEM_LISTA = 8;
+  var ALTURA_MINIMA_ABAIXO = 200;
+  var ALTURA_MAXIMA_LISTA = 320;
+  var LARGURA_MAXIMA_LISTA = 420;
+  function posicionarLista(rect, largura, altura) {
+    var abaixo = altura - rect.bottom - MARGEM_LISTA;
+    var acima = rect.top - MARGEM_LISTA;
+    var lado = (abaixo >= ALTURA_MINIMA_ABAIXO || abaixo >= acima) ? "abaixo" : "acima";
+    var espaco = Math.max(0, lado === "abaixo" ? abaixo : acima);
+    var minimo = Math.max(0, rect.right - rect.left);
+    var maxLarg = Math.max(minimo, Math.min(LARGURA_MAXIMA_LISTA, largura - 2 * MARGEM_LISTA));
+    var left = Math.max(MARGEM_LISTA, Math.min(rect.left, largura - MARGEM_LISTA - minimo));
+    var r = { lado: lado, left: left, minWidth: minimo, maxWidth: maxLarg,
+              maxHeight: Math.min(ALTURA_MAXIMA_LISTA, espaco) };
+    if (lado === "abaixo") { r.top = rect.bottom + 4; } else { r.bottom = altura - rect.top + 4; }
+    return r;
+  }
+
+  var API = { normalizar: normalizar, filtrar: filtrar, deveConfirmar: deveConfirmar,
+              posicionarLista: posicionarLista };
   raiz.ConsultorFinBusca = API;
   if (typeof module !== "undefined" && module.exports) { module.exports = API; }
 
@@ -73,6 +94,7 @@
   var contador = 0;
   var focoPendente = null; /* id da <tr> cujo combobox deve recuperar o foco após o swap */
   var TEMPO_FOCO_MS = 3000;
+  var portais = []; /* listas abertas no <body>: [{input, lista, wrap}] */
   var timerFoco = null;
 
   function definirFocoPendente(id) {
@@ -129,6 +151,49 @@
     if (texto != null) { e.textContent = texto; }
     return e;
   }
+
+  function aplicarPosicao(input, lista) {
+    var pos = posicionarLista(input.getBoundingClientRect(), window.innerWidth, window.innerHeight);
+    var st = lista.style;
+    st.left = pos.left + "px";
+    st.minWidth = pos.minWidth + "px";
+    st.maxWidth = pos.maxWidth + "px";
+    st.maxHeight = pos.maxHeight + "px";
+    st.top = pos.lado === "abaixo" ? pos.top + "px" : "auto";
+    st.bottom = pos.lado === "acima" ? pos.bottom + "px" : "auto";
+    var larg = lista.offsetWidth; /* largura real (conteúdo): evita sair pela direita */
+    if (larg && pos.left + larg > window.innerWidth - 8) {
+      st.left = Math.max(8, window.innerWidth - 8 - larg) + "px";
+    }
+  }
+
+  function devolverLista(entrada) {
+    var i = portais.indexOf(entrada);
+    if (i >= 0) { portais.splice(i, 1); }
+    var lista = entrada.lista;
+    lista.classList.remove("portal");
+    lista.removeAttribute("style");
+    if (entrada.wrap.isConnected) { entrada.wrap.appendChild(lista); }
+    else if (lista.parentNode) { lista.parentNode.removeChild(lista); }
+  }
+
+  function reposicionarPortais() {
+    portais.slice().forEach(function (e) {
+      if (!e.input.isConnected) { e.lista.hidden = true; devolverLista(e); return; }
+      aplicarPosicao(e.input, e.lista);
+    });
+  }
+
+  function limparOrfas() {
+    portais.slice().forEach(function (e) { if (!e.input.isConnected) { devolverLista(e); } });
+  }
+
+  window.addEventListener("scroll", function (ev) {
+    if (portais.length && !(ev.target && ev.target.classList && ev.target.classList.contains("busca-lista"))) {
+      reposicionarPortais();
+    }
+  }, true);
+  window.addEventListener("resize", reposicionarPortais);
 
   function atualizar(select) {
     if (select.getAttribute("data-busca-ok")) { return; }
@@ -253,12 +318,23 @@
       } else {
         destacar(linhas.length ? 0 : -1);
       }
+      if (aberto) { aplicarPosicao(input, lista); }
+    }
+
+    var entrada = { input: input, lista: lista, wrap: wrap };
+    function recolher() { /* devolve a lista ao wrapper (sai do portal) */
+      if (portais.indexOf(entrada) >= 0) { devolverLista(entrada); }
     }
 
     function abrir() {
       if (aberto || input.disabled) { return; }
       aberto = true;
       lista.hidden = false;
+      limparOrfas();
+      lista.classList.add("portal");
+      document.body.appendChild(lista);
+      portais.push(entrada);
+      aplicarPosicao(input, lista);
       input.setAttribute("aria-expanded", "true");
       interagiu = false;
       desenhar("");
@@ -267,6 +343,7 @@
       if (!aberto) { return; }
       aberto = false;
       lista.hidden = true;
+      recolher();
       input.setAttribute("aria-expanded", "false");
       input.removeAttribute("aria-activedescendant");
       mostrarRotulo();
@@ -276,6 +353,7 @@
       var mudou = select.value !== item.id;
       aberto = false;
       lista.hidden = true;
+      recolher();
       input.setAttribute("aria-expanded", "false");
       gravarRecente(item.id);
       if (mudou) {
@@ -372,5 +450,6 @@
   }
   document.addEventListener("htmx:responseError", function () { definirFocoPendente(null); });
   document.addEventListener("htmx:sendError", function () { definirFocoPendente(null); });
-  document.addEventListener("htmx:load", function (ev) { iniciar(ev.target); });
+  document.addEventListener("htmx:load", function (ev) { limparOrfas(); iniciar(ev.target); });
+  document.addEventListener("htmx:afterSwap", limparOrfas);
 })(typeof window !== "undefined" ? window : globalThis);

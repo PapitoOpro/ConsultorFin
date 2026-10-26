@@ -18,7 +18,7 @@
   <button type="submit">Atualizar</button>
 </form>
 
-<section id="vencidas" class="bloco" style="margin-top:12px">
+<section id="vencidas" class="bloco">
   <h2>Vencidas</h2>
   {% if painel.vencidas %}
   <div class="alerta">{{ painel.vencidas | length }} vencida{{ "s" if painel.vencidas | length != 1 }} · total {{ painel.total_vencidas_centavos | brl }}</div>
@@ -26,29 +26,29 @@
   {{ tabela(painel.vencidas, horizonte, hoje, "Nenhuma conta vencida.") }}
 </section>
 
-<section id="a-vencer" class="bloco" style="margin-top:12px">
+<section id="a-vencer" class="bloco">
   <h2>A vencer (7 dias)</h2>
   {% if painel.a_vencer %}<p class="secundario">Total {{ painel.total_a_vencer_centavos | brl }}</p>{% endif %}
   {{ tabela(painel.a_vencer, horizonte, hoje, "Nada a vencer nos próximos 7 dias.") }}
 </section>
 
-<section id="proximos" class="bloco" style="margin-top:12px">
+<section id="proximos" class="bloco">
   <h2>Próximos vencimentos</h2>
   {% if painel.proximos %}<p class="secundario">Total {{ painel.total_proximos_centavos | brl }} · até o fim de {{ horizonte }} meses</p>{% endif %}
   {{ tabela(painel.proximos, horizonte, hoje, "Nenhum vencimento além dos próximos 7 dias no horizonte escolhido.") }}
 </section>
 
-<section id="receitas" class="bloco" style="margin-top:12px">
+<section id="receitas" class="bloco">
   <h2>Receitas previstas</h2>
   {% if painel.receitas %}<p class="secundario">Total {{ painel.total_receitas_centavos | brl }}</p>{% endif %}
   {{ tabela(painel.receitas, horizonte, hoje, "Nenhuma receita pendente no horizonte escolhido.") }}
 </section>
 
-<section id="correspondencias" class="bloco" style="margin-top:12px">
+<section id="correspondencias" class="bloco">
   <h2>Possíveis correspondências no extrato</h2>
   {% if correspondencias %}
   <p class="secundario">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Conta</th><th>Item</th><th class="valor">Valor</th><th>Linha do extrato</th><th class="valor">Valor</th><th></th></tr></thead>
     <tbody>
     {% for conta_nome, p in correspondencias %}
@@ -75,10 +75,10 @@
   {% endif %}
 </section>
 
-<section id="parcelamentos" class="bloco" style="margin-top:12px">
+<section id="parcelamentos" class="bloco">
   <h2>Parcelamentos</h2>
   {% if parcelamentos %}
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Descrição</th><th>Progresso</th><th>Próximo vencimento</th><th class="valor">Total / restante</th><th>Ações</th></tr></thead>
     <tbody>
     {% for g in parcelamentos %}
@@ -130,10 +130,10 @@
   </details>
 </section>
 
-<section id="recorrentes" class="bloco" style="margin-top:12px">
+<section id="recorrentes" class="bloco">
   <h2>Contas fixas e receitas recorrentes</h2>
   {% if recorrentes %}
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Nome</th><th>Tipo</th><th>Dia</th><th>Conta</th><th class="valor">Valor estimado</th><th class="valor">Último valor real</th><th>Situação</th><th>Ações</th></tr></thead>
     <tbody>
     {% for r in recorrentes %}
@@ -184,10 +184,10 @@
   </details>
 </section>
 
-<section id="contas" class="bloco" style="margin-top:12px">
+<section id="contas" class="bloco">
   <h2>Contas e cartões</h2>
   {% if contas %}
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Nome</th><th>Tipo</th><th>Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
     <tbody>
     {% for c in contas %}

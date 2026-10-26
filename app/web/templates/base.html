@@ -15,8 +15,9 @@
   {% block cabecalho %}{% endblock %}
 </head>
 <body>
+  <a class="pular-conteudo" href="#conteudo">Pular para o conteúdo</a>
   <div class="app" id="app">
-    <aside class="menu-lateral">
+    <div class="menu-lateral">
       <div class="menu-topo">
         <a class="marca" href="/" aria-label="ConsultorFin, ir para o Início"><span class="marca-logo" aria-hidden="true">C</span><span class="marca-nome">ConsultorFin</span></a>
         <button type="button" id="botao-menu" class="botao-menu" aria-expanded="false" aria-controls="menu-principal" aria-label="Menu de navegação"><span class="icone-abrir">{{ icone("menu", 20) }}</span><span class="icone-fechar">{{ icone("x", 20) }}</span></button>
@@ -31,14 +32,14 @@
         <p class="grupo-menu">Organização</p>
         {{ item_menu("categorias", "/categorias", "Categorias", "tags") }}
       </nav>
-    </aside>
+    </div>
     <div class="principal">
       <header class="cabecalho-pagina">
         {% block cabecalho_pagina %}
         <div class="cabecalho-titulo"><h1>{{ self.titulo() }}</h1></div>
         {% endblock %}
       </header>
-      <main class="conteudo">
+      <main class="conteudo" id="conteudo" tabindex="-1">
         <div id="mensagens" class="mensagens" role="alert" aria-live="polite">
           {% block mensagens %}{% endblock %}
         </div>

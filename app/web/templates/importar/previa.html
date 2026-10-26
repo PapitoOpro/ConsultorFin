@@ -58,7 +58,7 @@
 <div class="bloco">
   <h2>Primeiras linhas</h2>
   {% if amostra %}
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Data</th><th>Descrição</th><th class="valor">Valor</th></tr></thead>
     <tbody>
     {% for l in amostra %}

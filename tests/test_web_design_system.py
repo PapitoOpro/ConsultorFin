@@ -141,3 +141,74 @@ def test_macro_icone_desconhecido_vazio(cliente: TestClient) -> None:
 def test_lucide_licenca_em_third_party() -> None:
     txt = (WEB / "static" / "THIRD_PARTY.txt").read_text(encoding="utf-8")
     assert "lucide" in txt.lower() and "ISC" in txt
+
+
+# ---------- rodada de correções ----------
+
+def _mistura(rgba: str, base: str) -> str:
+    r, g, b, a = (float(x) for x in re.findall(r"[\d.]+", rgba)[:4])
+    bg = [int(base[i:i + 2], 16) for i in (1, 3, 5)]
+    out = [round(c * a + k * (1 - a)) for c, k in zip((r, g, b), bg)]
+    return "#%02X%02X%02X" % tuple(out)
+
+
+def _regra(seletor: str) -> str:
+    m = re.search(rf"^{re.escape(seletor)} \{{([^}}]*)\}}", _css(), re.M)
+    assert m, seletor
+    return m.group(1)
+
+
+def _var(texto: str) -> str:
+    m = re.search(r"(?<![-\w])color:\s*var\((--[\w-]+)\)", texto)
+    assert m, texto
+    return _token(m.group(1))
+
+
+@pytest.mark.parametrize("seletor", [
+    ".selo", ".selo.entrada", ".selo.saida", ".selo.info", ".selo.roxo", ".selo.neutro",
+    ".alerta", ".alerta.info", ".alerta.sucesso", ".alerta.erro",
+])
+def test_contraste_selos_e_alertas_sobre_fundo_tintado(seletor: str) -> None:
+    regra = _regra(seletor)
+    texto = _var(regra)
+    fundo = re.search(r"background:\s*(rgba\([^)]*\)|var\(--[\w-]+\))", regra)
+    assert fundo
+    cor_fundo = fundo.group(1)
+    for base in ("--superficie", "--fundo"):
+        bg = _token(cor_fundo[4:-1]) if cor_fundo.startswith("var(") else _mistura(cor_fundo, _token(base))
+        assert _razao(texto, bg) >= 4.5, (seletor, base)
+
+
+def test_contraste_botao_primario_e_kpi_destaque() -> None:
+    assert _razao(_token("--fundo"), _token("--primaria")) >= 4.5
+    for fundo in ("--primaria", "--primaria-escura"):
+        assert _razao(_token("--sobre-primaria"), _token(fundo)) >= 4.5
+        assert _razao(_token("--sobre-primaria-forte"), _token(fundo)) >= 4.5
+
+
+def test_sem_cores_hex_fora_de_root() -> None:
+    css = re.sub(r":root \{.*?\n\}", "", _css(), count=1, flags=re.S)
+    assert not re.findall(r"#[0-9A-Fa-f]{3,8}\b", css)
+
+
+def test_css_sem_regras_de_irmaos_e_sem_media_duplicada() -> None:
+    css = _css()
+    assert ".bloco + " not in css and "form + .bloco" not in css
+    assert css.count("@media (max-width: 700px)") == 1
+    assert "overflow-x: auto" in _regra(".tabela-rolavel")
+    assert "@media (max-width: 1280px) { .tabela-rolavel" not in css
+
+
+@pytest.mark.parametrize("rota", list(PAGINAS))
+def test_skip_link_e_regiao_principal(cliente: TestClient, rota: str) -> None:
+    t = cliente.get(rota).text
+    assert t.index('class="pular-conteudo"') < t.index('class="menu-lateral"')
+    assert 'href="#conteudo"' in t and 'id="conteudo"' in t
+    assert "<aside" not in t
+    assert t.count('aria-label="Menu principal"') == 1 and "<nav class=\"menu-nav\"" in t
+
+
+def test_tabelas_rolaveis_focaveis(cliente: TestClient) -> None:
+    t = cliente.get("/importar").text
+    for m in re.findall(r'<div class="tabela-rolavel"[^>]*>', t):
+        assert 'tabindex="0"' in m and 'role="region"' in m and "aria-label=" in m

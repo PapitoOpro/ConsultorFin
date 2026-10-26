@@ -4,7 +4,7 @@
 <p class="secundario">Arquivo: {{ nome }}. Formato não reconhecido automaticamente: indique as colunas.
   Valores no padrão brasileiro (1.234,56) e datas DD/MM/AAAA.</p>
 <div class="bloco">
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr>{% for c in colunas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
     <tbody>{% for linha in amostra %}<tr>{% for v in linha %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody>
   </table></div>

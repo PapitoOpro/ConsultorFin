@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icones.html" import icone %}
 {% block titulo %}Início{% endblock %}
 {% block cabecalho %}
   {% if not erro and not resumo.vazio %}
@@ -41,6 +42,7 @@
 
 {% if resumo.vazio %}
 <section class="bloco vazio" aria-label="Sem dados">
+  <span class="vazio-icone">{{ icone("inbox", 24) }}</span>
   <p>Nenhum lançamento ainda. Importe o extrato da sua conta para ver o painel.</p>
   <a class="botao" href="/importar">Importar primeiro extrato</a>
 </section>
@@ -123,7 +125,7 @@
     {% for sub in cat.subs %}
     <details class="sub">
       <summary><span>{{ sub.nome }}</span><span class="valor saida">{{ sub.total_centavos|brl }}</span></summary>
-      <div class="tabela-rolavel"><table><tbody>
+      <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table><tbody>
         {% for l in sub.lancamentos %}
         <tr><td>{{ l.data|data_br }}</td><td>{{ l.descricao }}</td><td class="valor saida">{{ l.valor_centavos|brl }}</td></tr>
         {% endfor %}
@@ -139,7 +141,7 @@
   {% else %}
   <p class="secundario">Nenhuma saída neste mês.</p>
   {% endfor %}
-  <div class="tabela-rolavel"><table class="total"><tbody><tr><td>Total</td><td class="valor saida">{{ resumo.saidas_centavos|brl }}</td></tr></tbody></table></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="total"><tbody><tr><td>Total</td><td class="valor saida">{{ resumo.saidas_centavos|brl }}</td></tr></tbody></table></div>
 </section>
 {% endif %}
 {% endif %}

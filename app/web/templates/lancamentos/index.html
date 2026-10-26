@@ -35,7 +35,7 @@
   <div class="campo"><button type="submit">Filtrar</button></div>
 </form>
 
-<div class="grade" style="margin-top:12px">
+<div class="grade">
   <div class="bloco"><div class="rotulo">Entradas</div><div class="numero valor entrada" id="total-entradas">{{ pagina.entradas_centavos | brl }}</div></div>
   <div class="bloco"><div class="rotulo">Saídas</div><div class="numero valor saida" id="total-saidas">{{ pagina.saidas_centavos | brl }}</div></div>
   <div class="bloco"><div class="rotulo">Resultado líquido</div><div class="numero valor {{ 'entrada' if pagina.liquido_centavos > 0 else ('saida' if pagina.liquido_centavos < 0) }}" id="total-liquido">{{ pagina.liquido_centavos | brl }}</div></div>
@@ -70,7 +70,7 @@
   </form>
 </details>
 
-<form id="lote" method="post" action="/lancamentos/lote" class="bloco acoes-barra" style="margin-top:12px">
+<form id="lote" method="post" action="/lancamentos/lote" class="bloco acoes-barra">
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <div class="campo" style="margin-bottom:0"><label for="l-cat">Categorizar selecionados em</label>
     <select id="l-cat" data-busca name="categoria_id" required>
@@ -78,10 +78,10 @@
   <button type="submit">Aplicar às linhas marcadas</button>
 </form>
 
-<div class="bloco" style="margin-top:12px">
+<div class="bloco">
   <p class="secundario">{{ pagina.total }} lançamentos · Página {{ pagina.pagina }} de {{ pagina.paginas }}</p>
   {% if pagina.linhas %}
-  <div class="tabela-rolavel"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr>
       <th></th><th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
       <th class="valor">Valor</th><th class="valor">Saldo</th><th>Tipo</th><th>Origem</th><th>Ações</th>
