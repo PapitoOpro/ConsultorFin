@@ -87,12 +87,14 @@ def test_create_app_nao_toca_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     import app.main as main
     from app import config
 
+    padrao = tmp_path / "padrao" / "consultorfin.db"
+    monkeypatch.setattr(config, "DB_PATH", padrao)
     monkeypatch.chdir(tmp_path)
     assert not hasattr(main, "app")
     with TestClient(create_app(tmp_path / "x.db")) as c:
         assert c.get("/").status_code == 200
     assert not (tmp_path / "data").exists()
-    assert not config.DB_PATH.parent.exists() or not config.DB_PATH.exists()
+    assert not padrao.parent.exists() and not padrao.exists()
 
 
 def test_get_con_concorrente(tmp_path: Path) -> None:

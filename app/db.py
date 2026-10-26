@@ -176,15 +176,37 @@ def _migracao_6(con: sqlite3.Connection) -> None:
         "ALTER TABLE categorias ADD COLUMN tipo TEXT CHECK (tipo IN ('entrada','saida'))"
     )
     con.execute("ALTER TABLE categorias ADD COLUMN nome_chave TEXT")
+    # Terceiro nível legado (sub sob sub) vira filha da raiz, mantendo o id e as referências.
+    pais = {int(r["id"]): r["pai_id"] for r in con.execute("SELECT id, pai_id FROM categorias")}
+
+    def raiz_de(i: int) -> int:
+        while pais[i] is not None:
+            i = int(pais[i])
+        return i
+
+    for i, pai in pais.items():
+        if pai is not None and pais[int(pai)] is not None:
+            con.execute("UPDATE categorias SET pai_id = ? WHERE id = ?", (raiz_de(i), i))
+    linhas = con.execute(
+        "SELECT id, nome, COALESCE(pai_id, 0) AS pai FROM categorias ORDER BY id"
+    ).fetchall()
+    # Nomes originais ficam reservados: renomear nunca colide com o nome literal de outra irmã.
+    reservados = {(int(r["pai"]), chave_nome(str(r["nome"]))) for r in linhas}
     vistos: set[tuple[int, str]] = set()
-    for r in con.execute("SELECT id, nome, COALESCE(pai_id, 0) AS pai FROM categorias ORDER BY id").fetchall():
-        nome, chave = str(r["nome"]), chave_nome(str(r["nome"]))
+    for r in linhas:
+        pai = int(r["pai"])
+        base = " ".join(str(r["nome"]).split())
+        nome, chave = base, chave_nome(base)
         n = 2
-        while (r["pai"], chave) in vistos:  # duplicata legada entre irmãos: renomeia a posterior
-            nome = f"{r['nome']} ({n})"
+        while (pai, chave) in vistos:  # duplicata legada entre irmãs: renomeia a posterior
+            nome = f"{base} ({n})"
             chave = chave_nome(nome)
+            while (pai, chave) in reservados:
+                n += 1
+                nome = f"{base} ({n})"
+                chave = chave_nome(nome)
             n += 1
-        vistos.add((r["pai"], chave))
+        vistos.add((pai, chave))
         con.execute("UPDATE categorias SET nome = ?, nome_chave = ? WHERE id = ?", (nome, chave, r["id"]))
     con.execute(
         "CREATE UNIQUE INDEX ux_categorias_irmas ON categorias (COALESCE(pai_id, 0), nome_chave)"
@@ -192,6 +214,7 @@ def _migracao_6(con: sqlite3.Connection) -> None:
     con.execute("UPDATE categorias SET tipo = 'saida' WHERE pai_id IS NULL")
     # Antigas categorias padrão sem uso (lançamentos, recorrentes, regras, filhas) são removidas;
     # as em uso (ou com o nome da lista nova, reaproveitadas na carga) permanecem.
+    # Lê a lista viva de propósito: mudanças futuras na lista exigem uma nova migração.
     from app.dominio.taxonomia import PADRAO
 
     novas = {chave_nome(c) for _, c, _ in PADRAO}

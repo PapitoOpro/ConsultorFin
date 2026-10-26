@@ -208,3 +208,70 @@ def test_arvore_para_tela(con: sqlite3.Connection) -> None:
     assert cat["filhas"][0]["nome"] == "Sub" and cat["filhas"][0]["uso"]["lancamentos"] == 1
     assert "Moradia" in [c["nome"] for c in tela["saida"]]
     assert "Salário e Trabalho" in [c["nome"] for c in tela["entrada"]]
+
+
+def _falhar(monkeypatch: pytest.MonkeyPatch, nome: str) -> None:
+    from app.repo import categorias as repo
+
+    def falha(*_: object) -> bool:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(repo, nome, falha)
+
+
+def test_remover_em_transacao_do_chamador_reverte_so_a_operacao(
+        con: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    _conta(con)
+    a = criar_categoria(con, "A", "saida")
+    b = criar_categoria(con, "B", "saida")
+    _lanc(con, "l1", a)
+    criar_regra(con, "AAA", a)
+    con.execute("INSERT INTO configuracoes (chave, valor) VALUES ('meu', '1')")  # tx implícita
+    assert con.in_transaction
+    _falhar(monkeypatch, "remover")
+    with pytest.raises(RuntimeError):
+        remover_categoria(con, a, substituir_por=b)
+    assert con.in_transaction
+    assert con.execute("SELECT categoria_id FROM lancamentos").fetchone()[0] == a
+    assert con.execute("SELECT categoria_id FROM regras_categoria").fetchone()[0] == a
+    assert _cat(con, a) is not None
+    assert con.execute("SELECT COUNT(*) FROM configuracoes WHERE chave = 'meu'").fetchone()[0] == 1
+
+
+def test_alterar_tipo_em_transacao_do_chamador_reverte(
+        con: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    a = criar_categoria(con, "A", "saida")
+    s = criar_subcategoria(con, a, "S")
+    con.execute("INSERT INTO configuracoes (chave, valor) VALUES ('meu', '1')")
+    from app.repo import categorias as repo
+    original = repo.atualizar_tipo
+
+    def meio(c: sqlite3.Connection, cid: int, tipo: str) -> None:
+        original(c, cid, tipo)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(repo, "atualizar_tipo", meio)
+    with pytest.raises(RuntimeError):
+        alterar_tipo(con, a, "entrada")
+    assert (_cat(con, a)["tipo"], _cat(con, s)["tipo"]) == ("saida", "saida")
+    assert con.execute("SELECT COUNT(*) FROM configuracoes WHERE chave = 'meu'").fetchone()[0] == 1
+
+
+def test_mover_em_transacao_do_chamador_reverte(
+        con: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    a = criar_categoria(con, "A", "saida")
+    b = criar_categoria(con, "B", "saida")
+    s = criar_subcategoria(con, a, "S")
+    con.execute("INSERT INTO configuracoes (chave, valor) VALUES ('meu', '1')")
+    from app.repo import categorias as repo
+    original = repo.mover
+
+    def meio(c: sqlite3.Connection, cid: int, novo: int) -> None:
+        original(c, cid, novo)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(repo, "mover", meio)
+    with pytest.raises(RuntimeError):
+        mover_subcategoria(con, s, b)
+    assert _cat(con, s)["pai_id"] == a
+    assert con.execute("SELECT COUNT(*) FROM configuracoes WHERE chave = 'meu'").fetchone()[0] == 1

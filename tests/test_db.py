@@ -266,3 +266,38 @@ def test_nome_unico_entre_irmaos_no_banco(con: sqlite3.Connection) -> None:
     with pytest.raises(sqlite3.IntegrityError):
         con.execute("INSERT INTO categorias (uuid, nome, nome_chave, tipo) VALUES ('u', 'MORADIA',"
                     " 'moradia', 'saida')")
+
+
+def test_migracao_6_duplicatas_e_terceiro_nivel(tmp_path) -> None:
+    caminho = tmp_path / "v5.db"
+    c = conectar(caminho)
+    for numero in range(5):
+        c.execute("BEGIN")
+        MIGRACOES[numero](c)
+        c.execute(f"PRAGMA user_version = {numero + 1}")
+        c.execute("COMMIT")
+    ins = "INSERT INTO categorias (uuid, nome, pai_id) VALUES (?,?,?)"
+    for i, nome in enumerate(("Pet", "PET", "Pet (2)", "  Zeta  ", "zeta")):
+        c.execute(ins, (f"u{i}", nome, None))
+    raiz = c.execute("SELECT id FROM categorias WHERE uuid = 'u0'").fetchone()[0]
+    sub = c.execute(ins, ("s1", "Sub", raiz)).lastrowid
+    c.execute(ins, ("s2", "sub", raiz))  # irmã da futura promovida
+    terceiro = c.execute(ins, ("t1", "SUB", sub)).lastrowid  # terceiro nível legado
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('c', 'C', 'corrente')")
+    c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+              " categoria_id, chave_deduplicacao, origem)"
+              " VALUES ('l',1,'2026-10-10','x',-1,'saida',?,'k','manual')", (terceiro,))
+    c.execute("INSERT INTO regras_categoria (padrao, categoria_id) VALUES ('p', ?)", (terceiro,))
+    c.commit()
+    migrar(c)
+    nomes = [r[0] for r in c.execute(
+        "SELECT nome FROM categorias WHERE pai_id IS NULL AND uuid IN ('u0','u1','u2','u3','u4')"
+        " ORDER BY id")]
+    assert nomes == ["Pet", "PET (3)", "Pet (2)", "Zeta", "zeta (2)"]
+    t = c.execute("SELECT * FROM categorias WHERE id = ?", (terceiro,)).fetchone()
+    assert t["pai_id"] == raiz and t["tipo"] == "saida" and t["nome"] == "SUB (3)"
+    assert c.execute("SELECT categoria_id FROM lancamentos").fetchone()[0] == terceiro
+    assert c.execute("SELECT categoria_id FROM regras_categoria").fetchone()[0] == terceiro
+    assert c.execute("SELECT COUNT(*) FROM categorias f JOIN categorias p ON p.id = f.pai_id"
+                     " WHERE p.pai_id IS NOT NULL").fetchone()[0] == 0
+    c.close()

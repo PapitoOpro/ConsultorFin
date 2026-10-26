@@ -11,6 +11,8 @@ def _linhas_do_markdown() -> list[tuple[str, str, str]]:
         if not linha.startswith("| ") or linha.startswith("| Tipo"):
             continue
         tipo, cat, sub = (c.strip() for c in linha.strip().strip("|").split("|"))
+        if tipo not in ("Entrada", "Saída"):
+            raise ValueError(f"Tipo desconhecido no markdown: {tipo!r}")
         saida.append(("entrada" if tipo == "Entrada" else "saida", cat, sub))
     return saida
 

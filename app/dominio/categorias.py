@@ -1,4 +1,5 @@
 """Tipos de lançamento, categorias, regras e totais mensais."""
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -70,11 +71,22 @@ _TIPOS = ("entrada", "saida")
 
 @contextmanager
 def _escrita(con: Any) -> Iterator[None]:
-    if con.in_transaction:  # chamador é dono da transação
-        yield
-    else:
+    """Transação própria; se o chamador já tem uma aberta, usa SAVEPOINT para reverter só
+    o que esta operação fez (a transação externa continua sendo do chamador)."""
+    if not con.in_transaction:
         with transacao(con):
             yield
+        return
+    ponto = f"cat_{uuid.uuid4().hex}"
+    con.execute(f"SAVEPOINT {ponto}")
+    try:
+        yield
+    except BaseException:
+        con.execute(f"ROLLBACK TO {ponto}")
+        con.execute(f"RELEASE {ponto}")
+        raise
+    else:
+        con.execute(f"RELEASE {ponto}")
 
 
 def _nome_valido(nome: str, rotulo: str) -> str:
