@@ -232,8 +232,48 @@ def _migracao_6(con: sqlite3.Connection) -> None:
     _carregar_padrao(con)
 
 
+def _migracao_7(con: sqlite3.Connection) -> None:
+    """Chave de deduplicação independente do formato (CSV x OFX).
+
+    Recalcula `chave_deduplicacao` das linhas importadas: sha256(conta_uuid | data |
+    descricao_normalizada | valor | ocorrencia), ocorrencia = posição por id dentro de
+    (conta, data, descricao_normalizada, valor). Não toca `manual:` nem `chaves_quitadas`.
+    Tudo em memória, com checagem de unicidade antes de escrever; idempotente."""
+    import hashlib
+
+    from app.dominio.normalizacao import normalizar_descricao
+
+    linhas = con.execute(
+        "SELECT l.id, l.data, l.descricao, l.valor_centavos, l.chave_deduplicacao, c.uuid AS cu"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " WHERE l.origem = 'importado' ORDER BY l.id"
+    ).fetchall()
+    ocorrencias: dict[tuple[str, str, str, int], int] = {}
+    novas: dict[int, str] = {}
+    for r in linhas:
+        grupo = (str(r["cu"]), str(r["data"]), normalizar_descricao(str(r["descricao"])),
+                 int(r["valor_centavos"]))
+        ocorrencias[grupo] = ocorrencias.get(grupo, 0) + 1
+        base = "|".join((grupo[0], grupo[1], grupo[2], str(grupo[3]), str(ocorrencias[grupo])))
+        novas[int(r["id"])] = hashlib.sha256(base.encode("utf-8")).hexdigest()
+    if len(set(novas.values())) != len(novas):
+        raise RuntimeError("Migração v7: chaves novas repetidas; nada foi alterado.")
+    ocupadas = {str(r[0]) for r in con.execute(
+        "SELECT chave_deduplicacao FROM lancamentos WHERE origem <> 'importado'")}
+    if ocupadas & set(novas.values()):
+        raise RuntimeError("Migração v7: chave nova já usada por outra linha; nada foi alterado.")
+    antigas = {int(r["id"]): str(r["chave_deduplicacao"]) for r in linhas}
+    mudam = [(i, k) for i, k in novas.items() if k != antigas[i]]
+    # Duas fases: uma chave nova pode ser a antiga de outra linha que também muda.
+    con.executemany("UPDATE lancamentos SET chave_deduplicacao = ? WHERE id = ?",
+                    [(f"v7-tmp:{i}", i) for i, _ in mudam])
+    con.executemany("UPDATE lancamentos SET chave_deduplicacao = ? WHERE id = ?",
+                    [(k, i) for i, k in mudam])
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
+    _migracao_7,
 ]
 
 

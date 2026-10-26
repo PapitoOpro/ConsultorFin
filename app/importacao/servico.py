@@ -7,7 +7,8 @@ from datetime import date, datetime, time
 
 from app.db import transacao
 from app.dominio.categorias import PADROES_FATURA_PADRAO, aplicar_regras, classificar_tipo
-from app.dominio.lancamentos import chave_deduplicacao
+from app.dominio.lancamentos import chave_deduplicacao, chave_deduplicacao_legada
+from app.dominio.normalizacao import normalizar_descricao
 from app.dominio.casamento import PropostaCasamento, propostas_com_detalhes  # noqa: F401 - reexport
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.importacao.base import ErroLeitura, LinhaImportada, Parser, ResultadoLeitura
@@ -79,16 +80,28 @@ class SimulacaoImportacao:
     erros: list[ErroLeitura] = field(default_factory=list)
 
 
-def _com_chaves(conta_uuid: str, linhas: list[LinhaImportada]) -> list[tuple[LinhaImportada, str]]:
-    """Cada linha com sua chave de deduplicação (n-ésima ocorrência do mesmo trio)."""
-    ocorrencias: dict[tuple[str, str, int], int] = {}
-    out: list[tuple[LinhaImportada, str]] = []
+def _com_chaves(conta_uuid: str, linhas: list[LinhaImportada]
+                ) -> list[tuple[LinhaImportada, str, str]]:
+    """Cada linha com a chave nova (ocorrência sobre a descrição normalizada) e a legada
+    (ocorrência sobre a descrição literal, como antes da v7)."""
+    oc_nova: dict[tuple[str, str, int], int] = {}
+    oc_legada: dict[tuple[str, str, int], int] = {}
+    out: list[tuple[LinhaImportada, str, str]] = []
     for l in linhas:
-        trio = (l.data, l.descricao, l.valor_centavos)
-        ocorrencias[trio] = ocorrencias.get(trio, 0) + 1
-        out.append((l, chave_deduplicacao(conta_uuid, l.data, l.descricao, l.valor_centavos,
-                                          ocorrencias[trio])))
+        trio_n = (l.data, normalizar_descricao(l.descricao), l.valor_centavos)
+        trio_l = (l.data, l.descricao, l.valor_centavos)
+        oc_nova[trio_n] = oc_nova.get(trio_n, 0) + 1
+        oc_legada[trio_l] = oc_legada.get(trio_l, 0) + 1
+        out.append((
+            l,
+            chave_deduplicacao(conta_uuid, l.data, l.descricao, l.valor_centavos, oc_nova[trio_n]),
+            chave_deduplicacao_legada(conta_uuid, l.data, l.descricao, l.valor_centavos,
+                                      oc_legada[trio_l])))
     return out
+
+
+def _ja_existe(con: Any, nova: str, legada: str) -> bool:
+    return lancamentos.chave_existe(con, nova) or lancamentos.chave_existe(con, legada)
 
 
 def simular_importacao(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
@@ -105,8 +118,8 @@ def simular_importacao(con: Any, conta_id: int, nome_arquivo: str, conteudo: byt
     leitura = parser.ler(conteudo)
     _exigir_datas_validas(con, conta_id, leitura)
     novos = ignorados = 0
-    for _, chave in _com_chaves(conta_uuid, leitura.linhas):
-        if lancamentos.chave_existe(con, chave):
+    for _, nova, legada in _com_chaves(conta_uuid, leitura.linhas):
+        if _ja_existe(con, nova, legada):
             ignorados += 1
         else:
             novos += 1
@@ -146,8 +159,8 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
     with transacao(con):
         imp_id = importacoes.criar(con, conta_id, nome_arquivo, arquivo_hash,
                                    datetime.combine(hoje, time()))
-        for l, chave in _com_chaves(conta_uuid, leitura.linhas):
-            if lancamentos.chave_existe(con, chave):
+        for l, chave, legada in _com_chaves(conta_uuid, leitura.linhas):
+            if _ja_existe(con, chave, legada):
                 ignorados += 1
                 continue
             lancamentos.inserir_importado(con, conta_id, imp_id, l.data, l.descricao,

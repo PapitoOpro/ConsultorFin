@@ -301,3 +301,122 @@ def test_migracao_6_duplicatas_e_terceiro_nivel(tmp_path) -> None:
     assert c.execute("SELECT COUNT(*) FROM categorias f JOIN categorias p ON p.id = f.pai_id"
                      " WHERE p.pai_id IS NOT NULL").fetchone()[0] == 0
     c.close()
+
+
+# --- Migração v7: chave de deduplicação independente do formato ---------------------------------
+
+def _banco_v6(caminho) -> sqlite3.Connection:
+    c = conectar(caminho)
+    for numero in range(6):
+        c.execute("BEGIN")
+        MIGRACOES[numero](c)
+        c.execute(f"PRAGMA user_version = {numero + 1}")
+        c.execute("COMMIT")
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('conta-u', 'C', 'corrente')")
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('conta-w', 'D', 'corrente')")
+    c.execute("INSERT INTO importacoes (arquivo_nome, arquivo_hash, conta_id, criado_em)"
+              " VALUES ('a.csv', 'h', 1, '2026-10-23T00:00:00')")
+    return c
+
+
+def _inserir_v6(c, conta, data, desc, valor, chave, origem="importado") -> None:
+    c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+              " chave_deduplicacao, origem, importacao_id, data_compensacao, compensado)"
+              " VALUES (?,?,?,?,?,'saida',?,?,1,?,1)",
+              (chave + "-u", conta, data, desc, valor, chave, origem, data))
+
+
+def _popular_v6(c) -> None:
+    from app.dominio.lancamentos import chave_deduplicacao_legada as legada
+    oc: dict[tuple[str, str, int], int] = {}
+    itens = [("2026-10-05", "PIX QRS PADARIA", -2490), ("2026-10-05", "PIX QRS PADARIA", -2490),
+             ("2026-10-22", "PIX TRANSF RR Supo22/10", -34354),
+             ("2026-10-22", "PIX TRANSF RR Supo22 10", -34354),  # colide ao normalizar
+             ("2026-10-20", "UBER *TRIP", -2735)]
+    for d, desc, v in itens:
+        oc[(d, desc, v)] = oc.get((d, desc, v), 0) + 1
+        _inserir_v6(c, 1, d, desc, v, legada("conta-u", d, desc, v, oc[(d, desc, v)]))
+    _inserir_v6(c, 1, "2026-10-01", "manual", -100, "manual:abc", origem="manual")
+    _inserir_v6(c, 2, "2026-10-05", "PIX QRS PADARIA", -2490,
+                legada("conta-w", "2026-10-05", "PIX QRS PADARIA", -2490, 1))
+    c.execute("INSERT INTO chaves_quitadas (chave, pendente_id, importacao_id) VALUES ('kq', 1, 1)")
+    c.commit()
+
+
+def _foto(c) -> tuple:
+    return (tuple(c.execute("SELECT COUNT(*), SUM(valor_centavos) FROM lancamentos").fetchone()),
+            [tuple(r) for r in c.execute(
+                "SELECT id, uuid, conta_id, data, descricao, valor_centavos, origem"
+                " FROM lancamentos ORDER BY id")])
+
+
+def test_migracao_7_recalcula_chaves_importadas(tmp_path) -> None:
+    from app.dominio.lancamentos import chave_deduplicacao
+    c = _banco_v6(tmp_path / "v6.db")
+    _popular_v6(c)
+    antes = _foto(c)
+    c.close()
+
+    c = conectar(tmp_path / "v6.db")
+    migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) >= 7
+    assert _foto(c) == antes
+    assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+    chaves = [r[0] for r in c.execute("SELECT chave_deduplicacao FROM lancamentos")]
+    assert len(chaves) == len(set(chaves))
+    assert c.execute("SELECT chave_deduplicacao FROM lancamentos WHERE origem='manual'"
+                     ).fetchone()[0] == "manual:abc"
+    assert c.execute("SELECT chave FROM chaves_quitadas").fetchall()[0][0] == "kq"
+    rows = c.execute("SELECT chave_deduplicacao FROM lancamentos WHERE id IN (3, 4) ORDER BY id"
+                     ).fetchall()
+    # barra e espaço: mesma descrição normalizada, ocorrências 1 e 2 por ordem de id
+    assert [r[0] for r in rows] == [
+        chave_deduplicacao("conta-u", "2026-10-22", "PIX TRANSF RR Supo22/10", -34354, 1),
+        chave_deduplicacao("conta-u", "2026-10-22", "PIX TRANSF RR Supo22 10", -34354, 2)]
+    c.close()
+
+
+def test_migracao_7_idempotente(tmp_path) -> None:
+    c = _banco_v6(tmp_path / "v6.db")
+    _popular_v6(c)
+    migrar(c)
+    chaves = [tuple(r) for r in c.execute("SELECT id, chave_deduplicacao FROM lancamentos")]
+    c.execute("BEGIN")
+    MIGRACOES[6](c)
+    c.execute("COMMIT")
+    assert [tuple(r) for r in c.execute("SELECT id, chave_deduplicacao FROM lancamentos")] == chaves
+    c.close()
+
+
+def test_migracao_7_falha_faz_rollback(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    c = _banco_v6(tmp_path / "v6.db")
+    _popular_v6(c)
+    chaves = [tuple(r) for r in c.execute("SELECT id, chave_deduplicacao FROM lancamentos")]
+    real = MIGRACOES[6]
+
+    def falha(con: sqlite3.Connection) -> None:
+        real(con)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(db, "MIGRACOES", [*MIGRACOES[:6], falha])
+    with pytest.raises(RuntimeError):
+        migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 6
+    assert [tuple(r) for r in c.execute("SELECT id, chave_deduplicacao FROM lancamentos")] == chaves
+    c.close()
+
+
+def test_migracao_7_colisao_com_chave_de_outra_linha_aborta(tmp_path) -> None:
+    from app.dominio.lancamentos import chave_deduplicacao
+    c = _banco_v6(tmp_path / "v6.db")
+    # outra linha (manual) já ocupa a chave que a importada receberia: aborta sem gravar
+    alvo = chave_deduplicacao("conta-u", "2026-10-05", "X", -1, 1)
+    _inserir_v6(c, 1, "2026-10-05", "X", -1, "antiga")
+    _inserir_v6(c, 1, "2026-10-06", "Y", -1, alvo, origem="manual")
+    c.commit()
+    with pytest.raises(RuntimeError):
+        migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 6
+    assert c.execute("SELECT chave_deduplicacao FROM lancamentos WHERE descricao='X'"
+                     ).fetchone()[0] == "antiga"
+    c.close()
