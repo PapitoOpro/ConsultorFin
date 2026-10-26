@@ -33,6 +33,8 @@ def _pagina(request: Request, con: Any, horizonte: int, *, aviso: str | None = N
         "correspondencias": dom.correspondencias(con),
         "parcelamentos": dom.resumo_parcelamentos(con), "recorrentes": dom.listar_recorrentes(con),
         "contas": contas.listar(con), "categorias": opcoes_categorias(con),
+        "categorias_saida": opcoes_categorias(con, "saida"),
+        "categorias_entrada": opcoes_categorias(con, "entrada"),
         "tipos_conta": acoes.TIPOS_CONTA, "aviso": aviso, "erro": erro,
     }
     return request.app.state.templates.TemplateResponse(
@@ -94,12 +96,14 @@ def novo_parcelamento(
 def nova_recorrente(
     request: Request, con: Any = Depends(get_con), nome: str = Form(""), tipo: str = Form(""),
     dia: str = Form(""), valor_estimado: str = Form(""), conta_id: str = Form(""),
-    categoria_id: str = Form(""), horizonte: str = Form(""),
+    categoria_id: str = Form(""), categoria_entrada: str = Form(""),
+    categoria_saida: str = Form(""), horizonte: str = Form(""),
 ) -> HTMLResponse:
     def acao(_: date) -> str:
+        escolhida = categoria_entrada if tipo == "entrada" else categoria_saida
         return acoes.criar_recorrente_de_formulario(
             con, nome=nome, tipo=tipo, dia=dia, valor_estimado=valor_estimado,
-            conta_id=conta_id, categoria_id=categoria_id)
+            conta_id=conta_id, categoria_id=escolhida or categoria_id)
     return _executar(request, con, horizonte, acao)
 
 

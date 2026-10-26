@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import opcoes_categoria %}
 {% block titulo %}Lançamentos{% endblock %}
 {% block mensagens %}
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
@@ -17,7 +18,7 @@
   <div class="campo"><label for="f-cat">Categoria</label>
     <select id="f-cat" name="categoria_id"><option value="">Todas</option>
       <option value="sem"{{ " selected" if filtros.sem_categoria }}>Sem categoria</option>
-      {% for cid, nome in categorias %}<option value="{{ cid }}"{{ " selected" if filtros.categoria_id == cid }}>{{ nome }}</option>{% endfor %}
+      {{ opcoes_categoria(categorias, filtros.categoria_id, true) }}
     </select></div>
   <div class="campo"><label for="f-tipo">Tipo</label>
     <select id="f-tipo" name="tipo"><option value="">Todos</option>
@@ -55,9 +56,12 @@
         <label><input type="radio" name="sinal" value="entrada"> Entrada</label></div>
       <div class="campo"><label for="n-conta">Conta</label>
         <select id="n-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
-      <div class="campo"><label for="n-cat">Categoria</label>
-        <select id="n-cat" name="categoria_id"><option value="">Sem categoria</option>
-          {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+      <div class="campo cat-sinal" data-sinal="saida"><label for="n-cat-saida">Categoria (saída)</label>
+        <select id="n-cat-saida" name="categoria_saida"><option value="">Sem categoria</option>
+          {{ opcoes_categoria(categorias_saida) }}</select></div>
+      <div class="campo cat-sinal" data-sinal="entrada"><label for="n-cat-entrada">Categoria (entrada)</label>
+        <select id="n-cat-entrada" name="categoria_entrada"><option value="">Sem categoria</option>
+          {{ opcoes_categoria(categorias_entrada) }}</select></div>
       <div class="campo"><label for="n-obs">Observação</label><input id="n-obs" name="observacao" maxlength="500"></div>
       <div class="campo"><label><input type="checkbox" name="compensado" value="1"> Já compensado</label></div>
     </div>
@@ -69,7 +73,7 @@
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <div class="campo" style="margin-bottom:0"><label for="l-cat">Categorizar selecionados em</label>
     <select id="l-cat" name="categoria_id" required>
-      {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select></div>
+      {{ opcoes_categoria(categorias, none, true) }}</select></div>
   <button type="submit">Aplicar às linhas marcadas</button>
 </form>
 
@@ -108,7 +112,7 @@
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <input name="padrao" value="{{ l.descricao }}" maxlength="100" aria-label="Quando a descrição contiver">
               <select name="categoria_id" aria-label="Categoria da regra">
-                {% for cid, nome in categorias %}<option value="{{ cid }}">{{ nome }}</option>{% endfor %}</select>
+                {{ opcoes_categoria(categorias, none, true) }}</select>
               <button type="submit" class="secundario">Criar regra</button>
             </form>
             {% if not l.compensado %}
@@ -140,4 +144,21 @@
     {% if proxima %}<a href="/lancamentos?{{ proxima }}">Próxima</a>{% endif %}
   </div>
 </div>
+<script>
+  (function () {
+    var radios = document.querySelectorAll('input[name="sinal"]');
+    var campos = document.querySelectorAll(".cat-sinal");
+    function atualizar() {
+      var sinal = "saida";
+      radios.forEach(function (r) { if (r.checked) { sinal = r.value; } });
+      campos.forEach(function (c) {
+        var ativo = c.getAttribute("data-sinal") === sinal;
+        c.hidden = !ativo;
+        c.querySelector("select").disabled = !ativo;
+      });
+    }
+    radios.forEach(function (r) { r.addEventListener("change", atualizar); });
+    atualizar();
+  })();
+</script>
 {% endblock %}

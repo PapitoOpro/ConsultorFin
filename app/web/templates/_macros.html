@@ -1,0 +1,12 @@
+{# Opções de categoria agrupadas (<optgroup> por categoria). cats = [(id, rótulo, tipo)] #}
+{% macro opcoes_categoria(cats, selecionado=none, mostrar_tipo=false) -%}
+{%- for cid, rotulo, tp in cats -%}
+{%- set grupo = rotulo.split(" › ")[0] -%}
+{%- if loop.first or loop.previtem[1].split(" › ")[0] != grupo or loop.previtem[2] != tp -%}
+{%- if not loop.first %}</optgroup>{% endif -%}
+<optgroup label="{{ grupo }}{% if mostrar_tipo %} ({{ 'entrada' if tp == 'entrada' else 'saída' }}){% endif %}">
+{%- endif -%}
+<option value="{{ cid }}"{{ " selected" if selecionado == cid }}>{{ rotulo }}</option>
+{%- if loop.last %}</optgroup>{% endif -%}
+{%- endfor -%}
+{%- endmacro %}

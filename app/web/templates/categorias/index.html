@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_macros.html" import opcoes_categoria %}
+{% block titulo %}Categorias{% endblock %}
+{% block mensagens %}
+  {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
+  {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
+{% endblock %}
+{% macro uso_txt(u) -%}
+  {{ u.lancamentos }} lançamento{{ "" if u.lancamentos == 1 else "s" }} · {{ u.recorrentes }} conta{{ "" if u.recorrentes == 1 else "s" }} fixa{{ "" if u.recorrentes == 1 else "s" }}/recorrente{{ "" if u.recorrentes == 1 else "s" }} · {{ u.regras }} regra{{ "" if u.regras == 1 else "s" }}
+{%- endmacro %}
+{% macro form_excluir(c) %}
+  <form method="post" action="/categorias/{{ c.id }}/excluir" onsubmit="return confirm('Excluir esta categoria?')">
+    <input type="hidden" name="aba" value="{{ aba }}">
+    <button type="submit" class="secundario">Excluir</button>
+  </form>
+{% endmacro %}
+{% macro form_renomear(c) %}
+  <form method="post" action="/categorias/{{ c.id }}/renomear" class="linha-form">
+    <input type="hidden" name="aba" value="{{ aba }}">
+    <input name="nome" value="{{ c.nome }}" maxlength="80" required aria-label="Novo nome de {{ c.nome }}">
+    <button type="submit" class="secundario">Renomear</button>
+  </form>
+{% endmacro %}
+{% block conteudo %}
+<h1>Categorias</h1>
+
+<nav class="abas" aria-label="Tipo de categoria">
+  <a href="/categorias?aba=saida" class="{{ 'ativa' if aba == 'saida' }}">Saídas</a>
+  <a href="/categorias?aba=entrada" class="{{ 'ativa' if aba == 'entrada' }}">Entradas</a>
+</nav>
+
+{% if excluindo %}
+<section class="bloco alerta-bloco" id="confirmar-exclusao">
+  <h2>Excluir "{{ excluindo.nome }}"</h2>
+  <p>Esta categoria está em uso: {{ excluindo.uso.lancamentos }} lançamento{{ "" if excluindo.uso.lancamentos == 1 else "s" }},
+    {{ excluindo.uso.recorrentes }} conta{{ "" if excluindo.uso.recorrentes == 1 else "s" }} fixa{{ "" if excluindo.uso.recorrentes == 1 else "s" }}/recorrente{{ "" if excluindo.uso.recorrentes == 1 else "s" }} e
+    {{ excluindo.uso.regras }} regra{{ "" if excluindo.uso.regras == 1 else "s" }} automática{{ "" if excluindo.uso.regras == 1 else "s" }}.
+    Escolha o que fazer com eles; nada é excluído antes da sua escolha.</p>
+  <form method="post" action="/categorias/{{ excluindo.id }}/excluir" onsubmit="return confirm('Confirmar a exclusão?')">
+    <input type="hidden" name="aba" value="{{ aba }}">
+    <div class="filtros">
+      <div class="campo"><label for="subst">Substituir por…</label>
+        <select id="subst" name="substituir_por"><option value="">Escolha uma categoria</option>
+          {{ opcoes_categoria(excluindo.destinos) }}</select></div>
+    </div>
+    <div class="acoes-barra">
+      <button type="submit" name="acao" value="substituir">Substituir e excluir</button>
+      <button type="submit" name="acao" value="sem" class="secundario">Deixar sem categoria e excluir</button>
+      <a class="botao secundario" href="/categorias?aba={{ aba }}">Cancelar</a>
+    </div>
+    <p class="secundario">"Deixar sem categoria" apaga as regras automáticas desta categoria.</p>
+  </form>
+</section>
+{% endif %}
+
+<form method="post" action="/categorias/criar" class="bloco acoes-barra">
+  <input type="hidden" name="tipo" value="{{ aba }}">
+  <input type="hidden" name="aba" value="{{ aba }}">
+  <div class="campo" style="margin-bottom:0"><label for="nova-cat">Nova categoria de {{ "entrada" if aba == "entrada" else "saída" }}</label>
+    <input id="nova-cat" name="nome" maxlength="80" required></div>
+  <button type="submit">Adicionar categoria</button>
+</form>
+
+<div class="lista-categorias">
+{% for c in arvore[aba] %}
+  <details class="bloco categoria">
+    <summary><strong>{{ c.nome }}</strong>
+      <span class="secundario">{{ c.filhas | length }} subcategoria{{ "" if c.filhas | length == 1 else "s" }} · {{ c.uso_total }} em uso</span></summary>
+    <p class="secundario">Esta categoria: {{ uso_txt(c.uso) }}</p>
+    <div class="acoes-linha">
+      {{ form_renomear(c) }}
+      <form method="post" action="/categorias/{{ c.id }}/subcategoria" class="linha-form">
+        <input type="hidden" name="aba" value="{{ aba }}">
+        <input name="nome" maxlength="80" placeholder="Nova subcategoria" required aria-label="Nova subcategoria de {{ c.nome }}">
+        <button type="submit" class="secundario">Adicionar subcategoria</button>
+      </form>
+      <form method="post" action="/categorias/{{ c.id }}/tipo" class="linha-form"
+            onsubmit="return confirm('Mudar o tipo desta categoria também muda o tipo de todas as subcategorias. Continuar?')">
+        <input type="hidden" name="tipo" value="{{ 'entrada' if aba == 'saida' else 'saida' }}">
+        <input type="hidden" name="aba" value="{{ aba }}">
+        <button type="submit" class="secundario">Mudar para {{ "entrada" if aba == "saida" else "saída" }}</button>
+      </form>
+      {{ form_excluir(c) }}
+    </div>
+    <p class="secundario">Mudar o tipo também muda o tipo de todas as subcategorias.</p>
+    {% if c.filhas %}
+    <table>
+      <thead><tr><th>Subcategoria</th><th>Uso</th><th>Ações</th></tr></thead>
+      <tbody>
+      {% for f in c.filhas %}
+        <tr>
+          <td>{{ f.nome }}</td>
+          <td class="secundario">{{ uso_txt(f.uso) }}</td>
+          <td>
+            <details class="linha-acoes"><summary>Ações</summary>
+              {{ form_renomear(f) }}
+              <form method="post" action="/categorias/{{ f.id }}/mover" class="linha-form">
+                <input type="hidden" name="aba" value="{{ aba }}">
+                <select name="destino_id" aria-label="Mover {{ f.nome }} para">
+                  {% for p in arvore[aba] if p.id != c.id %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="secundario">Mover</button>
+              </form>
+              {{ form_excluir(f) }}
+            </details>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="secundario">Sem subcategorias.</p>
+    {% endif %}
+  </details>
+{% else %}
+  <p class="secundario">Nenhuma categoria de {{ "entrada" if aba == "entrada" else "saída" }}.</p>
+{% endfor %}
+</div>
+{% endblock %}

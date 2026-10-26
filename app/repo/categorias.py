@@ -62,6 +62,13 @@ def arvore(con: sqlite3.Connection) -> list[dict[str, Any]]:
     return raizes
 
 
+def todas(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Todas as categorias, ordenadas por nome sem acento (para montar seletores)."""
+    return con.execute(
+        "SELECT id, nome, pai_id, tipo FROM categorias ORDER BY sem_acento(nome), id"
+    ).fetchall()
+
+
 def atualizar_tipo(con: sqlite3.Connection, categoria_id: int, tipo: str) -> None:
     """Muda o tipo da categoria e de suas filhas (sem commit)."""
     con.execute("UPDATE categorias SET tipo = ? WHERE id = ? OR pai_id = ?",

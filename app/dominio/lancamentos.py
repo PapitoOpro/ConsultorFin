@@ -205,14 +205,21 @@ def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
         pendentes_centavos=int(t["pendentes"]), conta_cartao=conta_cartao)
 
 
-def opcoes_categorias(con: Any) -> list[tuple[int, str]]:
-    """(id, rótulo) de categorias e subcategorias ('Pai › Filha')."""
-    saida: list[tuple[int, str]] = []
-    for pai in repo_categorias.listar_raiz(con):
-        saida.append((int(pai["id"]), str(pai["nome"])))
-        for filha in repo_categorias.listar_filhas(con, int(pai["id"])):
-            saida.append((int(filha["id"]), f"{pai['nome']} › {filha['nome']}"))
-    return saida
+def opcoes_categorias(con: Any, tipo: str | None = None) -> list[tuple[int, str, str]]:
+    """(id, rótulo, tipo): 'Categoria' ou 'Categoria › Subcategoria', por tipo, categoria, sub."""
+    linhas = repo_categorias.todas(con)
+    filhas: dict[int, list[Any]] = {}
+    for r in linhas:
+        if r["pai_id"] is not None:
+            filhas.setdefault(int(r["pai_id"]), []).append(r)
+    saida: list[tuple[int, str, str]] = []
+    for pai in linhas:
+        if pai["pai_id"] is not None or (tipo is not None and pai["tipo"] != tipo):
+            continue
+        saida.append((int(pai["id"]), str(pai["nome"]), str(pai["tipo"])))
+        for f in filhas.get(int(pai["id"]), []):
+            saida.append((int(f["id"]), f"{pai['nome']} › {f['nome']}", str(pai["tipo"])))
+    return sorted(saida, key=lambda o: o[2])  # estável: tipo, depois ordem de categoria/sub
 
 
 def _exigir_categoria(con: Any, categoria_id: int | None) -> None:
