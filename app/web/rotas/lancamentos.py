@@ -47,7 +47,9 @@ def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None =
     base = filtros.como_parametros(pagina.pagina)
     ctx = {
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
-        "categorias": dom.opcoes_categorias(con), "tipos": TIPOS_ROTULO, "aviso": aviso,
+        "categorias": dom.opcoes_categorias(con),
+        "categorias_saida": dom.opcoes_categorias(con, "saida"),
+        "categorias_entrada": dom.opcoes_categorias(con, "entrada"), "tipos": TIPOS_ROTULO, "aviso": aviso,
         "erro": erro, "voltar": urlencode(base), "hoje": _hoje(request).isoformat(),
         "anterior": urlencode({**base, "pagina": str(pagina.pagina - 1)}) if pagina.pagina > 1 else None,
         "proxima": urlencode({**base, "pagina": str(pagina.pagina + 1)})
@@ -87,12 +89,14 @@ def extrato(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
 @router.post("/lancamentos/novo", response_class=HTMLResponse)
 def novo(request: Request, con: Any = Depends(get_con), data: str = Form(""), descricao: str = Form(""),
          valor: str = Form(""), sinal: str = Form(""), conta_id: str = Form(""),
-         categoria_id: str = Form(""), observacao: str = Form(""), compensado: str = Form(""),
+         categoria_id: str = Form(""), categoria_entrada: str = Form(""),
+         categoria_saida: str = Form(""), observacao: str = Form(""), compensado: str = Form(""),
          voltar: str = Form("")) -> HTMLResponse:
     def acao() -> str:
+        escolhida = categoria_entrada if sinal == "entrada" else categoria_saida
         dom.criar_manual_de_formulario(
             con, data=data, descricao=descricao, valor=valor, sinal=sinal, conta_id=conta_id,
-            categoria_id=categoria_id, observacao=observacao, compensado=bool(compensado))
+            categoria_id=escolhida or categoria_id, observacao=observacao, compensado=bool(compensado))
         return "Lançamento criado."
     return _executar(request, con, voltar, acao)
 

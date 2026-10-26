@@ -14,6 +14,9 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+## Categorias
+Categorias em dois níveis (categoria › subcategoria), com tipo entrada ou saída, editáveis na tela **Categorias** do painel. Antes de atualizar para esta versão, copie `data/consultorfin.db` como backup. Detalhes: [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
+
 ## Executar
 ```
 uvicorn app.main:create_app --factory --port 8000

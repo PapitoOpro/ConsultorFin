@@ -48,6 +48,24 @@ Em **Lançamentos**:
 - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto) ou **pagamento de fatura**. Na v0.1, pagamento de fatura conta como despesa.
 - **Novo lançamento manual**: para o que não está em nenhum extrato. Só lançamentos manuais podem ser excluídos aqui.
 
+### Organizar as categorias
+
+> **Backup antes de atualizar:** Antes de atualizar para esta versão, copie o arquivo `data/consultorfin.db` para outro lugar como backup; a atualização reorganiza as categorias automaticamente.
+
+Em **Categorias** ficam todas as categorias, em dois níveis: categoria › subcategoria. As abas **Entradas** e **Saídas** separam o que é dinheiro que entra do que é dinheiro que sai. A lista inicial vem da tabela em `docs/categorias-padrao.md`; você pode alterá-la à vontade.
+
+- **Adicionar categoria**: na aba desejada, digite o nome e clique em **Adicionar categoria**. Ela nasce com o tipo da aba.
+- **Adicionar subcategoria**: dentro da categoria, digite o nome e clique em **Adicionar subcategoria**. Não existe subcategoria dentro de subcategoria.
+- **Renomear**: altere o nome e clique em **Renomear**. Lançamentos, contas fixas e regras que usam a categoria continuam ligados a ela.
+- **Mover uma subcategoria**: escolha a nova categoria e clique em **Mover**. Só dá para mover para uma categoria do mesmo tipo.
+- **Mudar o tipo** de uma categoria (entrada ou saída): o tipo de todas as subcategorias muda junto. O tipo só decide quais categorias os formulários oferecem (valor positivo oferece categorias de entrada; negativo, de saída). Nada que já está categorizado é alterado.
+- **Nomes**: de 1 a 80 caracteres, sem caracteres de controle. Não pode haver dois nomes iguais no mesmo lugar, sem diferenciar maiúsculas, acentos nem espaços nas pontas.
+- **Excluir**: é recusado se a categoria tem subcategorias (exclua ou mova-as antes). Se a categoria está em uso (lançamentos, contas fixas ou regras automáticas), a tela mostra quantos itens serão afetados e você escolhe: **Substituir por** outra categoria do mesmo tipo (tudo é passado para ela, inclusive as regras) ou **Deixar sem categoria** (lançamentos e contas fixas ficam sem categoria e as regras daquela categoria são apagadas). Nada é excluído sem essa confirmação.
+
+Ao atualizar, as categorias que você já tinha foram reconciliadas com a nova lista: Moradia, Saúde e Educação foram mantidas; as antigas que não estavam em uso foram removidas; as antigas que estavam em uso foram mantidas como categorias de saída. Nenhum lançamento perdeu a categoria.
+
+O consultor do Claude Code apenas lê as categorias; para criar, renomear, mover ou excluir, use esta tela.
+
 ## 5. Contas a pagar
 
 Em **Contas a pagar** você vê **Vencidas**, **A vencer (7 dias)** e **Próximos vencimentos**. Use o seletor **Horizonte** (3, 6 ou 12 meses) para a previsão.

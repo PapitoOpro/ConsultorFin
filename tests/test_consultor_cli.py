@@ -219,19 +219,19 @@ def test_importar_entradas_invalidas(db: Path, tmp_path: Path,
 
 
 def test_categorizar_e_regra(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    codigo, r = rodar(capsys, db_cheio, "categorizar", "--lancamento", "1", "--categoria", "2")
+    codigo, r = rodar(capsys, db_cheio, "categorizar", "--lancamento", "1", "--categoria", "1")
     assert codigo == 0 and r["ok"] is True
-    assert consulta(db_cheio, "SELECT categoria_id FROM lancamentos WHERE id=1") == [(2,)]
-    for args in (["--lancamento", "9999", "--categoria", "2"],
+    assert consulta(db_cheio, "SELECT categoria_id FROM lancamentos WHERE id=1") == [(1,)]
+    for args in (["--lancamento", "9999", "--categoria", "1"],
                  ["--lancamento", "1", "--categoria", "9999"],
-                 ["--lancamento", "x", "--categoria", "2"]):
+                 ["--lancamento", "x", "--categoria", "1"]):
         codigo, r = rodar(capsys, db_cheio, "categorizar", *args)
         assert codigo == 1 and r["erro"]
-    codigo, r = rodar(capsys, db_cheio, "regra", "--padrao", "padaria", "--categoria", "2")
+    codigo, r = rodar(capsys, db_cheio, "regra", "--padrao", "padaria", "--categoria", "1")
     assert codigo == 0 and r["aplicados"] >= 1
     codigo, r = rodar(capsys, db_cheio, "regra", "--padrao", "x", "--categoria", "9999")
     assert codigo == 1 and "Categoria" in r["erro"]
-    codigo, r = rodar(capsys, db_cheio, "regra", "--padrao", " ", "--categoria", "2")
+    codigo, r = rodar(capsys, db_cheio, "regra", "--padrao", " ", "--categoria", "1")
     assert codigo == 1
 
 
