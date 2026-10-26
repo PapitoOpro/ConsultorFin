@@ -9,7 +9,7 @@ TABELAS = {
     "contas", "categorias", "lancamentos", "importacoes", "regras_categoria",
     "recorrentes", "chaves_quitadas", "configuracoes",
 }
-CATEGORIAS = {"Moradia", "Mercado", "Transporte", "Saúde", "Lazer", "Assinaturas", "Educação", "Outros"}
+CATEGORIAS = {"Moradia", "Saúde", "Educação", "Alimentação", "Salário e Trabalho"}
 
 
 def _tabelas(con: sqlite3.Connection) -> set[str]:
@@ -19,7 +19,7 @@ def _tabelas(con: sqlite3.Connection) -> set[str]:
 def test_migrar_cria_tabelas_e_categorias(con: sqlite3.Connection) -> None:
     assert TABELAS <= _tabelas(con)
     nomes = {r["nome"] for r in con.execute("SELECT nome FROM categorias")}
-    assert nomes == CATEGORIAS
+    assert CATEGORIAS <= nomes
     cols = {r["name"] for r in con.execute("PRAGMA table_info(lancamentos)")}
     assert {"data_compensacao", "compensado", "estimado", "grupo_parcela_uuid",
             "parcela_atual", "parcela_total", "recorrente_id"} <= cols
@@ -34,7 +34,7 @@ def test_chaves_quitadas_guarda_originais(con: sqlite3.Connection) -> None:
 
 def test_migrar_idempotente(con: sqlite3.Connection) -> None:
     migrar(con)
-    assert con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 8
+    assert con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 29 + 142
     assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
 
 
@@ -56,11 +56,12 @@ def test_migracao_incremental_v1_aplica_so_pendentes() -> None:
     assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
     assert "recorrentes_pulados" in _tabelas(c)
     assert "competencia" in {r["name"] for r in c.execute("PRAGMA table_info(lancamentos)")}
-    # v1 não foi reaplicada: categoria extra preservada, iniciais não duplicadas
-    assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 9
+    # v1 não foi reaplicada: categoria extra (não padrão) preservada como saída
+    assert c.execute("SELECT tipo FROM categorias WHERE nome = 'Extra'").fetchone()[0] == "saida"
+    total = c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0]
     migrar(c)  # no-op
     assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
-    assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 9
+    assert c.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == total
     c.close()
 
 
@@ -184,3 +185,84 @@ def test_transacao_rollback_em_erro(con: sqlite3.Connection) -> None:
             raise RuntimeError("falha")
     assert con.execute("SELECT COUNT(*) FROM configuracoes WHERE chave = 'x'").fetchone()[0] == 0
     assert not con.in_transaction
+
+
+def _banco_v5_com_dados(caminho) -> dict[str, int]:
+    c = conectar(caminho)
+    for numero in range(5):
+        c.execute("BEGIN")
+        MIGRACOES[numero](c)
+        c.execute(f"PRAGMA user_version = {numero + 1}")
+        c.execute("COMMIT")
+    ids = {r["nome"]: r["id"] for r in c.execute("SELECT id, nome FROM categorias")}
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('c', 'C', 'corrente')")
+    for cat in ("Moradia", "Mercado"):
+        c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+                  " categoria_id, chave_deduplicacao, origem)"
+                  " VALUES (?,1,'2026-10-10','x',-1,'saida',?,?,'manual')", (cat, ids[cat], cat))
+        c.execute("INSERT INTO recorrentes (uuid, nome, tipo, dia, valor_estimado_centavos,"
+                  " categoria_id, conta_id) VALUES (?, 'R', 'saida', 5, 100, ?, 1)", (cat, ids[cat]))
+        c.execute("INSERT INTO regras_categoria (padrao, categoria_id) VALUES (?, ?)", (cat, ids[cat]))
+    c.commit()
+    c.close()
+    return ids
+
+
+def _contagens(c: sqlite3.Connection) -> tuple[int, ...]:
+    return tuple(c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                 for t in ("categorias", "lancamentos", "recorrentes", "regras_categoria"))
+
+
+def test_banco_novo_termina_com_lista_padrao(con: sqlite3.Connection) -> None:
+    from app.dominio.taxonomia import PADRAO
+    obtido = {(r["tipo"], r["pai"] or r["nome"], r["nome"] if r["pai"] else "")
+              for r in con.execute(
+                  "SELECT f.tipo, f.nome, p.nome AS pai FROM categorias f"
+                  " LEFT JOIN categorias p ON p.id = f.pai_id")}
+    esperado = set(PADRAO) | {(t, c, "") for t, c, _ in PADRAO}
+    assert obtido == esperado
+    assert con.execute("SELECT COUNT(*) FROM categorias").fetchone()[0] == 29 + 142
+    nomes = {r["nome"] for r in con.execute("SELECT nome FROM categorias WHERE pai_id IS NULL")}
+    assert not ({"Mercado", "Outros", "Lazer", "Assinaturas", "Transporte"} & nomes)
+    assert con.execute("SELECT COUNT(*) FROM categorias WHERE tipo IS NULL").fetchone()[0] == 0
+
+
+def test_migracao_6_preserva_categorias_em_uso(tmp_path) -> None:
+    caminho = tmp_path / "v5.db"
+    ids = _banco_v5_com_dados(caminho)
+    c = conectar(caminho)
+    migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) >= 6
+    assert c.execute("SELECT COUNT(*) FROM lancamentos WHERE categoria_id IS NULL").fetchone()[0] == 0
+    assert c.execute("SELECT COUNT(*) FROM recorrentes WHERE categoria_id IS NULL").fetchone()[0] == 0
+    assert c.execute("SELECT COUNT(*) FROM regras_categoria").fetchone()[0] == 2
+    mor = c.execute("SELECT * FROM categorias WHERE nome = 'Moradia'").fetchone()
+    assert mor["id"] == ids["Moradia"] and mor["tipo"] == "saida"
+    assert c.execute("SELECT COUNT(*) FROM categorias WHERE pai_id = ?", (mor["id"],)).fetchone()[0] == 5
+    merc = c.execute("SELECT * FROM categorias WHERE nome = 'Mercado'").fetchone()
+    assert merc["id"] == ids["Mercado"] and merc["tipo"] == "saida" and merc["pai_id"] is None
+    assert c.execute("SELECT 1 FROM categorias WHERE nome = 'Outros'").fetchone() is None
+    antes = _contagens(c)
+    migrar(c)
+    assert _contagens(c) == antes
+    migrar(c)
+    assert _contagens(c) == antes
+    c.close()
+
+
+def test_migracao_6_funcao_e_idempotente_em_si(tmp_path) -> None:
+    # reaplica só a carga/reconciliação (a parte de dados) sobre um banco já migrado
+    caminho = tmp_path / "v5.db"
+    _banco_v5_com_dados(caminho)
+    c = conectar(caminho)
+    migrar(c)
+    antes = _contagens(c)
+    db._carregar_padrao(c)
+    assert _contagens(c) == antes
+    c.close()
+
+
+def test_nome_unico_entre_irmaos_no_banco(con: sqlite3.Connection) -> None:
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute("INSERT INTO categorias (uuid, nome, nome_chave, tipo) VALUES ('u', 'MORADIA',"
+                    " 'moradia', 'saida')")

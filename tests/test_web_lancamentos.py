@@ -126,7 +126,7 @@ def test_filtros_conta_tipo_status_categoria_periodo(cliente: TestClient, db: Pa
     assert _linhas(_get(cliente, conta_id=str(conta)).text) == 18
     assert _linhas(cliente.get("/lancamentos", params={"de": "2026-10-01", "ate": "2026-10-31"}).text) == 7
     assert _linhas(_get(cliente, categoria_id="sem").text) == 18
-    mercado = _cat(db, "Mercado")
+    mercado = _cat(db, "Alimentação")
     cliente.post("/lancamentos/lote", data={"ids": [str(_id(db, "SUPERMERCADO EXEMPLO", 0))],
                                             "categoria_id": str(mercado)})
     assert _linhas(_get(cliente, categoria_id=str(mercado)).text) == 1
@@ -156,7 +156,7 @@ def test_sql_injection_em_texto_e_inerte(cliente: TestClient, conta: int) -> Non
 
 def test_categorizar_em_lote(cliente: TestClient, db: Path, conta: int) -> None:
     ids = [str(_id(db, "SUPERMERCADO EXEMPLO", 0)), str(_id(db, "SUPERMERCADO EXEMPLO", 1))]
-    mercado = _cat(db, "Mercado")
+    mercado = _cat(db, "Alimentação")
     r = cliente.post("/lancamentos/lote", data={"ids": ids, "categoria_id": str(mercado),
                                                 "voltar": VOLTAR})
     assert r.status_code == 200
@@ -175,7 +175,7 @@ def test_lote_sem_selecao_ou_categoria_invalida(cliente: TestClient, db: Path, c
 
 def test_categoria_inline_htmx(cliente: TestClient, db: Path, conta: int) -> None:
     lid = _id(db, "NETFLIX.COM")
-    lazer = _cat(db, "Lazer")
+    lazer = _cat(db, "Lazer e Entretenimento")
     r = cliente.post(f"/lancamentos/{lid}/categoria", data={"categoria_id": str(lazer)},
                      headers={"HX-Request": "true"})
     assert r.status_code == 200
@@ -190,7 +190,7 @@ def test_categoria_inline_htmx(cliente: TestClient, db: Path, conta: int) -> Non
 
 def test_criar_regra_a_partir_de_linha(cliente: TestClient, db: Path, conta: int) -> None:
     lid = _id(db, "SUPERMERCADO EXEMPLO", 0)
-    mercado = _cat(db, "Mercado")
+    mercado = _cat(db, "Alimentação")
     r = cliente.post(f"/lancamentos/{lid}/regra", data={"padrao": "SUPERMERCADO", "categoria_id": str(mercado)})
     assert r.status_code == 200
     assert "Regra criada: 2 lançamentos categorizados" in r.text

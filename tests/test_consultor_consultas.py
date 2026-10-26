@@ -107,7 +107,7 @@ def test_contas_e_categorias(banco: Any) -> None:
     assert consultas.contas(banco, HOJE)["contas"][0]["nome"] == "Itaú"
     cats = consultas.categorias(banco, HOJE)["categorias"]
     assert {"id", "nome", "subcategorias"} <= set(cats[0])
-    assert "Mercado" in [c["nome"] for c in cats]
+    assert "Alimentação" in [c["nome"] for c in cats]
 
 
 def test_lancamentos_recentes_primeiro_e_janela(banco: Any) -> None:

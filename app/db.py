@@ -126,8 +126,91 @@ def _migracao_5(con: sqlite3.Connection) -> None:
     con.execute("ALTER TABLE chaves_quitadas ADD COLUMN data_compensacao_original TEXT")
 
 
+def chave_nome(nome: str | None) -> str:
+    """Chave de comparação de nomes: sem caixa, acento e espaços nas pontas/repetidos."""
+    return " ".join(sem_acento(nome).split())
+
+
+def _inserir_categoria(con: sqlite3.Connection, nome: str, pai_id: int | None, tipo: str) -> int:
+    cur = con.execute(
+        "INSERT INTO categorias (uuid, nome, pai_id, tipo, nome_chave) VALUES (?,?,?,?,?)",
+        (str(uuid.uuid4()), nome, pai_id, tipo, chave_nome(nome)),
+    )
+    return int(cur.lastrowid or 0)
+
+
+def _carregar_padrao(con: sqlite3.Connection) -> None:
+    """Carrega a lista padrão; reaproveita (sem duplicar) o que já existe. Idempotente."""
+    from app.dominio.taxonomia import PADRAO  # só dados
+
+    raizes: dict[str, int] = {}
+    for tipo, cat, sub in PADRAO:
+        chave = chave_nome(cat)
+        if chave not in raizes:
+            row = con.execute(
+                "SELECT id FROM categorias WHERE pai_id IS NULL AND nome_chave = ?", (chave,)
+            ).fetchone()
+            if row is None:
+                raizes[chave] = _inserir_categoria(con, cat, None, tipo)
+            else:
+                raizes[chave] = int(row[0])
+                con.execute("UPDATE categorias SET tipo = ? WHERE id = ?", (tipo, raizes[chave]))
+        existe = con.execute(
+            "SELECT 1 FROM categorias WHERE pai_id = ? AND nome_chave = ?",
+            (raizes[chave], chave_nome(sub)),
+        ).fetchone()
+        if existe is None:
+            _inserir_categoria(con, sub, raizes[chave], tipo)
+    con.execute(
+        "UPDATE categorias SET tipo = (SELECT p.tipo FROM categorias p WHERE p.id = categorias.pai_id)"
+        " WHERE pai_id IS NOT NULL"
+    )
+
+
+def _migracao_6(con: sqlite3.Connection) -> None:
+    """Categorias com tipo (entrada/saída), nomes únicos entre irmãos e lista padrão.
+
+    Unicidade: coluna nome_chave (mantida pelo código, via chave_nome) + índice único comum em
+    (COALESCE(pai_id, 0), nome_chave); evita depender de função Python registrada na conexão."""
+    con.execute(
+        "ALTER TABLE categorias ADD COLUMN tipo TEXT CHECK (tipo IN ('entrada','saida'))"
+    )
+    con.execute("ALTER TABLE categorias ADD COLUMN nome_chave TEXT")
+    vistos: set[tuple[int, str]] = set()
+    for r in con.execute("SELECT id, nome, COALESCE(pai_id, 0) AS pai FROM categorias ORDER BY id").fetchall():
+        nome, chave = str(r["nome"]), chave_nome(str(r["nome"]))
+        n = 2
+        while (r["pai"], chave) in vistos:  # duplicata legada entre irmãos: renomeia a posterior
+            nome = f"{r['nome']} ({n})"
+            chave = chave_nome(nome)
+            n += 1
+        vistos.add((r["pai"], chave))
+        con.execute("UPDATE categorias SET nome = ?, nome_chave = ? WHERE id = ?", (nome, chave, r["id"]))
+    con.execute(
+        "CREATE UNIQUE INDEX ux_categorias_irmas ON categorias (COALESCE(pai_id, 0), nome_chave)"
+    )
+    con.execute("UPDATE categorias SET tipo = 'saida' WHERE pai_id IS NULL")
+    # Antigas categorias padrão sem uso (lançamentos, recorrentes, regras, filhas) são removidas;
+    # as em uso (ou com o nome da lista nova, reaproveitadas na carga) permanecem.
+    from app.dominio.taxonomia import PADRAO
+
+    novas = {chave_nome(c) for _, c, _ in PADRAO}
+    for nome in CATEGORIAS_INICIAIS:
+        if chave_nome(nome) in novas:
+            continue
+        con.execute(
+            "DELETE FROM categorias WHERE pai_id IS NULL AND nome_chave = ?"
+            " AND NOT EXISTS (SELECT 1 FROM lancamentos WHERE categoria_id = categorias.id)"
+            " AND NOT EXISTS (SELECT 1 FROM recorrentes WHERE categoria_id = categorias.id)"
+            " AND NOT EXISTS (SELECT 1 FROM regras_categoria WHERE categoria_id = categorias.id)"
+            " AND NOT EXISTS (SELECT 1 FROM categorias f WHERE f.pai_id = categorias.id)",
+            (chave_nome(nome),),
+        )
+    _carregar_padrao(con)
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
-    _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5,
+    _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
 ]
 
 

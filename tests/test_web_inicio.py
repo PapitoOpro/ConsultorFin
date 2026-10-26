@@ -180,7 +180,7 @@ def test_horizonte_invalido_400(cliente: TestClient, h: str) -> None:
 
 
 def test_rosca_soma_igual_despesas_do_mes(cliente: TestClient, conta: int, db: Path) -> None:
-    mercado, lazer = _cat(db, "Mercado"), _cat(db, "Lazer")
+    mercado, lazer = _cat(db, "Alimentação"), _cat(db, "Lazer e Entretenimento")
     con = conectar(db)
     sub = criar_subcategoria(con, mercado, "Feira")
     con.close()
@@ -193,13 +193,13 @@ def test_rosca_soma_igual_despesas_do_mes(cliente: TestClient, conta: int, db: P
     con.close()
     assert sum(f["valor_centavos"] for f in d["rosca"]) == esperado
     por_nome = {f["nome"]: f["valor_centavos"] for f in d["rosca"]}
-    assert por_nome["Mercado"] == 30000  # subcategoria soma na categoria pai
-    assert por_nome["Lazer"] == 5000
+    assert por_nome["Alimentação"] == 30000  # subcategoria soma na categoria pai
+    assert por_nome["Lazer e Entretenimento"] == 5000
     assert por_nome["Sem categoria"] == esperado - 35000
 
 
 def test_rosca_top_n_com_outros(cliente: TestClient, conta: int, db: Path) -> None:
-    nomes = ["Moradia", "Mercado", "Transporte", "Saúde", "Lazer", "Assinaturas", "Educação"]
+    nomes = ["Moradia", "Alimentação", "Transporte e Veículo", "Saúde", "Lazer e Entretenimento", "Assinaturas e Serviços Digitais", "Educação"]
     for i, n in enumerate(nomes):
         _manual(db, conta, date(2026, 10, 2), f"x{i}", -(100000 + i * 1000), True, _cat(db, n))
     d = cliente.get("/inicio/dados.json?mes=2026-10").json()
@@ -270,13 +270,13 @@ def test_fallback_acessivel_com_numeros(cliente: TestClient, conta: int) -> None
 
 def test_tabela_expansivel_categoria_subcategoria_lancamentos(
         cliente: TestClient, conta: int, db: Path) -> None:
-    mercado = _cat(db, "Mercado")
+    mercado = _cat(db, "Alimentação")
     con = conectar(db)
     sub = criar_subcategoria(con, mercado, "Feira")
     con.close()
     _manual(db, conta, date(2026, 10, 9), "Feira do Zé", -10000, True, sub)
     tab = _bloco(cliente.get("/?mes=2026-10").text, "Detalhamento por categoria")
-    assert "<details" in tab and "Mercado" in tab and "Feira" in tab
+    assert "<details" in tab and "Alimentação" in tab and "Feira" in tab
     assert "Feira do Zé" in tab and "09/10/2026" in tab and "R$ 100,00" in tab
     assert "Sem categoria" in tab
     assert re.search(r'Total</td>\s*<td class="valor saida">R\$ 3\.333,29<', tab)
@@ -291,7 +291,7 @@ def test_tabela_expansivel_categoria_subcategoria_lancamentos(
 
 def test_tabela_limita_lancamentos_por_subcategoria(
         cliente: TestClient, conta: int, db: Path) -> None:
-    lazer = _cat(db, "Lazer")
+    lazer = _cat(db, "Lazer e Entretenimento")
     for i in range(55):
         _manual(db, conta, date(2026, 10, 3), f"Item{i:02d}", -100, True, lazer)
     tab = _bloco(cliente.get("/?mes=2026-10").text, "Detalhamento por categoria")
