@@ -15,6 +15,6 @@
       <input id="data_saldo_inicial" name="data_saldo_inicial" type="date" required
              value="{% if sugestao %}{{ sugestao[0] }}{% endif %}"></div>
   </div>
-  {% if sugestao %}<p class="secundario">Sugestão baseada no saldo anterior do arquivo ({{ sugestao[0] | data_br }}).</p>{% endif %}
+  {% include "importar/_sugestao_saldo.html" %}
   <button type="submit">Cadastrar conta</button>
 </form>

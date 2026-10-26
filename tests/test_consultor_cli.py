@@ -10,7 +10,8 @@ from typing import Any
 import pytest
 
 from app.consultor import cli, consultas
-from app.db import MIGRACOES, conectar
+from app.db import MIGRACOES, conectar, migrar
+from app.repo import contas as repo_contas
 from app.dominio.recorrentes import criar_recorrente
 from app.dominio.lancamentos import criar_lancamento_manual
 from tests._consultor_base import EXTRATO, criar_banco
@@ -207,7 +208,7 @@ def test_importar_entradas_invalidas(db: Path, tmp_path: Path,
     estranho.write_text("a;b\n1;2\n", encoding="utf-8")
     casos = [
         (["--arquivo", str(tmp_path / "nao.csv"), "--conta", "1"], "não encontrado"),
-        (["--arquivo", str(pdf), "--conta", "1"], ".csv"),
+        (["--arquivo", str(pdf), "--conta", "1"], ".csv, .xlsx ou .ofx"),
         (["--arquivo", str(grande), "--conta", "1"], "5 MB"),
         (["--arquivo", str(estranho), "--conta", "1"], "painel"),
         (["--arquivo", str(EXTRATO), "--conta", "abc"], "Conta inválida"),
@@ -216,6 +217,60 @@ def test_importar_entradas_invalidas(db: Path, tmp_path: Path,
     for args, trecho in casos:
         codigo, r = rodar(capsys, db, "importar", *args)
         assert codigo == 1 and trecho in r["erro"], (args, r)
+
+
+OFX = Path(__file__).parent / "fixtures" / "extrato_itau_exemplo.ofx"
+
+
+def _banco_ofx(tmp_path: Path, saldo: int = 47111) -> Path:
+    banco = tmp_path / "o.db"
+    con = conectar(banco)
+    try:
+        migrar(con)
+        repo_contas.criar_conta(con, "Itaú", "corrente", saldo_inicial_centavos=saldo,
+                                data_saldo_inicial="2026-10-12")
+    finally:
+        con.close()
+    return banco
+
+
+def test_importar_ofx_simulacao_e_confirmar(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path)
+    antes = hash_db(banco)
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(OFX), "--conta", "1")
+    assert codigo == 0 and r["novos"] == 12 and r["gravado"] is False and r["formato"] == "ofx"
+    assert r["periodo"] == {"de": "2026-10-13", "de_br": "13/10/2026", "ate": "2026-10-22", "ate_br": "22/10/2026"}
+    assert r["saldo_inicial_estimado"] == {"data": "2026-10-12", "data_br": "12/10/2026",
+                                           "centavos": 47112, "valor": "R$ 471,12"}
+    assert hash_db(banco) == antes
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(OFX), "--conta", "1", "--confirmar")
+    assert codigo == 0 and r["gravado"] is True and r["formato"] == "ofx"
+    assert r["saldo_informado"] == {
+        "data": "2026-10-26", "data_br": "26/10/2026", "banco_centavos": 200000, "banco": "R$ 2.000,00",
+        "calculado_centavos": 199999, "calculado": "R$ 1.999,99",
+        "diferenca_centavos": 1, "diferenca": "R$ 0,01"}
+    assert r["conciliacao"]["status"] == "nao_comparavel"
+
+
+def test_importar_ofc_e_cartao_dao_erro(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path)
+    ofc = tmp_path / "x.ofc"
+    ofc.write_bytes(b"<OFC>\n</OFC>")
+    cartao = tmp_path / "fatura.ofx"
+    cartao.write_bytes(OFX.read_bytes().replace(b"<STMTRS>", b"<CCSTMTRS>"))
+    antes = hash_db(banco)
+    for arq, trecho in ((ofc, "OFC"), (cartao, "cartão")):
+        codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(arq), "--conta", "1", "--confirmar")
+        assert codigo == 1 and trecho in r["erro"], r
+    assert hash_db(banco) == antes
+
+
+def test_importar_extensao_continua_restrita(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    banco = _banco_ofx(tmp_path)
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"%PDF")
+    codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(pdf), "--conta", "1")
+    assert codigo == 1 and ".ofx" in r["erro"]
 
 
 def test_categorizar_e_regra(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:

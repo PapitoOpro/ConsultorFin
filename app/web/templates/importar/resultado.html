@@ -13,6 +13,17 @@
   <h2>Conciliação de saldo</h2>
   {% if falha_conferencia %}
     <div class="alerta">A importação foi concluída, mas não foi possível conferir o saldo nem procurar correspondências agora. Os lançamentos já estão gravados; confira em Lançamentos e em Contas a pagar.</div>
+  {% elif informado %}
+    {% if informado.diferenca_centavos == 0 %}
+    <p class="entrada">Saldo confere com o banco em {{ informado.data | data_br }}.</p>
+    {% else %}
+    <div class="bloco">
+      Saldo do banco em {{ informado.data | data_br }}: {{ informado.banco_centavos | brl }}.
+      O arquivo cobre até {{ periodo[1] | data_br }}.
+      Saldo calculado em {{ informado.data | data_br }}: {{ informado.calculado_centavos | brl }}.
+      Diferença de {{ informado.diferenca_centavos | abs | brl }}: movimentos entre as datas (como rendimentos) podem explicar.
+    </div>
+    {% endif %}
   {% elif not tem_saldos %}
     <p class="secundario">Este arquivo não traz saldos para conciliar.</p>
   {% elif conciliacao.ok %}

@@ -1,0 +1,7 @@
+{% if sugestao %}
+  {% if sugestao_estimada %}
+  <p class="secundario">Valor estimado a partir do saldo do banco; confira antes de salvar (saldo em {{ sugestao[0] | data_br }}).{% if saldo_posterior %} Como o arquivo termina antes da data do saldo, o valor pode ter pequena diferença.{% endif %}</p>
+  {% else %}
+  <p class="secundario">Sugestão baseada no saldo anterior do arquivo ({{ sugestao[0] | data_br }}).</p>
+  {% endif %}
+{% endif %}

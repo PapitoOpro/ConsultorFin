@@ -25,9 +25,9 @@ Em **Contas a pagar**, na seção **Nova conta ou cartão** (ou na tela **Import
 
 Cadastre as duas contas correntes e os cartões que você usa. Cartões não entram no "Saldo total".
 
-## 3. Importar o primeiro extrato (Itaú, CSV)
+## 3. Importar o primeiro extrato (Itaú, OFX ou CSV)
 
-1. No internet banking do Itaú, exporte o extrato em **CSV**, de dias inteiros (não corte um dia ao meio).
+1. No internet banking do Itaú, baixe o extrato da conta corrente em **OFX** (recomendado: vem direto do banco, sem conversão), de dias inteiros (não corte um dia ao meio). Alternativa: baixe em Excel e salve como **CSV** (o que funcionava antes).
 2. Abra **Importar**, escolha a **Conta de destino** e envie o arquivo (**Ver prévia**).
 3. Confira a prévia: primeiras linhas já formatadas (R$ e DD/MM/AAAA), erros de leitura destacados e o resumo (novos / já existentes / erros). Nada é gravado ainda.
 4. Clique em **Confirmar importação**.
@@ -36,9 +36,15 @@ Cadastre as duas contas correntes e os cartões que você usa. Cartões não ent
    - Se aparecer uma data de divergência, há lançamento faltando ou duplicado a partir daquele dia.
    - Se o app avisar que há lançamentos **anteriores à data do saldo inicial**, use **Ajustar saldo inicial da conta** (o saldo anterior do extrato aparece como sugestão) e envie de novo.
 
+**O que muda na conferência de saldo com OFX**
+- O CSV traz um saldo por dia; o OFX do banco traz **um só saldo**, da hora em que você baixou o arquivo. Por isso, em vez de "Saldo confere", você pode ver uma caixa informativa: "Saldo do banco em DD/MM/AAAA ... O arquivo cobre até DD/MM/AAAA ... Diferença de R$ X". Não é erro: movimentos depois da última data do arquivo, como rendimentos, podem explicar uma diferença pequena.
+- O OFX não traz o saldo anterior. Ao ajustar o saldo inicial, o app sugere um valor **estimado** a partir do saldo do banco; confira antes de salvar.
+- O app sugere a conta pelo número que vem no arquivo, se o "Final da conta" cadastrado combinar.
+- Você pode importar o mesmo período em OFX depois do CSV (ou o contrário) sem duplicar lançamentos.
+
 Importar o mesmo arquivo, ou outro com período sobreposto, não duplica lançamentos.
 
-Outros bancos ou formatos: se o app não reconhecer o arquivo, ele mostra o **Mapeamento de colunas** (data, descrição, valor). Aceita CSV e Excel (.xlsx), não .xls.
+Outros bancos ou formatos: se o app não reconhecer o arquivo, ele mostra o **Mapeamento de colunas** (data, descrição, valor). Aceita OFX, CSV e Excel (.xlsx), não .xls. Arquivos OFC e OFX de cartão de crédito (fatura) são recusados com uma mensagem; para o Itaú, baixe o OFX da conta corrente.
 
 ### Desfazer uma importação
 Em **Histórico de importações**, o botão **Desfazer** aparece só na importação mais recente de cada conta. Para desfazer uma mais antiga, desfaça antes as mais novas.
@@ -125,10 +131,10 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 - **Só depois do seu "sim":** importar extrato, casar com o extrato, categorizar, criar regras, marcar conta como paga e criar conta.
 
 **Exemplo: importar um extrato**
-1. Você informa o arquivo (.csv ou .xlsx, até 5 MB). Se ainda não houver conta, ele pergunta nome, tipo, saldo inicial e a data desse saldo, e só cria depois do seu "sim".
+1. Você informa o arquivo (.ofx, .csv ou .xlsx, até 5 MB). Se ainda não houver conta, ele pergunta nome, tipo, saldo inicial e a data desse saldo, e só cria depois do seu "sim".
 2. Ele faz uma **simulação**: mostra quantos lançamentos são novos, quantos já existiam e os erros de leitura. Nada é gravado.
 3. Se você confirmar, ele grava.
-4. Ele informa a conferência de saldo ("Saldo confere com o banco" ou a data da divergência).
+4. Ele informa a conferência de saldo ("Saldo confere com o banco", a data da divergência ou, no OFX, o saldo informativo do banco).
 5. Se houver contas pendentes que parecem estar no extrato, ele mostra os pares e pergunta um a um se pode casá-los.
 
 Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o saldo inicial são feitos no painel web (peça "abre o painel").
@@ -151,6 +157,9 @@ Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o
 ## Problemas comuns
 
 - **"Este arquivo já foi importado"**: o mesmo arquivo já está no histórico. Está tudo certo.
+- **Caixa "Saldo do banco em ... Diferença de R$ ..." (OFX)**: é informativa; o arquivo termina antes da data do saldo e movimentos posteriores (como rendimentos) podem explicar a diferença.
+- **"OFC ainda não é suportado" ou "cartão de crédito ainda não é suportado"**: baixe o extrato da conta corrente em OFX.
+- **"O arquivo não parece ser um OFX"**: o arquivo .ofx está corrompido ou é de outro tipo; baixe de novo no banco.
 - **Saldo não confere**: veja a data da primeira divergência; confira se o saldo inicial e a data estão certos e se o extrato tem dias inteiros.
 - **Não consigo desfazer**: só a importação mais recente da conta pode ser desfeita.
 - **Acesso por outro nome de host**: defina a variável `CONSULTORFIN_HOSTS` com os nomes extras permitidos. Não exponha a porta na rede: o app não tem login.

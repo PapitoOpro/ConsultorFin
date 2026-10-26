@@ -79,3 +79,24 @@ def ajustar_saldo_inicial(con: Any, conta_id: int, saldo_inicial_centavos: int,
         raise ValueError("Conta não encontrada.")
     with transacao(con):
         contas.atualizar_saldo_inicial(con, conta_id, saldo_inicial_centavos, data)
+
+
+@dataclass(frozen=True)
+class SaldoInformado:
+    """Saldo do banco em data posterior ao fim do extrato, comparado ao calculado (informativo)."""
+    data: str
+    banco_centavos: int
+    calculado_centavos: int
+
+    @property
+    def diferenca_centavos(self) -> int:
+        return self.banco_centavos - self.calculado_centavos
+
+
+def comparar_saldo_informado(con: Any, conta_id: int, informado: tuple[str, int]) -> SaldoInformado | None:
+    """None se a data é anterior ao saldo inicial da conta (não há como calcular)."""
+    data_iso, banco = informado
+    try:
+        return SaldoInformado(data_iso, banco, saldo_em(con, conta_id, data_iso))
+    except ValueError:
+        return None
