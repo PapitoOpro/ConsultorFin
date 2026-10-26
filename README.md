@@ -7,21 +7,19 @@ Guia de uso completo: [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
 ## Requisitos
 - Python 3.11+
 
-## Instalação
+## Instalar e executar
+**Windows:** dê dois cliques em `iniciar.bat`. Na primeira vez ele cria o ambiente e instala as dependências; depois abre o painel no navegador (http://localhost:8000). Não precisa ativar o ambiente nem liberar scripts do PowerShell. Outra porta: `iniciar.bat 8001`.
+
+**Linux/macOS (ou manual):**
 ```
 python -m venv .venv
-.venv\Scripts\activate        # Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m uvicorn app.main:create_app --factory --port 8000
 ```
+No Windows manual, use `.venv\Scripts\python` no lugar de `.venv/bin/python`. Abra http://localhost:8000.
 
 ## Categorias
 Categorias em dois níveis (categoria › subcategoria), com tipo entrada ou saída, editáveis na tela **Categorias** do painel. Antes de atualizar para esta versão, copie `data/consultorfin.db` como backup. Detalhes: [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
-
-## Executar
-```
-uvicorn app.main:create_app --factory --port 8000
-```
-Abra http://localhost:8000.
 
 ## Consultor pelo Claude Code
 Abra a pasta no Claude Code e converse em português. Skills: `saldo`, `vencimentos`, `projecao`, `gastos`, `importar`, `categorizar`, `painel`.

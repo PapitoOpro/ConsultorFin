@@ -4,8 +4,13 @@ Guia de uso da v0.1. O painel roda no seu computador e não envia nada para a in
 
 ## 1. Abrir o painel
 
-1. Na pasta do projeto, abra um terminal e ative o ambiente: `.venv\Scripts\activate` (Windows) ou `source .venv/bin/activate`.
-2. Inicie: `uvicorn app.main:create_app --factory --port 8000`
+**Windows (jeito fácil):** dê dois cliques em `iniciar.bat`, na pasta do projeto. Na primeira vez ele prepara o ambiente sozinho (precisa de internet e do Python 3.11 ou superior); nas próximas abre direto, e o painel aparece no navegador em http://localhost:8000. Para encerrar, feche a janela preta. Se a porta 8000 estiver ocupada, use `iniciar.bat 8001` pelo terminal. Dica: clique com o botão direito em `iniciar.bat`, escolha "Enviar para" e depois "Área de trabalho (criar atalho)".
+
+Você não precisa ativar o ambiente (`activate`) nem mexer na permissão de scripts do PowerShell.
+
+**Pelo terminal (Linux/macOS ou se preferir):**
+1. Na pasta do projeto: `python -m venv .venv` e `.venv/bin/pip install -r requirements.txt` (no Windows: `.venv\Scripts\python -m pip install -r requirements.txt`), só na primeira vez.
+2. Inicie: `.venv/bin/python -m uvicorn app.main:create_app --factory --port 8000` (no Windows: `.venv\Scripts\python -m uvicorn app.main:create_app --factory --port 8000`).
 3. Abra http://localhost:8000 no navegador.
 
 Seus dados ficam em `data/consultorfin.db`. Para fazer backup, copie esse arquivo.
