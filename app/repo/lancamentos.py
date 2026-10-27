@@ -495,12 +495,12 @@ def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,
 
 
 def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Previstas pendentes cuja data já foi coberta por uma fatura importada da mesma conta
-    (vencimento >= data da prevista) sem que um item a tenha baixado."""
+    """Previstas pendentes cujo mês já foi coberto por uma fatura importada da mesma conta
+    (competência da fatura >= mês da prevista) sem que um item a tenha baixado."""
     return con.execute(
         "SELECT l.* FROM lancamentos l WHERE l.origem = 'fatura_prevista' AND l.compensado = 0"
         " AND EXISTS (SELECT 1 FROM faturas f WHERE f.conta_id = l.conta_id"
-        "   AND f.data_vencimento >= l.data) ORDER BY l.data, l.id"
+        "   AND f.competencia >= substr(l.data, 1, 7)) ORDER BY l.data, l.id"
     ).fetchall()
 
 

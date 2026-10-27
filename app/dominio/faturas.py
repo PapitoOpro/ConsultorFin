@@ -408,3 +408,8 @@ def aplicar_regras_itens(con: Any, fatura_id: int) -> int:
 def previstas_orfas(con: Any) -> list[Any]:
     """Previstas já cobertas por uma fatura importada sem item correspondente (descartáveis)."""
     return repo_lanc.previstas_orfas(con)
+
+
+def ids_previstas_orfas(con: Any) -> set[int]:
+    """Ids das previstas órfãs (uma consulta só, para marcar a página do extrato)."""
+    return {int(r["id"]) for r in repo_lanc.previstas_orfas(con)}

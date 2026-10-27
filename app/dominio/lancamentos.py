@@ -309,6 +309,18 @@ def excluir_manual(con: Any, lancamento_id: int) -> None:
         repo.excluir(con, lancamento_id)
 
 
+ORIGEM_PREVISTA = "fatura_prevista"
+
+
+def descartar_prevista(con: Any, lancamento_id: int) -> None:
+    """Apaga uma parcela prevista pela fatura (ex.: não apareceu na fatura do mês)."""
+    row = _exigir_lancamento(con, lancamento_id)
+    if row["origem"] != ORIGEM_PREVISTA or row["compensado"]:
+        raise ErroLancamento("Só uma parcela prevista pela fatura (pendente) pode ser descartada.")
+    with transacao(con):
+        repo.excluir(con, lancamento_id)
+
+
 def pagar_pendente(con: Any, lancamento_id: int, valor_real_centavos: int | None,
                    data_pagamento: date, *, hoje: date) -> None:
     row = _exigir_lancamento(con, lancamento_id)

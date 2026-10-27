@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, Response
 from app.dominio import lancamentos as dom
 from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, linha_do_extrato_para
 from app.dominio.dinheiro import para_centavos
+from app.dominio.faturas import ids_previstas_orfas
 from app.dominio.faturas_pagamento import (
     FaturaCasavel, PropostaPagamento, fatura_para_pagamento, propor_pagamentos,
 )
@@ -67,6 +68,7 @@ def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None =
     base = filtros.como_parametros(pagina.pagina)
     ctx = {
         "propostas": _propostas(con, pagina), "casaveis": _casaveis(con, pagina),
+        "orfas": ids_previstas_orfas(con),
         "aberta": aberta,
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
         "categorias": dom.opcoes_categorias(con),
@@ -180,6 +182,15 @@ def excluir(lancamento_id: str, request: Request, con: Any = Depends(get_con),
     def acao() -> str:
         dom.excluir_manual(con, dom.interpretar_id(lancamento_id))
         return "Lançamento excluído."
+    return executar(request, con, voltar, acao)
+
+
+@router.post("/lancamentos/{lancamento_id}/descartar", response_class=HTMLResponse)
+def descartar(lancamento_id: str, request: Request, con: Any = Depends(get_con),
+              voltar: str = Form("")) -> HTMLResponse:
+    def acao() -> str:
+        dom.descartar_prevista(con, dom.interpretar_id(lancamento_id))
+        return "Parcela prevista descartada."
     return executar(request, con, voltar, acao)
 
 

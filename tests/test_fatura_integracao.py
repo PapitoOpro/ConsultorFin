@@ -287,3 +287,107 @@ def test_web_excluir_categoria_de_item_mostra_contagem(cliente: TestClient, db_w
     assert r.status_code == 200 and "1 item de fatura" in r.text
     r = cliente.post(f"/categorias/{a}/excluir", data={"aba": "saida", "acao": "sem"})
     assert r.status_code == 200 and "Categoria excluída." in r.text
+
+
+# --- 4. previstas órfãs: sinalizar e descartar -----------------------------------------------
+
+def _item(desc: str, valor: int, parcela: tuple[int, int] | None = None) -> ItemFatura:
+    return ItemFatura(data="2026-09-15", descricao=desc, valor_centavos=valor, tipo="compra",
+                      parcela_atual=parcela[0] if parcela else None,
+                      parcela_total=parcela[1] if parcela else None, final_cartao="9999",
+                      categoria_banco=None)
+
+
+def _com_orfa(con: sqlite3.Connection) -> tuple[int, int, int]:
+    """Fatura de out (venc. dia 12) cria previstas de nov/dez; a de nov (venc. dia 10) não traz
+    o item: a prevista de nov (dia 12) é órfã, a de dez não. Devolve (órfã, dez, conta)."""
+    cartao = repo_contas.criar_conta(con, "Cartao Teste", "cartao", final_numero="9999")
+    dom.importar_fatura(con, _fatura_lida("2026-10-12", itens=[_item("SOFA Y", -10000, (1, 3))]),
+                        "h1", "f1.pdf", cartao, HOJE, [None])
+    dom.importar_fatura(con, _fatura_lida("2026-11-10", itens=[_item("OUTRA", -500)]),
+                        "h2", "f2.pdf", cartao, HOJE, [None])
+    prev = con.execute("SELECT id, data FROM lancamentos WHERE origem = 'fatura_prevista'"
+                       " ORDER BY data").fetchall()
+    assert [p["data"] for p in prev] == ["2026-11-12", "2026-12-12"]
+    return int(prev[0]["id"]), int(prev[1]["id"]), cartao
+
+
+def test_orfa_pela_competencia_nao_pelo_dia(con: sqlite3.Connection) -> None:
+    orfa, _, _ = _com_orfa(con)
+    assert [int(r["id"]) for r in dom.previstas_orfas(con)] == [orfa]
+    assert dom.ids_previstas_orfas(con) == {orfa}
+
+
+def test_descartar_prevista(con: sqlite3.Connection) -> None:
+    orfa, dez, cartao = _com_orfa(con)
+    dom_lanc.descartar_prevista(con, orfa)
+    assert repo_lanc.obter(con, orfa) is None and repo_lanc.obter(con, dez) is not None
+    assert dom.ids_previstas_orfas(con) == set()
+    with pytest.raises(dom_lanc.NaoEncontrado):
+        dom_lanc.descartar_prevista(con, orfa)
+
+
+def test_descartar_recusa_o_que_nao_e_prevista(con: sqlite3.Connection) -> None:
+    _, _, r = _setup(con)
+    manual = repo_lanc.inserir_manual(con, conta_id=r.conta_id, data="2026-11-01",
+                                      descricao="MANUAL", valor_centavos=-100, tipo="saida",
+                                      categoria_id=None, compensado=False, observacao=None)
+    con.commit()
+    for lid in (manual, r.lancamento_id):
+        with pytest.raises(dom_lanc.ErroLancamento, match="prevista"):
+            dom_lanc.descartar_prevista(con, lid)
+        assert repo_lanc.obter(con, lid) is not None
+
+
+@pytest.fixture
+def db_orfa(tmp_path: Path) -> tuple[Path, int, int]:
+    caminho = tmp_path / "o.db"
+    c = conectar(caminho)
+    try:
+        migrar(c)
+        orfa, dez, _ = _com_orfa(c)
+        c.commit()
+    finally:
+        c.close()
+    return caminho, orfa, dez
+
+
+_PERIODO = "de=2026-01-01&ate=2027-12-31"
+
+
+def test_web_lancamentos_sinaliza_e_descarta_orfa(db_orfa: tuple[Path, int, int],
+                                                   monkeypatch: pytest.MonkeyPatch) -> None:
+    caminho, orfa, dez = db_orfa
+    chamadas: list[int] = []
+    original = repo_lanc.previstas_orfas
+
+    def contar(c: Any) -> Any:
+        chamadas.append(1)
+        return original(c)
+
+    monkeypatch.setattr(repo_lanc, "previstas_orfas", contar)
+    app = create_app(caminho)
+    app.state.hoje_fn = lambda: HOJE
+    with TestClient(app) as cli_web:
+        html = cli_web.get(f"/lancamentos?{_PERIODO}").text
+        assert len(chamadas) == 1  # uma consulta para a página toda
+        assert html.count("não apareceu na fatura") == 1
+        assert f'action="/lancamentos/{orfa}/descartar"' in html
+        assert f'action="/lancamentos/{dez}/descartar"' not in html
+        r = cli_web.post(f"/lancamentos/{orfa}/descartar", data={"voltar": _PERIODO})
+        assert r.status_code == 200 and "Parcela prevista descartada." in r.text
+        assert "não apareceu na fatura" not in r.text
+        r = cli_web.post(f"/lancamentos/{orfa}/descartar", data={"voltar": _PERIODO})
+        assert r.status_code == 404
+        fatura = int(_sql_um(caminho, "SELECT id FROM lancamentos WHERE tipo = 'fatura'"))
+        r = cli_web.post(f"/lancamentos/{fatura}/descartar", data={"voltar": _PERIODO})
+        assert r.status_code == 400
+    assert _sql_um(caminho, f"SELECT COUNT(*) FROM lancamentos WHERE id = {dez}") == 1
+
+
+def _sql_um(caminho: Path, sql: str) -> Any:
+    c = conectar(caminho)
+    try:
+        return c.execute(sql).fetchone()[0]
+    finally:
+        c.close()

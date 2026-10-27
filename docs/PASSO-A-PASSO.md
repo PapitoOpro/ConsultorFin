@@ -64,6 +64,7 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 **Depois de importar**
 - Em **Lançamentos**, a fatura aparece como uma linha (**Fatura <cartão> · venc. dd/mm**, com selo **a pagar** ou **paga**). Clique na linha para expandir os itens; em cada item você escolhe a categoria, e pode marcar vários e categorizar de uma vez.
 - **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas (aparecem em Contas a pagar e na projeção). Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
+- **Prevista que não apareceu na fatura:** se a fatura do mês já foi importada e não trouxe uma parcela prevista (compra cancelada, quitada antes ou renegociada), a prevista ganha o selo **não apareceu na fatura** em Lançamentos. Abra **Ações** na linha e clique em **Descartar** para apagar só essa parcela prevista; as demais continuam.
 - **Casar o pagamento:** quando o pagamento da fatura aparece no extrato da conta corrente, o app propõe casá-lo com a fatura. Confirme: o pagamento deixa de contar como despesa (as compras já contam pelos itens) e a fatura vira **paga**. Pagamento não casado continua contando como despesa, com um aviso na linha.
 - **Reimportar ou substituir:** o mesmo PDF não duplica. Se o emissor gerar uma versão diferente da fatura do mesmo mês, marque **Substituir a fatura existente deste mês**; as categorias já escolhidas nos itens iguais são mantidas.
 
