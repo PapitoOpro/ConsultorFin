@@ -391,3 +391,18 @@ def _sql_um(caminho: Path, sql: str) -> Any:
         return c.execute(sql).fetchone()[0]
     finally:
         c.close()
+
+
+# --- 7. filtro "sem categoria" não lista a linha da fatura ----------------------------------
+
+def test_filtro_sem_categoria_exclui_linha_da_fatura(con: sqlite3.Connection) -> None:
+    cc, _, r = _setup(con)
+    manual = repo_lanc.inserir_manual(con, conta_id=cc, data="2026-10-05", descricao="SEM CAT",
+                                      valor_centavos=-100, tipo="saida", categoria_id=None,
+                                      compensado=True, observacao=None)
+    con.commit()
+    filtros = dom_lanc.Filtros.de_parametros(
+        {"de": "2026-10-01", "ate": "2026-10-31", "categoria_id": "sem"}, HOJE)
+    pagina = dom_lanc.listar(con, filtros)
+    assert [l.id for l in pagina.linhas] == [manual]
+    assert pagina.total == 1

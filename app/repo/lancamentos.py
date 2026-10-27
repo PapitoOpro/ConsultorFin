@@ -265,7 +265,8 @@ def _where(
         partes.append("l.conta_id = ?")
         params.append(conta_id)
     if sem_categoria:
-        partes.append("l.categoria_id IS NULL")
+        # A linha da fatura nunca tem categoria (os itens têm): não é "sem categoria".
+        partes.append("l.categoria_id IS NULL AND l.tipo <> 'fatura'")
     elif categoria_id is not None:
         partes.append("(l.categoria_id = ? OR l.categoria_id IN"
                       " (SELECT id FROM categorias WHERE pai_id = ?))")
