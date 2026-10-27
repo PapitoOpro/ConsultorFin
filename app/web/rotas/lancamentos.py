@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, Response
 from app.dominio import lancamentos as dom
 from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, linha_do_extrato_para
 from app.dominio.dinheiro import para_centavos
+from app.dominio.faturas_pagamento import PropostaPagamento, propor_pagamentos
 from app.dominio.lancamentos import ErroLancamento, Filtros, NaoEncontrado
 from app.repo import contas
 from app.web.deps import get_con
@@ -20,7 +21,7 @@ router = APIRouter()
 
 MSG_INESPERADO = "Não foi possível concluir a operação. Nada foi alterado."
 TIPOS_ROTULO = {"entrada": "Entrada", "saida": "Saída", "transferencia": "Transferência",
-                "pagamento_fatura": "Pagamento de fatura"}
+                "pagamento_fatura": "Pagamento de fatura", "fatura": "Fatura"}
 
 
 def _status(exc: Exception) -> int:
@@ -41,11 +42,18 @@ def _filtros_de(voltar: str, hoje: date) -> Filtros:
         return Filtros.de_parametros({}, hoje)
 
 
+def _propostas(con: Any, pagina: dom.PaginaLancamentos) -> dict[int, list[PropostaPagamento]]:
+    """Propostas de casamento das faturas a pagar visíveis na página."""
+    return {l.fatura_id: propor_pagamentos(con, l.fatura_id) for l in pagina.linhas
+            if l.fatura_id is not None and not l.fatura_paga}
+
+
 def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None = None,
-            erro: str | None = None, status: int = 200) -> HTMLResponse:
+            erro: str | None = None, status: int = 200, aberta: int | None = None) -> HTMLResponse:
     pagina = dom.listar(con, filtros)
     base = filtros.como_parametros(pagina.pagina)
     ctx = {
+        "propostas": _propostas(con, pagina), "aberta": aberta,
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
         "categorias": dom.opcoes_categorias(con),
         "categorias_saida": dom.opcoes_categorias(con, "saida"),
@@ -59,17 +67,21 @@ def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None =
         request, "lancamentos/index.html", ctx, status_code=status)
 
 
-def _executar(request: Request, con: Any, voltar: str, acao: Callable[[], str]) -> HTMLResponse:
-    """Roda a ação e re-renderiza o extrato com aviso ou erro em português."""
+def executar(request: Request, con: Any, voltar: str, acao: Callable[[], str],
+             aberta: int | None = None) -> HTMLResponse:
+    """Roda a ação e re-renderiza o extrato com aviso ou erro em português.
+    aberta: fatura que volta expandida."""
     filtros = _filtros_de(voltar, _hoje(request))
     try:
         aviso = acao()
     except ErroLancamento as exc:
-        return _pagina(request, con, filtros, erro=str(exc), status=_status(exc))
+        return _pagina(request, con, filtros, erro=str(exc), status=_status(exc), aberta=aberta)
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
         log.error("event=lancamentos_falhou erro=%s", type(exc).__name__)
         return _pagina(request, con, filtros, erro=MSG_INESPERADO, status=500)
-    return _pagina(request, con, filtros, aviso=aviso)
+    return _pagina(request, con, filtros, aviso=aviso, aberta=aberta)
+
+
 
 
 @router.get("/lancamentos", response_class=HTMLResponse)
@@ -98,7 +110,7 @@ def novo(request: Request, con: Any = Depends(get_con), data: str = Form(""), de
             con, data=data, descricao=descricao, valor=valor, sinal=sinal, conta_id=conta_id,
             categoria_id=escolhida or categoria_id, observacao=observacao, compensado=bool(compensado))
         return "Lançamento criado."
-    return _executar(request, con, voltar, acao)
+    return executar(request, con, voltar, acao)
 
 
 @router.post("/lancamentos/lote", response_class=HTMLResponse)
@@ -108,7 +120,7 @@ def lote(request: Request, con: Any = Depends(get_con), ids: list[str] = Form(de
         n = dom.categorizar_em_lote(con, [dom.interpretar_id(i) for i in ids],
                                     dom.interpretar_id(categoria_id, "Categoria"))
         return f"{n} lançamento categorizado." if n == 1 else f"{n} lançamentos categorizados."
-    return _executar(request, con, voltar, acao)
+    return executar(request, con, voltar, acao)
 
 
 @router.post("/lancamentos/{lancamento_id}/categoria", response_class=HTMLResponse)
@@ -136,7 +148,7 @@ def regra(lancamento_id: str, request: Request, con: Any = Depends(get_con),
         n = dom.criar_regra_e_aplicar(con, padrao, dom.interpretar_id(categoria_id, "Categoria"))
         return (f"Regra criada: {n} lançamento categorizado." if n == 1
                 else f"Regra criada: {n} lançamentos categorizados.")
-    return _executar(request, con, voltar, acao)
+    return executar(request, con, voltar, acao)
 
 
 @router.post("/lancamentos/{lancamento_id}/tipo", response_class=HTMLResponse)
@@ -145,7 +157,7 @@ def mudar_tipo(lancamento_id: str, request: Request, con: Any = Depends(get_con)
     def acao() -> str:
         dom.alterar_tipo(con, dom.interpretar_id(lancamento_id), tipo)
         return "Tipo atualizado."
-    return _executar(request, con, voltar, acao)
+    return executar(request, con, voltar, acao)
 
 
 @router.post("/lancamentos/{lancamento_id}/excluir", response_class=HTMLResponse)
@@ -154,7 +166,7 @@ def excluir(lancamento_id: str, request: Request, con: Any = Depends(get_con),
     def acao() -> str:
         dom.excluir_manual(con, dom.interpretar_id(lancamento_id))
         return "Lançamento excluído."
-    return _executar(request, con, voltar, acao)
+    return executar(request, con, voltar, acao)
 
 
 @router.post("/lancamentos/{lancamento_id}/pagar", response_class=HTMLResponse)
@@ -171,4 +183,4 @@ def pagar(lancamento_id: str, request: Request, con: Any = Depends(get_con),
         if linha_do_extrato_para(con, lid):
             return f"Pagamento registrado. {MSG_LINHA_NO_EXTRATO}"
         return "Pagamento registrado."
-    return _executar(request, con, voltar, acao)
+    return executar(request, con, voltar, acao)

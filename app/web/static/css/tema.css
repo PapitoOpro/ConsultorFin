@@ -655,3 +655,28 @@ td.quebra { min-width: 150px; }
 
 /* foco bem visível em caixas e opções (o anel de 35% sozinho tem pouco contraste) */
 input:is([type="checkbox"], [type="radio"]):focus-visible { outline: 2px solid var(--primaria); outline-offset: 2px; }
+
+/* fatura expansível em Lançamentos: linha da fatura, itens aninhados e previstas */
+.botao-expandir { display: inline-grid; place-items: center; width: 30px; height: 30px; min-height: 0; padding: 0; color: var(--texto-secundario); background: transparent; border: 1px solid var(--borda); border-radius: var(--raio-pequeno); }
+.botao-expandir:hover { color: var(--texto); background: var(--superficie-2); }
+.botao-expandir .icone { transition: transform var(--transicao); }
+.botao-expandir[aria-expanded="true"] .icone { transform: rotate(180deg); }
+.linha-fatura td { background: var(--superficie-2); }
+.fatura-titulo { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.fatura-titulo .icone { color: var(--roxo); flex: none; }
+tr.fatura-itens > td { padding: 8px 8px 16px 24px; border-left: 3px solid var(--roxo); }
+/* os itens não alargam a tabela do extrato: ocupam a largura visível do contêiner rolável
+   (container query) e ficam presos à esquerda; a tabela interna rola no próprio contêiner */
+.tabela-extrato { container-type: inline-size; }
+.fatura-itens-corpo { width: calc(100cqi - 44px); position: sticky; left: 8px; }
+.fatura-lote { margin-bottom: 10px; padding: 8px 12px; }
+.tabela-itens-fatura table { font-size: 13px; }
+.linha-prevista td { opacity: .78; }
+.linha-prevista td.desc { font-style: italic; }
+.proposta-pagamento { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+@media (max-width: 480px) {
+  tr.fatura-itens > td { padding: 6px 4px 12px 8px; }
+  .fatura-itens-corpo { width: calc(100cqi - 20px); left: 4px; }
+  .tabela-itens-fatura .busca { width: 112px; min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .botao-expandir .icone { transition: none; } }

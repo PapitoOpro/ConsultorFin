@@ -24,6 +24,10 @@ TOLERANCIA_PERCENTUAL = 2  # %
 SIMILARIDADE_MINIMA = 0.8
 
 
+class RegistroNaoEncontrado(ValueError):
+    """Fatura ou item inexistente (mensagem em português; a web responde 404)."""
+
+
 class FaturaJaImportada(ValueError):
     def __init__(self) -> None:
         super().__init__("Esta fatura já foi importada.")
@@ -342,7 +346,7 @@ def importar_fatura(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nom
 
 def alterar_categoria_item(con: Any, item_id: int, categoria_id: int | None) -> None:
     if repo.obter_item(con, item_id) is None:
-        raise ValueError("Item da fatura não encontrado.")
+        raise RegistroNaoEncontrado("Item da fatura não encontrado.")
     if categoria_id is not None and not repo_categorias.existe(con, categoria_id):
         raise ValueError("Categoria não encontrada.")
     with _escrita(con):
@@ -361,6 +365,23 @@ def categorizar_itens_em_lote(con: Any, ids: Sequence[int], categoria_id: int) -
         raise ValueError("Algum item selecionado não foi encontrado.")
     with _escrita(con):
         return repo.atualizar_categoria_item(con, unicos, categoria_id)
+
+
+def detalhe(con: Any, fatura_id: int) -> tuple[Any, list[Any]]:
+    """Fatura e seus itens (na ordem da fatura)."""
+    fat = repo.obter(con, fatura_id)
+    if fat is None:
+        raise RegistroNaoEncontrado("Fatura não encontrada.")
+    return fat, repo.itens(con, fatura_id)
+
+
+def categorizar_itens_da_fatura(con: Any, fatura_id: int, ids: Sequence[int],
+                                categoria_id: int) -> int:
+    """Lote restrito aos itens da fatura `fatura_id`."""
+    _, itens = detalhe(con, fatura_id)
+    if not set(ids) <= {int(it["id"]) for it in itens}:
+        raise RegistroNaoEncontrado("Algum item selecionado não pertence a esta fatura.")
+    return categorizar_itens_em_lote(con, ids, categoria_id)
 
 
 def aplicar_regras_itens(con: Any, fatura_id: int) -> int:

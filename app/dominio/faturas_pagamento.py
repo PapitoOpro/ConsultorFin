@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from app.dominio.faturas import _escrita
+from app.dominio.faturas import RegistroNaoEncontrado, _escrita
 from app.repo import contas as repo_contas
 from app.repo import faturas as repo
 from app.repo import lancamentos as repo_lanc
@@ -13,6 +13,11 @@ JANELA_DIAS = 7
 
 class PagamentoInvalido(ValueError):
     """Casamento recusado (mensagem em português, própria para o usuário)."""
+
+
+class FaturaNaoEncontrada(PagamentoInvalido, RegistroNaoEncontrado):
+    def __init__(self) -> None:
+        super().__init__("Fatura não encontrada.")
 
 
 @dataclass(frozen=True)
@@ -27,7 +32,7 @@ class PropostaPagamento:
 def _fatura(con: Any, fatura_id: int) -> Any:
     fat = repo.obter(con, fatura_id)
     if fat is None:
-        raise PagamentoInvalido("Fatura não encontrada.")
+        raise FaturaNaoEncontrada()
     return fat
 
 

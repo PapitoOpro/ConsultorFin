@@ -6,6 +6,7 @@ log nem HTML. Entre a prévia e a confirmação guarda-se só a FaturaLida (sem 
 import calendar
 import hashlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -15,15 +16,20 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.dominio.faturas import (
-    FaturaDiferenteExistente, FaturaJaImportada, PreviaFatura, importar_fatura, nome_cartao,
+    FaturaDiferenteExistente, FaturaJaImportada, PreviaFatura, RegistroNaoEncontrado,
+    alterar_categoria_item, categorizar_itens_da_fatura, detalhe, importar_fatura, nome_cartao,
     preparar_previa,
 )
-from app.dominio.lancamentos import opcoes_categorias
+from app.dominio.faturas_pagamento import confirmar_pagamento, desfazer_pagamento, propor_pagamentos
+from app.dominio.lancamentos import (
+    ErroLancamento, NaoEncontrado, interpretar_id, opcoes_categorias,
+)
 from app.importacao.fatura import ler_fatura
 from app.importacao.fatura.modelo import FaturaIlegivel, FaturaLida, PdfProtegido, SenhaIncorreta
 from app.repo import contas
 from app.web.deps import get_con
 from app.web.rotas.importar import LIMITE_BYTES, ErroImportacao, _pagina_inicial
+from app.web.rotas.lancamentos import MSG_INESPERADO, executar
 from app.web.uploads import FaturaPendente
 
 log = logging.getLogger(__name__)
@@ -214,3 +220,115 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
     log.info("event=fatura_importada itens=%d", resumo.itens)
     return RedirectResponse(_destino(resumo.conta_id, pendente.fatura.data_vencimento),
                             status_code=303)
+
+
+# --- Fatura em Lançamentos: itens, categoria por item e casamento do pagamento -------------
+
+def _erro_web(exc: ValueError) -> ErroLancamento:
+    """Erro de regra do domínio de faturas -> erro da tela (inexistente = 404)."""
+    if isinstance(exc, ErroLancamento):
+        return exc
+    return NaoEncontrado(str(exc)) if isinstance(exc, RegistroNaoEncontrado) else ErroLancamento(
+        str(exc))
+
+
+def _texto(mensagem: str, status: int) -> Response:
+    return Response(mensagem, status_code=status, media_type="text/plain; charset=utf-8")
+
+
+def _fragmento(request: Request, nome: str, ctx: dict[str, Any], evento: str,
+               montar: Callable[[], dict[str, Any]]) -> Response:
+    """Parcial HTMX; erro -> texto curto em português (a página mostra na área de mensagens)."""
+    try:
+        ctx.update(montar())
+    except ValueError as exc:
+        erro = _erro_web(exc)
+        return _texto(str(erro), 404 if isinstance(erro, NaoEncontrado) else 400)
+    except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
+        log.error("event=%s erro=%s", evento, type(exc).__name__)
+        return _texto(MSG_INESPERADO, 500)
+    return request.app.state.templates.TemplateResponse(request, nome, ctx)
+
+
+@router.get("/faturas/{fatura_id}/itens", response_class=HTMLResponse)
+def itens(fatura_id: str, request: Request, con: Any = Depends(get_con),
+          voltar: str = "") -> Response:
+    def montar() -> dict[str, Any]:
+        fat, linhas = detalhe(con, interpretar_id(fatura_id, "Fatura"))
+        return {"fatura": fat, "itens": linhas, "categorias": opcoes_categorias(con)}
+    return _fragmento(request, "faturas/_itens.html", {"voltar": voltar[:1000]},
+                      "fatura_itens_falhou", montar)
+
+
+@router.post("/faturas/itens/{item_id}/categoria", response_class=HTMLResponse)
+def categoria_item(item_id: str, request: Request, con: Any = Depends(get_con),
+                   categoria_id: str = Form("")) -> Response:
+    """Parcial HTMX: só a célula de categoria do item (o total da fatura não muda)."""
+    def montar() -> dict[str, Any]:
+        iid = interpretar_id(item_id)
+        cat = interpretar_id(categoria_id, "Categoria") if categoria_id.strip() else None
+        alterar_categoria_item(con, iid, cat)
+        return {"item": {"id": iid, "categoria_id": cat}, "categorias": opcoes_categorias(con)}
+    return _fragmento(request, "faturas/_item_categoria.html", {}, "fatura_item_categoria_falhou",
+                      montar)
+
+
+@router.post("/faturas/{fatura_id}/itens/categoria-lote", response_class=HTMLResponse)
+def categoria_lote(fatura_id: str, request: Request, con: Any = Depends(get_con),
+                   ids: list[str] = Form(default=[]), categoria_id: str = Form(""),
+                   voltar: str = Form("")) -> HTMLResponse:
+    try:
+        fid: int | None = interpretar_id(fatura_id, "Fatura")
+    except ErroLancamento:
+        fid = None
+
+    def acao() -> str:
+        alvo = interpretar_id(fatura_id, "Fatura")
+        lista = [interpretar_id(i) for i in ids]
+        cat = interpretar_id(categoria_id, "Categoria")
+        if not lista:
+            raise ErroLancamento("Selecione ao menos um item.")
+        try:
+            n = categorizar_itens_da_fatura(con, alvo, lista, cat)
+        except ValueError as exc:
+            raise _erro_web(exc) from None
+        return f"{n} item categorizado." if n == 1 else f"{n} itens categorizados."
+    return executar(request, con, voltar, acao, aberta=fid)
+
+
+@router.get("/faturas/{fatura_id}/pagamento", response_class=HTMLResponse)
+def propostas(fatura_id: str, request: Request, con: Any = Depends(get_con),
+              voltar: str = "") -> Response:
+    def montar() -> dict[str, Any]:
+        fid = interpretar_id(fatura_id, "Fatura")
+        return {"fatura_id": fid, "lista": propor_pagamentos(con, fid)}
+    return _fragmento(request, "faturas/_casamento.html", {"voltar": voltar[:1000]},
+                      "fatura_propostas_falhou", montar)
+
+
+@router.post("/faturas/{fatura_id}/pagamento/confirmar", response_class=HTMLResponse)
+def pagamento_confirmar(fatura_id: str, request: Request, con: Any = Depends(get_con),
+                        lancamento_id: str = Form(""), voltar: str = Form("")) -> HTMLResponse:
+    def acao() -> str:
+        fid = interpretar_id(fatura_id, "Fatura")
+        lid = interpretar_id(lancamento_id)
+        try:
+            confirmar_pagamento(con, fid, lid)
+        except ValueError as exc:
+            raise _erro_web(exc) from None
+        log.info("event=fatura_pagamento_casado")
+        return "Pagamento casado: fatura paga."
+    return executar(request, con, voltar, acao)
+
+
+@router.post("/faturas/{fatura_id}/pagamento/desfazer", response_class=HTMLResponse)
+def pagamento_desfazer(fatura_id: str, request: Request, con: Any = Depends(get_con),
+                       voltar: str = Form("")) -> HTMLResponse:
+    def acao() -> str:
+        try:
+            desfazer_pagamento(con, interpretar_id(fatura_id, "Fatura"))
+        except ValueError as exc:
+            raise _erro_web(exc) from None
+        log.info("event=fatura_pagamento_desfeito")
+        return "Pagamento desfeito: a fatura voltou a pendente."
+    return executar(request, con, voltar, acao)

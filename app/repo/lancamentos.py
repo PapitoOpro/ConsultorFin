@@ -295,17 +295,21 @@ def listar_extrato(
 ) -> list[sqlite3.Row]:
     """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
     (saldo inicial + compensados até a linha; NULL nos pendentes). fatura_casada_id: fatura
-    paga por esta linha (pagamento_fatura casado), senão NULL."""
+    paga por esta linha (pagamento_fatura casado), senão NULL. fatura_id/fatura_pagamento_id/
+    fatura_qtd_itens: só na linha da fatura (tipo 'fatura')."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
                            compensado=compensado)
     return con.execute(
         _ACUMULADO
         + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado,"
-        " (SELECT f.id FROM faturas f WHERE f.pagamento_lancamento_id = l.id) AS fatura_casada_id"
+        " (SELECT f.id FROM faturas f WHERE f.pagamento_lancamento_id = l.id) AS fatura_casada_id,"
+        " fl.id AS fatura_id, fl.pagamento_lancamento_id AS fatura_pagamento_id,"
+        " (SELECT COUNT(*) FROM fatura_itens i WHERE i.fatura_id = fl.id) AS fatura_qtd_itens"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
         " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
         " LEFT JOIN acumulado ac ON ac.id = l.id"
+        " LEFT JOIN faturas fl ON fl.lancamento_id = l.id"
         + where + (" ORDER BY l.data DESC, l.id DESC" if decrescente else " ORDER BY l.data, l.id")
         + " LIMIT ? OFFSET ?",
         (*params, limite, deslocamento),
@@ -357,6 +361,15 @@ def atualizar_categoria(
 
 def atualizar_tipo(con: sqlite3.Connection, lancamento_id: int, tipo: str) -> None:
     con.execute("UPDATE lancamentos SET tipo = ? WHERE id = ?", (tipo, lancamento_id))
+
+
+def contar_faturas(con: sqlite3.Connection, ids: list[int]) -> int:
+    """Quantos dos ids são linhas de fatura (tipo 'fatura')."""
+    marcas = ",".join("?" for _ in ids)
+    row = con.execute(
+        f"SELECT COUNT(*) AS n FROM lancamentos WHERE tipo = 'fatura' AND id IN ({marcas})", ids
+    ).fetchone()
+    return int(row["n"])
 
 
 def contar_existentes(con: sqlite3.Connection, ids: list[int]) -> int:

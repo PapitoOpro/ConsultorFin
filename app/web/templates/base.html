@@ -71,8 +71,13 @@
     document.body.addEventListener("htmx:responseError", function (e) {
       var alvo = document.getElementById("mensagens");
       var p = document.createElement("div");
-      p.className = "alerta";
-      p.textContent = "Erro ao processar a solicitação (" + e.detail.xhr.status + ").";
+      var xhr = e.detail.xhr;
+      var tipo = xhr.getResponseHeader("Content-Type") || "";
+      var texto = (xhr.responseText || "").trim();
+      p.className = "alerta erro";
+      /* parciais respondem texto curto em português; senão, mensagem genérica */
+      p.textContent = tipo.indexOf("text/plain") === 0 && texto && texto.length <= 200
+        ? texto : "Erro ao processar a solicitação (" + xhr.status + ").";
       alvo.appendChild(p);
     });
   </script>
