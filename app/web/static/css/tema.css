@@ -613,3 +613,7 @@ td.quebra { min-width: 150px; }
 .arquivo-info > span:nth-child(2) { flex: 1 1 12ch; min-width: 0; }
 .tabela-rolavel table.tabela-curta { min-width: 0; }
 .tabela-curta td, .tabela-curta th { padding-left: 8px; padding-right: 8px; }
+.selo { white-space: nowrap; }
+.tabela-curta td.desc { min-width: 110px; }
+.tabela-curta .data-linha { font-size: 13px; }
+@media (max-width: 480px) { .tabela-curta .linha-acoes-painel { min-width: 230px; } .tabela-curta th, .tabela-curta td { padding-left: 6px; padding-right: 6px; } }

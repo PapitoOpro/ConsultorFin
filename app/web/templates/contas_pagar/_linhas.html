@@ -1,21 +1,24 @@
 {% from "_macros.html" import estado_vazio %}
+{% from "_icones.html" import icone %}
 {% macro tabela(linhas, horizonte, hoje, vazio) %}
 {% if linhas %}
-<div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
+<div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
   <thead><tr><th>Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
   <tbody>
   {% for l in linhas %}
     <tr id="lancamento-{{ l.id }}">
-      <td>{{ l.data | data_br }}</td>
-      <td>{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}</td>
+      <td class="data-linha">{{ l.data | data_br }}</td>
+      <td class="desc">{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}</td>
       <td class="valor {{ 'entrada' if l.valor_centavos > 0 else 'saida' }}">{{ l.valor_centavos | brl }}</td>
-      <td>
-        <details class="linha-acoes"><summary>Ações</summary>
+      <td class="acoes">
+        <details class="linha-acoes"><summary title="Ações do vencimento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
+         <div class="linha-acoes-painel">
           <form method="post" action="/contas-a-pagar/{{ l.id }}/pagar">
             <input type="hidden" name="horizonte" value="{{ horizonte }}">
+            <p class="acao-titulo">Pagamento</p>
             <input class="valor" name="valor" value="{{ (l.valor_centavos | abs) | brl }}" aria-label="Valor real">
             <input type="date" name="data" value="{{ hoje }}" aria-label="Data do pagamento" required>
-            <button type="submit">{{ 'Confirmar valor e pagar' if l.recorrente_id else 'Marcar como pago' }}</button>
+            <button type="submit">{{ icone("check", 16) }}{{ 'Confirmar valor e pagar' if l.recorrente_id else 'Marcar como pago' }}</button>
           </form>
           {% if l.recorrente_id %}
           <form method="post" action="/contas-a-pagar/{{ l.id }}/pular">
@@ -23,6 +26,7 @@
             <button type="submit" class="secundario">Pular este mês</button>
           </form>
           {% endif %}
+         </div>
         </details>
       </td>
     </tr>
