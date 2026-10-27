@@ -79,7 +79,7 @@
     {% for item, cat in linhas %}
       <tr>
         <td class="data-linha sec">{{ item.data | data_br }}</td>
-        <td class="quebra">{{ item.descricao }}{% if item.parcela_atual %} <span class="selo neutro">{{ item.parcela_atual }}/{{ item.parcela_total }}</span>{% endif %}{% if item.tipo != "compra" %} <span class="selo {{ 'entrada' if item.tipo == 'credito' else 'neutro' }}">{{ tipos.get(item.tipo, item.tipo) }}</span>{% endif %}<span class="mob-info">{{ item.data | data_br }}{% if item.final_cartao and item.final_cartao != f.final_cartao %} · final {{ item.final_cartao }}{% endif %}</span></td>
+        <td class="desc">{{ item.descricao }}{% if item.parcela_atual %} <span class="selo neutro">{{ item.parcela_atual }}/{{ item.parcela_total }}</span>{% endif %}{% if item.tipo != "compra" %} <span class="selo {{ 'entrada' if item.tipo == 'credito' else 'neutro' }}">{{ tipos.get(item.tipo, item.tipo) }}</span>{% endif %}<span class="mob-info">{{ item.data | data_br }}{% if item.final_cartao and item.final_cartao != f.final_cartao %} · final {{ item.final_cartao }}{% endif %}</span></td>
         <td class="valor {{ 'saida' if item.valor_centavos < 0 else 'entrada' }}">{{ item.valor_centavos | brl }}</td>
         <td class="categoria">{% if bloqueada %}{{ rotulos.get(cat, "—") }}{% else %}<select id="cat-{{ loop.index }}" name="categoria" data-busca aria-label="Categoria do item {{ loop.index }}"><option value="">Sem categoria</option>{{ opcoes_categoria(categorias, cat, mostrar_tipo=true) }}</select>{% endif %}</td>
       </tr>
