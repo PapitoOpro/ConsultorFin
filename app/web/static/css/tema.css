@@ -72,7 +72,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .menu-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 20px 12px; }
 .marca { display: inline-flex; align-items: center; gap: 10px; color: var(--texto); font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
 .marca:hover { text-decoration: none; }
-.marca-logo { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: var(--raio-pequeno); background: linear-gradient(135deg, var(--primaria), var(--primaria-escura)); color: var(--fundo); font-weight: 700; font-size: 17px; box-shadow: var(--sombra-leve); }
+.marca-img { display: block; flex: none; width: auto; height: 40px; }
 .menu-nav { padding: 8px 12px 24px; }
 .grupo-menu { margin: 20px 8px 6px; color: var(--texto-secundario); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
 .grupo-menu:first-child { margin-top: 8px; }
@@ -347,7 +347,7 @@ details.categoria > summary { display: flex; flex-wrap: wrap; justify-content: s
 @media (max-width: 1000px) {
   .menu-lateral { position: sticky; bottom: auto; width: 100%; border-right: 0; border-bottom: 1px solid var(--borda); overflow: visible; }
   .menu-topo { padding: 10px 16px; }
-  .marca-logo { width: 30px; height: 30px; }
+  .marca-img { height: 34px; }
   .principal { margin-left: 0; min-height: 0; }
   .app.menu-js .botao-menu { display: inline-flex; }
   .app.menu-js .menu-nav { display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100vh - 60px); overflow-y: auto; background: var(--fundo-menu); border-bottom: 1px solid var(--borda); box-shadow: var(--sombra); }
