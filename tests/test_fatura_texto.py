@@ -9,12 +9,12 @@ from app.importacao.fatura.texto import abrir_pdf
 from tests.faturas_util import paginas_de_fixture
 
 
-def _pdf_minimo(texto: str | None) -> bytes:
-    conteudo = f"BT /F1 12 Tf 50 700 Td ({texto}) Tj ET" if texto else ""
+def _pdf_minimo(texto: str | None, caixa: str = "0 0 600 800", pos: str = "50 700") -> bytes:
+    conteudo = f"BT /F1 12 Tf {pos} Td ({texto}) Tj ET" if texto else ""
     objs = [
         "<< /Type /Catalog /Pages 2 0 R >>",
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R "
+        f"<< /Type /Page /Parent 2 0 R /MediaBox [{caixa}] /Contents 4 0 R "
         "/Resources << /Font << /F1 5 0 R >> >> >>",
         f"<< /Length {len(conteudo)} >>\nstream\n{conteudo}\nendstream",
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
@@ -129,3 +129,15 @@ def test_paginas_de_fixture(tmp_path, monkeypatch) -> None:
     assert [x.numero for x in p] == [1, 2]
     assert (p[0].esquerda, p[0].direita) == ("E1", "D1")
     assert (p[1].esquerda, p[1].direita) == ("", "") and p[1].texto == "só texto"
+
+
+def test_abrir_pdf_mediabox_deslocada() -> None:
+    paginas = abrir_pdf(_pdf_minimo("COLUNA ESQ", caixa="100 100 700 900", pos="150 800"))
+    assert "COLUNA ESQ" in paginas[0].texto
+    assert "COLUNA ESQ" in paginas[0].esquerda
+    assert "COLUNA" not in paginas[0].direita
+
+
+def test_valor_br_rejeita_digitos_unicode() -> None:
+    with pytest.raises(ValueError):
+        valor_br_para_centavos("١,٢٣")

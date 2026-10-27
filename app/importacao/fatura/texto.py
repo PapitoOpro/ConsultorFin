@@ -19,19 +19,21 @@ class PaginaTexto:
 
 
 def _recorte(pagina: "pdfplumber.page.Page", x0: float, x1: float) -> str:
-    return pagina.crop((x0, 0, x1, pagina.height)).extract_text() or ""
+    _, topo, _, base = pagina.bbox
+    return pagina.crop((x0, topo, x1, base)).extract_text() or ""
 
 
 def _abrir(conteudo: bytes, senha: str | None) -> list[PaginaTexto]:
     with pdfplumber.open(io.BytesIO(conteudo), password=senha) as pdf:
         paginas: list[PaginaTexto] = []
         for i, p in enumerate(pdf.pages, 1):
-            corte = p.width * DIVISAO_COLUNAS
+            x0, _, x1, _ = p.bbox  # mediabox pode não começar em 0
+            corte = x0 + (x1 - x0) * DIVISAO_COLUNAS
             paginas.append(PaginaTexto(
                 numero=i,
                 texto=p.extract_text() or "",
-                esquerda=_recorte(p, 0, corte),
-                direita=_recorte(p, corte, p.width),
+                esquerda=_recorte(p, x0, corte),
+                direita=_recorte(p, corte, x1),
             ))
         return paginas
 

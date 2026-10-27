@@ -82,7 +82,7 @@ class FaturaLida:
                            self.ajustes_resumo_centavos)
 
 
-_VALOR_BR = re.compile(r"^(R\$)?\s*(-)?\s*(R\$)?\s*(\d{1,3}(?:\.\d{3})+|\d+),(\d{2})$")
+_VALOR_BR = re.compile(r"^(R\$)?\s*(-)?\s*(R\$)?\s*([0-9]{1,3}(?:\.[0-9]{3})+|[0-9]+),([0-9]{2})$")
 
 
 def valor_br_para_centavos(txt: str) -> int:
