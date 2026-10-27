@@ -152,3 +152,12 @@ def a_pagar_por_total(con: sqlite3.Connection, total_impresso_centavos: int, ven
         " ORDER BY data_vencimento, id",
         (total_impresso_centavos, venc_min, venc_max),
     ).fetchall()
+
+
+def descasar_pagamentos_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
+    """Faturas pagas por lançamentos da importação ficam sem pagamento casado."""
+    return con.execute(
+        "UPDATE faturas SET pagamento_lancamento_id = NULL WHERE pagamento_lancamento_id IN"
+        " (SELECT id FROM lancamentos WHERE importacao_id = ?)",
+        (importacao_id,),
+    ).rowcount

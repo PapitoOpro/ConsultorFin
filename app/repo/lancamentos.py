@@ -502,3 +502,13 @@ def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
         " AND EXISTS (SELECT 1 FROM faturas f WHERE f.conta_id = l.conta_id"
         "   AND f.data_vencimento >= l.data) ORDER BY l.data, l.id"
     ).fetchall()
+
+
+def reabrir_faturas_pagas_pela_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
+    """Linhas de fatura pagas por lançamentos da importação voltam a pendentes."""
+    return con.execute(
+        "UPDATE lancamentos SET compensado = 0, data_compensacao = NULL WHERE tipo = 'fatura'"
+        " AND id IN (SELECT f.lancamento_id FROM faturas f JOIN lancamentos p"
+        "   ON p.id = f.pagamento_lancamento_id WHERE p.importacao_id = ?)",
+        (importacao_id,),
+    ).rowcount

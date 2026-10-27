@@ -18,7 +18,9 @@ from app.dominio import lancamentos as dom_lanc
 from app.dominio.casamento import confirmar_casamento
 from app.dominio.categorias import despesas_do_mes
 from app.dominio.parcelas import marcar_pago
+from app.importacao.base import LinhaImportada, ResultadoLeitura
 from app.importacao.fatura.modelo import FaturaLida, ItemFatura
+from app.importacao.servico import desfazer_importacao, importar
 from app.main import create_app
 from app.repo import contas as repo_contas
 from app.repo import faturas as repo_faturas
@@ -159,3 +161,71 @@ def test_consultor_pagar_fatura_recusado(db_web: Path, capsys: pytest.CaptureFix
                        "--hoje", "2026-10-27"])
     assert codigo == 1
     assert json.loads(capsys.readouterr().out) == {"erro": MSG_FATURA}
+
+
+# --- 2. desfazer importação com pagamento casado ---------------------------------------------
+
+class _ParserFalso:
+    def __init__(self, linhas: list[LinhaImportada]) -> None:
+        self.linhas = linhas
+
+    def ler(self, conteudo: bytes) -> ResultadoLeitura:
+        return ResultadoLeitura(linhas=list(self.linhas))
+
+
+_EXTRATO = _ParserFalso([LinhaImportada("2026-10-09", "PAG FATURA CARTAO X", -30000)])
+
+
+def _situacao_fatura(con: sqlite3.Connection, fatura_id: int) -> tuple[Any, ...]:
+    fat = repo_faturas.obter(con, fatura_id)
+    linha = repo_lanc.obter(con, int(fat["lancamento_id"]))
+    return fat["pagamento_lancamento_id"], linha["compensado"], linha["data_compensacao"]
+
+
+def test_desfazer_importacao_descasa_pagamento_da_fatura(con: sqlite3.Connection) -> None:
+    cc, _, r = _setup(con)
+    res = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
+    lid = int(repo_lanc.importados_da_importacao(con, res.importacao_id)[0]["id"])
+    pag.confirmar_pagamento(con, r.fatura_id, lid)
+    assert despesas_do_mes(con, 2026, 10) == 30000
+    desfazer_importacao(con, res.importacao_id)
+    assert _situacao_fatura(con, r.fatura_id) == (None, 0, None)
+    assert despesas_do_mes(con, 2026, 10) == 0
+    res2 = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
+    lid2 = int(repo_lanc.importados_da_importacao(con, res2.importacao_id)[0]["id"])
+    assert [p.lancamento_id for p in pag.propor_pagamentos(con, r.fatura_id)] == [lid2]
+    pag.confirmar_pagamento(con, r.fatura_id, lid2)
+    assert _situacao_fatura(con, r.fatura_id) == (lid2, 1, "2026-10-09")
+    assert despesas_do_mes(con, 2026, 10) == 30000
+
+
+def test_desfazer_importacao_descasa_pagamento_quitado_pela_linha(con: sqlite3.Connection) -> None:
+    """Pagamento lançado à mão (pendente), quitado pela linha do extrato e casado com a fatura:
+    desfazer a importação volta o pagamento a pendente e a fatura a 'a pagar'."""
+    cc, _, r = _setup(con)
+    pend = repo_lanc.inserir_manual(con, conta_id=cc, data="2026-10-09",
+                                    descricao="PAG FATURA CARTAO X", valor_centavos=-30000,
+                                    tipo="pagamento_fatura", categoria_id=None,
+                                    compensado=False, observacao=None)
+    con.commit()
+    res = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
+    linha = int(repo_lanc.importados_da_importacao(con, res.importacao_id)[0]["id"])
+    confirmar_casamento(con, pend, linha)
+    pag.confirmar_pagamento(con, r.fatura_id, pend)
+    desfazer_importacao(con, res.importacao_id)
+    assert _situacao_fatura(con, r.fatura_id) == (None, 0, None)
+    assert repo_lanc.obter(con, pend)["compensado"] == 0
+
+
+def test_casamento_nao_apaga_linha_que_paga_fatura(con: sqlite3.Connection) -> None:
+    cc, _, r = _setup(con)
+    res = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
+    lid = int(repo_lanc.importados_da_importacao(con, res.importacao_id)[0]["id"])
+    pag.confirmar_pagamento(con, r.fatura_id, lid)
+    pend = repo_lanc.inserir_manual(con, conta_id=cc, data="2026-10-09", descricao="OUTRA",
+                                    valor_centavos=-30000, tipo="saida", categoria_id=None,
+                                    compensado=False, observacao=None)
+    con.commit()
+    with pytest.raises(ValueError, match="pagamento de uma fatura"):
+        confirmar_casamento(con, pend, lid)
+    assert _situacao_fatura(con, r.fatura_id) == (lid, 1, "2026-10-09")
