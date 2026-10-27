@@ -617,3 +617,4 @@ td.quebra { min-width: 150px; }
 .tabela-curta .data-linha { font-size: 13px; }
 @media (max-width: 480px) { .tabela-curta .linha-acoes-painel { min-width: 230px; } .tabela-curta th, .tabela-curta td { padding-left: 6px; padding-right: 6px; } }
 .excluir-fluxo h2 { display: flex; align-items: center; gap: 8px; } .excluir-fluxo h2 .icone { color: var(--alerta); }
+.mais-venc { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0 0; font-size: 13px; font-weight: 500; }

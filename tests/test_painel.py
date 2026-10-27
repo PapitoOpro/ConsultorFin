@@ -9,7 +9,7 @@ from app.dominio.categorias import criar_subcategoria, despesas_do_mes, entradas
 from app.dominio.lancamentos import ErroLancamento, criar_lancamento_manual
 from app.dominio.painel import (
     comparativo_mensal, fluxo_caixa, formatar_variacao, gastos_por_categoria, interpretar_mes,
-    proximos_vencimentos, top_com_outros, ultimos_lancamentos, variacao_percentual)
+    proximos_vencimentos, proximos_vencimentos_com_resto, selecionar_vencimentos, top_com_outros, ultimos_lancamentos, variacao_percentual)
 from app.importacao.deteccao import detectar
 from app.importacao.servico import importar
 from app.repo import contas
@@ -164,3 +164,62 @@ def test_proximos_vencimentos_traz_tipo_da_conta(con: sqlite3.Connection) -> Non
                             valor_centavos=-100, compensado=False)
     p = proximos_vencimentos(con, HOJE)
     assert p[0]["conta"] == "Nubank" and p[0]["conta_tipo"] == "cartao"
+
+
+# --- regra de seleção da lista "Próximos vencimentos" (vencidas ≤ 3, a vencer ≤ 5, total ≤ 6) ---
+
+def _item(dias: int, n: int = 0) -> dict[str, object]:
+    return {"descricao": f"i{dias}_{n}", "dias": dias, "vencida": dias < 0}
+
+
+@pytest.mark.parametrize("n_venc,n_prox,esperado,mais_venc,mais_prox", [
+    (0, 0, 0, 0, 0), (1, 0, 1, 0, 0), (5, 0, 3, 2, 0), (7, 0, 3, 4, 0),
+    (0, 2, 2, 0, 0), (0, 8, 5, 0, 3),
+    (1, 2, 3, 0, 0), (1, 8, 6, 0, 3), (5, 2, 5, 2, 0), (5, 8, 8, 2, 3),
+    (7, 8, 8, 4, 3),
+])
+def test_selecao_vencidas_e_a_vencer(n_venc: int, n_prox: int, esperado: int,
+                                     mais_venc: int, mais_prox: int) -> None:
+    itens = [_item(-i - 1, i) for i in range(n_venc)][::-1] + [_item(i % 8, i) for i in range(n_prox)]
+    itens.sort(key=lambda x: int(x["dias"]))  # type: ignore[call-overload]
+    lista, mv, mp = selecionar_vencimentos(itens)
+    assert (len(lista), mv, mp) == (esperado, mais_venc, mais_prox)
+    assert sum(1 for x in lista if x["vencida"]) == min(n_venc, 3)
+    assert sum(1 for x in lista if not x["vencida"]) == min(n_prox, 5)
+    assert [bool(x["vencida"]) for x in lista] == sorted(bool(x["vencida"]) for x in lista)[::-1]
+
+
+def test_selecao_limites_de_dias_hoje_mais7_mais8() -> None:
+    itens = [_item(0), _item(7), _item(8), _item(9)]
+    lista, mv, mp = selecionar_vencimentos(itens)
+    assert [x["dias"] for x in lista] == [0, 7, 8, 9]  # há espaço: além de 7 dias completa a lista
+    assert (mv, mp) == (0, 0)
+
+
+def test_selecao_alem_de_sete_dias_so_com_espaco() -> None:
+    itens = [_item(-1, i) for i in range(2)] + [_item(1, i) for i in range(5)] + [_item(10)]
+    lista, _, mp = selecionar_vencimentos(itens)
+    assert [x["dias"] for x in lista] == [-1, -1] + [1] * 5 and mp == 0  # 7 já passam de 6: o de 10 dias fica fora
+    lista, _, _ = selecionar_vencimentos([_item(1, i) for i in range(5)] + [_item(10)])
+    assert [x["dias"] for x in lista] == [1] * 5 + [10]  # sobra 1 vaga: entra o de 10 dias
+    itens = [_item(-1)] + [_item(10, i) for i in range(9)]
+    lista, mv, mp = selecionar_vencimentos(itens)
+    assert len(lista) == 6 and mv == 0 and mp == 0  # sem nada em 7 dias: completa até 6
+
+
+def test_selecao_mais_de_sete_dias_nao_gera_resto_de_a_vencer() -> None:
+    itens = [_item(3, i) for i in range(7)] + [_item(20)]
+    lista, _, mp = selecionar_vencimentos(itens)
+    assert len(lista) == 5 and mp == 2
+
+
+def test_proximos_vencimentos_com_cinco_vencidas(con: sqlite3.Connection) -> None:
+    cid = contas.criar_conta(con, "C", "corrente", saldo_inicial_centavos=0,
+                             data_saldo_inicial="2026-01-01")
+    for d, desc in [(date(2026, 10, i), f"Venc{i}") for i in range(14, 19)] + [
+            (date(2026, 10, 25), "Em 2 dias"), (date(2026, 10, 30), "IPTU")]:
+        criar_lancamento_manual(con, conta_id=cid, data=d, descricao=desc, valor_centavos=-100,
+                                compensado=False)
+    lista, mv, mp = proximos_vencimentos_com_resto(con, HOJE)
+    assert [x["descricao"] for x in lista] == ["Venc14", "Venc15", "Venc16", "Em 2 dias", "IPTU"]
+    assert (mv, mp) == (2, 0)

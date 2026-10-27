@@ -77,8 +77,10 @@
     {{ variacao(ind.var_saidas, ind.mes_anterior, ind.aviso_saidas) }}</div>
   <div class="kpi"><div class="rotulo">Resultado do mês</div>
     <div class="valor numero {{ classe(resumo.sobra_centavos) }}">{{ resumo.sobra_centavos|brl }}</div>
-    {% if resumo.sobra_centavos >= 0 %}<span class="kpi-variacao sobe">{{ icone("trending-up", 14) }} superávit</span>
-    {% else %}<span class="kpi-variacao desce">{{ icone("trending-down", 14) }} déficit</span>{% endif %}</div>
+    {% if resumo.sobra_centavos > 0 %}<span class="kpi-variacao sobe">{{ icone("trending-up", 14) }} superávit</span>
+    {% elif resumo.sobra_centavos < 0 %}<span class="kpi-variacao desce">{{ icone("trending-down", 14) }} déficit</span>
+    {% elif resumo.entradas_centavos or resumo.saidas_centavos %}<span class="kpi-variacao">{{ icone("arrow-left-right", 14) }} equilibrado</span>
+    {% else %}<span class="kpi-variacao">{{ icone("info", 14) }} sem movimento</span>{% endif %}</div>
 </section>
 
 <div class="grade-paineis analise">
@@ -152,6 +154,12 @@
       </li>
       {% endfor %}
     </ul>
+    {% if ind.vencimentos_mais_vencidas or ind.vencimentos_mais_a_vencer %}
+    <p class="mais-venc">
+      {% if ind.vencimentos_mais_vencidas %}<a href="/contas-a-pagar#vencidas">+{{ ind.vencimentos_mais_vencidas }} vencida{{ 's' if ind.vencimentos_mais_vencidas != 1 }}</a>{% endif %}
+      {% if ind.vencimentos_mais_a_vencer %}<a href="/contas-a-pagar#a-vencer">+{{ ind.vencimentos_mais_a_vencer }} a vencer</a>{% endif %}
+    </p>
+    {% endif %}
     {% else %}
     <div class="vazio vazio-compacto"><span class="vazio-icone">{{ icone("check-circle", 20) }}</span>
       <p>Nenhuma conta vencida ou a vencer</p>

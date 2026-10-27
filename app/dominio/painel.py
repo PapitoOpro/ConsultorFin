@@ -251,9 +251,34 @@ def _situacao(data: str, hoje: date) -> str:
     return f"em {dias} dia{'s' if dias != 1 else ''}"
 
 
-def proximos_vencimentos(con: Any, hoje: date, limite: int = 6) -> list[dict[str, Any]]:
-    """Saídas pendentes mais próximas (vencidas primeiro); `valor_centavos` é o valor a pagar."""
-    return [{
+MAX_VENCIDAS_INICIO = 3
+MAX_A_VENCER_INICIO = 5
+TOTAL_VENCIMENTOS_INICIO = 6
+JANELA_A_VENCER_DIAS = 7
+
+
+def selecionar_vencimentos(
+    itens: list[dict[str, Any]], total: int = TOTAL_VENCIMENTOS_INICIO,
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Escolhe o que a lista do Início mostra. `itens` vem por data, com `dias` e `vencida`.
+
+    Vencidas primeiro (no máximo 3), depois TODAS as que vencem em até 7 dias (hoje..+7, no
+    máximo 5); itens além de 7 dias só entram se houver espaço (até `total` no conjunto) e
+    nenhuma conta a vencer ficou de fora. Devolve (lista, vencidas omitidas, a vencer omitidas).
+    """
+    vencidas = [i for i in itens if i["vencida"]]
+    a_vencer = [i for i in itens if not i["vencida"] and i["dias"] <= JANELA_A_VENCER_DIAS]
+    depois = [i for i in itens if not i["vencida"] and i["dias"] > JANELA_A_VENCER_DIAS]
+    mostrar = vencidas[:MAX_VENCIDAS_INICIO] + a_vencer[:MAX_A_VENCER_INICIO]
+    mais_venc = max(0, len(vencidas) - MAX_VENCIDAS_INICIO)
+    mais_prox = max(0, len(a_vencer) - MAX_A_VENCER_INICIO)
+    if mais_prox == 0:
+        mostrar += depois[:max(0, total - len(mostrar))]
+    return mostrar, mais_venc, mais_prox
+
+
+def _vencimento(r: Any, hoje: date) -> dict[str, Any]:
+    return {
         "id": int(r["id"]), "data": str(r["data"]), "descricao": str(r["descricao"]),
         "conta": str(r["conta_nome"]), "conta_tipo": str(r["conta_tipo"]),
         "valor_centavos": -int(r["valor_centavos"]),
@@ -261,7 +286,18 @@ def proximos_vencimentos(con: Any, hoje: date, limite: int = 6) -> list[dict[str
         "situacao": _situacao(str(r["data"]), hoje),
         "vencida": str(r["data"]) < hoje.isoformat(),
         "categoria": _rotulo_categoria(r["cat_nome"], r["pai_nome"]),
-    } for r in painel.saidas_pendentes_proximas(con, limite)]
+    }
+
+
+def proximos_vencimentos_com_resto(con: Any, hoje: date) -> tuple[list[dict[str, Any]], int, int]:
+    """Saídas pendentes para a lista do Início (regra de `selecionar_vencimentos`) e quantas
+    vencidas / a vencer ficaram de fora."""
+    return selecionar_vencimentos([_vencimento(r, hoje) for r in painel.saidas_pendentes_proximas(con, 1000)])
+
+
+def proximos_vencimentos(con: Any, hoje: date, limite: int = 6) -> list[dict[str, Any]]:
+    """Saídas pendentes mais próximas (vencidas primeiro); `valor_centavos` é o valor a pagar."""
+    return [_vencimento(r, hoje) for r in painel.saidas_pendentes_proximas(con, limite)]
 
 
 def variacao_percentual(atual: int, anterior: int) -> float | None:
@@ -333,6 +369,7 @@ def indicadores_inicio(con: Any, hoje: date, resumo: Resumo) -> dict[str, Any]:
     futuro = (resumo.ano, resumo.mes) > (hoje.year, hoje.month)
     v_e, aviso_e = _comparacao(resumo.entradas_centavos, e_ant, True, historico, futuro)
     v_s, aviso_s = _comparacao(resumo.saidas_centavos, s_ant, False, historico, futuro)
+    venc, mais_venc, mais_prox = proximos_vencimentos_com_resto(con, hoje)
     return {
         "mes_anterior": rotulo_mes(f"{ant.year:04d}-{ant.month:02d}"),
         "mes_rotulo": rotulo_mes(resumo.mes_iso),
@@ -340,5 +377,5 @@ def indicadores_inicio(con: Any, hoje: date, resumo: Resumo) -> dict[str, Any]:
         "var_saidas": v_s, "aviso_saidas": aviso_s,
         "legenda_rosca": legenda_rosca(resumo),
         "recentes": ultimos_lancamentos(con),
-        "vencimentos": proximos_vencimentos(con, hoje),
+        "vencimentos": venc, "vencimentos_mais_vencidas": mais_venc, "vencimentos_mais_a_vencer": mais_prox,
     }

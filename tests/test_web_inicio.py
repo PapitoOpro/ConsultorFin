@@ -558,3 +558,37 @@ def test_tabelas_ocultas_dentro_de_wrapper_sr_only(cliente: TestClient, conta: i
     css = (Path(__file__).parent.parent / "app/web/static/css/tema.css").read_text(encoding="utf-8")
     regra = re.search(r"\.sr-only \{([^}]*)\}", css)
     assert regra and "position: absolute" in regra.group(1) and "overflow: hidden" in regra.group(1)
+
+
+def test_vencimentos_cinco_vencidas_mostra_tres_e_todas_as_a_vencer(
+        cliente: TestClient, conta: int, db: Path) -> None:
+    for i in range(5):
+        _manual(db, conta, date(2026, 10, 10 + i), f"Venc{i}", -1000, False)
+    _manual(db, conta, date(2026, 10, 25), "Dois dias", -2000, False)
+    _manual(db, conta, date(2026, 10, 30), "IPTU", -32000, False)
+    _manual(db, conta, date(2026, 11, 20), "Longe", -500, False)
+    venc = _bloco(cliente.get("/?mes=2026-10").text, "Próximos vencimentos")
+    assert "5 vencidas · 2 a vencer em 7 dias" in venc
+    assert all(f"Venc{i}" in venc for i in range(3)) and "Venc3" not in venc and "Venc4" not in venc
+    assert "Dois dias" in venc and "IPTU" in venc and "R$ 320,00" in venc
+    assert "Longe" in venc and "em 28 dias" in venc  # 3 + 2 = 5: sobra 1 vaga dos 6
+    assert '<a href="/contas-a-pagar#vencidas">+2 vencidas</a>' in venc
+    assert "a vencer</a>" not in venc
+
+
+def test_vencimentos_mais_de_cinco_a_vencer_mostra_link(cliente: TestClient, conta: int, db: Path) -> None:
+    for i in range(7):
+        _manual(db, conta, date(2026, 10, 24 + (i % 4)), f"Prox{i}", -1000, False)
+    venc = _bloco(cliente.get("/?mes=2026-10").text, "Próximos vencimentos")
+    assert venc.count("Prox") == 5
+    assert '<a href="/contas-a-pagar#a-vencer">+2 a vencer</a>' in venc
+    assert "vencidas</a>" not in venc and "vencida</a>" not in venc
+
+
+def test_resultado_zero_nao_diz_superavit(cliente: TestClient, conta: int, db: Path) -> None:
+    sem = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
+    assert "sem movimento" in sem and "superávit" not in sem and "déficit" not in sem
+    _manual(db, conta, date(2026, 12, 5), "Entra", 5000, True)
+    _manual(db, conta, date(2026, 12, 6), "Sai", -5000, True)
+    eq = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
+    assert "equilibrado" in eq and "superávit" not in eq
