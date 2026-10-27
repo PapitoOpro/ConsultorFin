@@ -1,0 +1,76 @@
+@@pagina
+1
+Gold
+TITULAR TESTE Resumo da fatura em R$
+RUA TESTE, 100
+BLOCO 1 AP 10 BAIRRO TESTE Total da fatura anterior 420,00
+00000-000 CIDADE UM SP P Pagamentos efetuados -400,00
+S Saldo financiado 20,00
+E Encargos (Financiamento + moratório) 8,50
+Postagem: 22/02/2027
+Vencimento: 01/03/2027 L Lançamentos atuais 222,90
+Emissão: 22/02/2027
+Previsão próx. Fechamento: 22/03/2027 = Total desta fatura 271,40
+Titular TITULAR TESTE
+Cartão 4000.XXXX.XXXX.0003
+O total da sua fatura é: Com vencimento em: Limite total de crédito:
+R$ 271,40 01/03/2027 R$ 3.000,00
+Pagamento mínimo: Parcelas fixas:
+R$ 60,00
+Banco Itaú S.A. 341-7 00000000000000000000000000000000000000000000 recibo do pagador
+Nome do Beneficiário/CPF/CNPJ FIC Itau CBD - 00.000.000/0001-00 Vencimento 01/03/2027
+@@pagina
+Caso você pague um valor entre o mínimo e o total de sua fatura, o saldo restante será cobrado na próxima fatura.
+sobre o pagamento obrigatório e o pagamento mínimo, acesse seu contrato e a aba “Serviços” no site Itaú Cartões.
+@@esq
+Caso você pague um valor entre o mínimo e o total de sua
+pagamento do valor total é sempre a melhor opção porque
+sobre o pagamento obrigatório e o pagamento mínimo, acesse seu
+Previsão para o próximo fechamento: 22/03/2027.
+Pagamentos efetuados
+DATA VALOR EM R$
+03/02 Pagamento via conta -250,00
+10/02 Pagamento via conta -150,00
+P Total dos pagamentos -400,00
+Lançamentos: compras e saques
+TITULAR TESTE
+DATA ESTABELECIMENTO VALOR EM R$
+23/12 ATACADO TESTE 02/02 40,00
+outros CIDADE UM
+24/01 MERCADO TESTE 30,00
+supermercado CIDADE UM
+14/02 ASSAI TESTE 15,25
+outros
+Lançamentos no cartão 206,25
+@@dir
+a fatura, o saldo restante será cobrado na próxima fatura.
+não há cobranças de juros.
+Lançamentos: compras e saques
+DATA ESTABELECIMENTO VALOR EM R$
+07/02 PADARIA TESTE 21,00
+supermercado CIDADE UM
+10/02 POSTO TESTE 100,00
+outros CIDADE UM
+Lançamentos: produtos e serviços
+DATA PRODUTOS/SERVIÇOS VALOR EM R$
+25/01 Mensalidade - Plano do 16,65
+Anuidade Diferenciada
+Lançamentos produtos e serviços 16,65
+L Total dos lançamentos atuais 222,90
+0800 000 0000
+@@pagina
+1
+Compras parceladas - próximas faturas
+DATA ESTABELECIMENTO VALOR EM R$
+23/12 ATACADO TESTE 03/03 40,00
+Próxima fatura 40,00
+Total para próximas faturas 40,00
+Limites de crédito Valor em R$
+Limite total de crédito 3.000,00
+Encargos cobrados nesta fatura
+Juros do rotativo 17,00 % 6,50
+Juros de mora 1,00 % am 0,00
+Multa por atraso 2,00 % 0,00
+IOF de financiamento (0,38 % + 0,00820 % a.d.) 2,00
+E Total de encargos em R$ 8,50
+Novo teto de juros do cartão de crédito

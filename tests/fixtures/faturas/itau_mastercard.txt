@@ -1,0 +1,82 @@
+@@pagina
+1
+Gold
+TITULAR TESTE Resumo da fatura em R$
+RUA TESTE, 100
+BLOCO 1 AP 10 BAIRRO TESTE Total da fatura anterior 150,00
+00000-000 CIDADE UM SP Pagamento efetuado em 05/03/2027 -150,00
+S Saldo financiado 0,00
+L Lançamentos atuais 228,23
+Postagem: 12/04/2027
+Vencimento: 20/04/2027 = Total desta fatura 228,23
+Emissão: 12/04/2027
+Previsão próx. Fechamento: 11/05/2027
+Titular TITULAR TESTE
+Cartão 5000.XXXX.XXXX.0002
+O total da sua fatura é: Com vencimento em: Limite total de crédito:
+R$ 228,23 20/04/2027 R$ 2.000,00
+Pagamento mínimo: Parcelas fixas:
+R$ 40,00
+Valor total financiado R$100,00 100,00%
+Encargos R$ 5,00 -
+IOF R$ 1,00 -
+Total a pagar R$ 222,23 -
+Banco Itaú S.A. 341-7 00000000000000000000000000000000000000000000 recibo do pagador
+Nome do Beneficiário/CPF/CNPJ BENEFICIARIO TESTE - 00.000.000/0001-00 Vencimento 20/04/2027
+@@pagina
+Caso você pague um valor entre o mínimo e o total de sua fatura, o saldo restante será cobrado na próxima fatura.
+acesse seu contrato e a aba “Serviços” no site Itaú Cartões.
+@@esq
+Caso você pague um valor entre o mínimo e o total de sua
+pagamento do valor total é sempre a melhor opção porque
+acesse seu contrato e a aba “Serviços” no site Itaú Cartões.
+Previsão para o próximo fechamento: 11/05/2027.
+Pagamentos efetuados
+DATA VALOR EM R$
+05/03 PAGAMENTO -150,00
+P Total dos pagamentos -150,00
+Lançamentos: compras e saques
+TITULAR TESTE
+DATA ESTABELECIMENTO VALOR EM R$
+12/03 LOJA TESTE A 24,24
+outros CIDADE UM
+20/02 LOJA PARC B 02/04 40,00
+vestuário CIDADE UM
+22/03 FARMACIA TESTE 31,50
+saúde CIDADE UM
+25/03 APP SERVICO TESTE 11,99
+serviços CIDADE UM
+Lançamentos no cartão 107,73
+Lançamentos internacionais
+TITULAR TESTE .
+DATAESTABELECIMENTO US$ R$
+30/03 LOJA INTL TESTE SUBSA 100,00
+20,00 EUR 18,00
+Dólar de Conversão R$ 5,00
+Total transações inter. em R$ 100,00
+Repasse de IOF em R$ 3,50
+Total lançamentos inter. em R$ 103,50
+0800 000 0000
+@@dir
+a fatura, o saldo restante será cobrado na próxima fatura.
+não há cobranças de juros.
+Lançamentos: produtos e serviços
+DATA PRODUTOS/SERVIÇOS VALOR EM R$
+10/03 Mensalidade - Plano do 17,00
+Anuidade Diferenciada
+Lançamentos produtos e serviços 17,00
+L Total dos lançamentos atuais 228,23
+Compras parceladas - próximas faturas
+DATA ESTABELECIMENTO VALOR EM R$
+20/02 LOJA PARC B 03/04 40,00
+Próxima fatura 40,00
+Demais faturas 80,00
+Total para próximas faturas 120,00
+Limites de crédito Valor em R$
+Limite total de crédito 2.000,00
+Limite disponível 1.500,00
+Encargos cobrados nesta fatura
+Juros do rotativo 15,00 % 0,00
+Juros de mora 1,00 % am 0,00
+Multa por atraso 2,00 % 0,00
+IOF de financiamento (0,38 % + 0,00820 % a.d.) 0,00
