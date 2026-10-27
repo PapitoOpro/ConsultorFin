@@ -58,6 +58,8 @@ class ParserItauCsv:
         try:
             data = data_br_para_iso(data_txt)
         except ValueError:
+            if not any(campos[1:5]):
+                return  # linha-rótulo (ex.: 'lançamentos;;;;'): ignorada em silêncio
             res.erros.append(ErroLeitura(num, f"Linha {num}: data inválida '{eco(data_txt)}'"))
             return
         if desc.upper().startswith("SALDO"):

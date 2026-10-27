@@ -598,3 +598,12 @@ def test_ofx_todas_as_linhas_depois_do_dtasof_nao_preenche_nem_rotula_estimado(d
     assert "Traceback" not in html and "estimado a partir do saldo do banco" not in t
     assert "Estimativa que não inclui movimentos" not in t
     assert 'value="R$ 471,12"' not in html and 'value="2026-10-12"' not in html
+
+
+def test_previa_fixture_com_rotulo_lancamentos_sem_bloco_de_erros(cliente: TestClient, db: Path) -> None:
+    assert "lançamentos;;;;".encode("latin-1") in FIXTURE.read_bytes()
+    conta = _conta(db)
+    r = _upload(cliente, "extrato.csv", FIXTURE.read_bytes(), conta)
+    assert r.status_code == 200
+    assert "Erros de leitura" not in r.text
+    assert "18 novos" in r.text and "0 com erro" in r.text

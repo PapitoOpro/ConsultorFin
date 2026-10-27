@@ -5,6 +5,7 @@ agência: 0000     conta: 00000-0;;;;
 Lançamentos periodo: 24/07/2026 até 22/10/2026;;;;
 ;;;;
 data;lançamento;ag./origem;valor (R$);saldos (R$)
+lançamentos;;;;
 22/10/2026;SALDO TOTAL DISPONÍVEL DIA;;;1.409,14
 22/10/2026;PIX TRANSF RR Supo22/10;;-343,54;
 20/10/2026;SALDO TOTAL DISPONÍVEL DIA;;;1.752,68

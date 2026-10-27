@@ -83,3 +83,50 @@ def test_mensagem_de_erro_trunca_o_valor_ecoado() -> None:
     from app.importacao.base import eco
     assert eco("x" * 100) == "x" * 29 + "…"
     assert eco("abc") == "abc"
+
+
+def _fixture_com(*extras_apos_cabecalho: str, extras_dados: tuple[str, ...] = ()) -> bytes:
+    txt = FIXTURE.read_bytes().decode("latin-1")
+    txt = txt.replace("lançamentos;;;;\r\n", "")
+    cab = CABECALHO + "\r\n"
+    ins = "".join(e + "\r\n" for e in extras_apos_cabecalho)
+    txt = txt.replace(cab, cab + ins, 1)
+    if extras_dados:
+        txt = txt.replace("SALDO ANTERIOR", "SALDO ANTERIOR", 1)
+        linhas = txt.split("\r\n")
+        i = next(k for k, l in enumerate(linhas) if l.startswith("22/10/2026;PIX"))
+        linhas[i + 1:i + 1] = list(extras_dados)
+        txt = "\r\n".join(linhas)
+    return txt.encode("latin-1")
+
+
+def test_linha_rotulo_lancamentos_e_ignorada_em_silencio():
+    base = _ler()
+    r = ParserItauCsv().ler(_fixture_com("lançamentos;;;;"))
+    assert r.erros == []
+    assert r.linhas == base.linhas
+    assert r.saldos_dia == base.saldos_dia and r.saldo_anterior == base.saldo_anterior
+
+
+def test_rotulo_maiusculo_e_linha_vazia_entre_dados_sem_erros():
+    base = _ler()
+    r = ParserItauCsv().ler(_fixture_com("Lançamentos;;;;", extras_dados=(";;;;",)))
+    assert r.erros == []
+    assert r.linhas == base.linhas
+
+
+def test_primeira_celula_nao_data_com_outras_celulas_continua_erro():
+    r = ParserItauCsv().ler(_csv("texto livre;1,00;;;"))
+    assert [e.mensagem for e in r.erros] == ["Linha 3: data inválida 'texto livre'"]
+    assert r.erros[0].linha == 3
+
+
+def test_rotulo_nao_data_com_celula_preenchida_continua_erro():
+    r = ParserItauCsv().ler(_csv("lançamentos;;;;1,00"))
+    assert len(r.erros) == 1 and "data inválida" in r.erros[0].mensagem
+
+
+def test_data_valida_com_valor_invalido_continua_erro():
+    r = ParserItauCsv().ler(_csv("lançamentos;;;;", "10/10/2026;COMPRA;;abc;"))
+    assert [e.mensagem for e in r.erros] == ["Linha 4: valor inválido 'abc'"]
+    assert r.linhas == []
