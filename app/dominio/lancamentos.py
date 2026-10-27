@@ -56,6 +56,7 @@ def criar_lancamento_manual(
 POR_PAGINA = 50
 MAX_LOTE = 500
 TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura")
+TIPO_FATURA = "fatura"  # gerado pela importação de fatura; fora de TIPOS (não editável)
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 MSG_DATA_FUTURA = "A data do pagamento não pode ser no futuro."

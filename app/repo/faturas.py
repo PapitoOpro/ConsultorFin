@@ -1,0 +1,109 @@
+"""Acesso a dados de faturas de cartão e seus itens (sem commit: a transação é do chamador)."""
+import sqlite3
+import uuid
+
+
+def criar(con: sqlite3.Connection, *, conta_id: int, competencia: str, data_vencimento: str,
+          data_fechamento: str | None, emissor: str | None, bandeira: str | None,
+          produto: str | None, total_impresso_centavos: int, total_calculado_centavos: int,
+          ajustes_resumo_centavos: int, arquivo_hash: str, arquivo_nome: str | None,
+          criado_em: str) -> int:
+    cur = con.execute(
+        "INSERT INTO faturas (uuid, conta_id, competencia, data_vencimento, data_fechamento,"
+        " emissor, bandeira, produto, total_impresso_centavos, total_calculado_centavos,"
+        " ajustes_resumo_centavos, arquivo_hash, arquivo_nome, criado_em)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (str(uuid.uuid4()), conta_id, competencia, data_vencimento, data_fechamento, emissor,
+         bandeira, produto, total_impresso_centavos, total_calculado_centavos,
+         ajustes_resumo_centavos, arquivo_hash, arquivo_nome, criado_em),
+    )
+    return int(cur.lastrowid)
+
+
+def obter(con: sqlite3.Connection, fatura_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM faturas WHERE id = ?", (fatura_id,)).fetchone()
+
+
+def por_conta_competencia(con: sqlite3.Connection, conta_id: int,
+                          competencia: str) -> sqlite3.Row | None:
+    return con.execute(
+        "SELECT * FROM faturas WHERE conta_id = ? AND competencia = ?",
+        (conta_id, competencia),
+    ).fetchone()
+
+
+def por_lancamento(con: sqlite3.Connection, lancamento_id: int) -> sqlite3.Row | None:
+    return con.execute(
+        "SELECT * FROM faturas WHERE lancamento_id = ?", (lancamento_id,)
+    ).fetchone()
+
+
+def definir_lancamento(con: sqlite3.Connection, fatura_id: int, lancamento_id: int) -> None:
+    con.execute("UPDATE faturas SET lancamento_id = ? WHERE id = ?", (lancamento_id, fatura_id))
+
+
+def atualizar_totais(con: sqlite3.Connection, fatura_id: int, impresso: int, calculado: int,
+                     ajustes: int, arquivo_hash: str, arquivo_nome: str | None) -> None:
+    con.execute(
+        "UPDATE faturas SET total_impresso_centavos = ?, total_calculado_centavos = ?,"
+        " ajustes_resumo_centavos = ?, arquivo_hash = ?, arquivo_nome = ? WHERE id = ?",
+        (impresso, calculado, ajustes, arquivo_hash, arquivo_nome, fatura_id),
+    )
+
+
+def inserir_item(con: sqlite3.Connection, fatura_id: int, *, ordem: int, data: str,
+                 descricao: str, valor_centavos: int, tipo: str, categoria_id: int | None,
+                 categoria_banco: str | None, parcela_atual: int | None,
+                 parcela_total: int | None, grupo_parcela_uuid: str | None,
+                 final_cartao: str | None) -> int:
+    cur = con.execute(
+        "INSERT INTO fatura_itens (uuid, fatura_id, ordem, data, descricao, valor_centavos,"
+        " tipo, categoria_id, categoria_banco, parcela_atual, parcela_total,"
+        " grupo_parcela_uuid, final_cartao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (str(uuid.uuid4()), fatura_id, ordem, data, descricao, valor_centavos, tipo,
+         categoria_id, categoria_banco, parcela_atual, parcela_total, grupo_parcela_uuid,
+         final_cartao),
+    )
+    return int(cur.lastrowid)
+
+
+def itens(con: sqlite3.Connection, fatura_id: int) -> list[sqlite3.Row]:
+    return con.execute(
+        "SELECT * FROM fatura_itens WHERE fatura_id = ? ORDER BY ordem, id", (fatura_id,)
+    ).fetchall()
+
+
+def obter_item(con: sqlite3.Connection, item_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM fatura_itens WHERE id = ?", (item_id,)).fetchone()
+
+
+def excluir_itens(con: sqlite3.Connection, fatura_id: int) -> None:
+    con.execute("DELETE FROM fatura_itens WHERE fatura_id = ?", (fatura_id,))
+
+
+def atualizar_categoria_item(con: sqlite3.Connection, ids: list[int],
+                             categoria_id: int | None) -> int:
+    if not ids:
+        return 0
+    marcas = ",".join("?" * len(ids))
+    cur = con.execute(
+        f"UPDATE fatura_itens SET categoria_id = ? WHERE id IN ({marcas})",  # noqa: S608
+        (categoria_id, *ids),
+    )
+    return cur.rowcount
+
+
+def listar(con: sqlite3.Connection, conta_id: int | None = None) -> list[sqlite3.Row]:
+    if conta_id is None:
+        return con.execute("SELECT * FROM faturas ORDER BY data_vencimento DESC, id DESC"
+                           ).fetchall()
+    return con.execute(
+        "SELECT * FROM faturas WHERE conta_id = ? ORDER BY data_vencimento DESC, id DESC",
+        (conta_id,),
+    ).fetchall()
+
+
+def marcar_pagamento(con: sqlite3.Connection, fatura_id: int,
+                     lancamento_id: int | None) -> None:
+    con.execute("UPDATE faturas SET pagamento_lancamento_id = ? WHERE id = ?",
+                (lancamento_id, fatura_id))

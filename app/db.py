@@ -305,9 +305,49 @@ def _migracao_7(con: sqlite3.Connection) -> None:
                     [(k, i) for i, k in mudam])
 
 
+def _migracao_8(con: sqlite3.Connection) -> None:
+    """Faturas de cartão (PDF) e seus itens."""
+    con.execute(
+        "CREATE TABLE faturas ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " conta_id INTEGER NOT NULL REFERENCES contas(id),"
+        " competencia TEXT NOT NULL,"
+        " data_vencimento TEXT NOT NULL,"
+        " data_fechamento TEXT,"
+        " emissor TEXT, bandeira TEXT, produto TEXT,"
+        " total_impresso_centavos INTEGER NOT NULL,"
+        " total_calculado_centavos INTEGER NOT NULL,"
+        " ajustes_resumo_centavos INTEGER NOT NULL DEFAULT 0,"
+        " arquivo_hash TEXT NOT NULL,"
+        " arquivo_nome TEXT,"
+        " lancamento_id INTEGER REFERENCES lancamentos(id),"
+        " pagamento_lancamento_id INTEGER REFERENCES lancamentos(id),"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (conta_id, competencia))"
+    )
+    con.execute(
+        "CREATE TABLE fatura_itens ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " fatura_id INTEGER NOT NULL REFERENCES faturas(id) ON DELETE CASCADE,"
+        " ordem INTEGER NOT NULL,"
+        " data TEXT NOT NULL,"
+        " descricao TEXT NOT NULL,"
+        " valor_centavos INTEGER NOT NULL,"
+        " tipo TEXT NOT NULL,"
+        " categoria_id INTEGER REFERENCES categorias(id),"
+        " categoria_banco TEXT,"
+        " parcela_atual INTEGER, parcela_total INTEGER,"
+        " grupo_parcela_uuid TEXT,"
+        " final_cartao TEXT)"
+    )
+    con.execute("CREATE INDEX idx_fatura_itens_fatura ON fatura_itens(fatura_id)")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
-    _migracao_7,
+    _migracao_7, _migracao_8,
 ]
 
 
