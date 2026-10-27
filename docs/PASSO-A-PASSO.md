@@ -66,11 +66,12 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 - **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas (aparecem em Contas a pagar e na projeção). Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
 - **Prevista que não apareceu na fatura:** se a fatura do mês já foi importada e não trouxe uma parcela prevista (compra cancelada, quitada antes ou renegociada), a prevista ganha o selo **não apareceu na fatura** em Lançamentos. Abra **Ações** na linha e clique em **Descartar** para apagar só essa parcela prevista; as demais continuam.
 - **Casar o pagamento:** quando o pagamento da fatura aparece no extrato da conta corrente, o app propõe casá-lo com a fatura. Confirme: o pagamento deixa de contar como despesa (as compras já contam pelos itens) e a fatura vira **paga**. Pagamento não casado continua contando como despesa, com um aviso na linha.
+- **Nunca marque a fatura como paga à mão.** A fatura só fica paga casando o pagamento do banco (botão **Casar pagamento** na linha da fatura, em Lançamentos). Em Contas a pagar, a linha da fatura não tem **Marcar como pago**: ela leva para Lançamentos. Se você ainda não importou o extrato com o pagamento, importe-o primeiro. Desfazer a importação desse extrato volta a fatura para **a pagar**.
 - **Reimportar ou substituir:** o mesmo PDF não duplica. Se o emissor gerar uma versão diferente da fatura do mesmo mês, marque **Substituir a fatura existente deste mês**; as categorias já escolhidas nos itens iguais são mantidas.
 
 **Gasto por categoria x saídas:** o gasto por categoria segue a **data da compra** no cartão. As **saídas** seguem a **data do pagamento** (quando o dinheiro sai da conta). Por isso os dois números podem ser diferentes no mesmo mês.
 
-**No consultor (Claude Code):** peça "mostra minhas faturas" ou "mostra os itens da fatura 1". Ele só consulta e sugere categorias; a importação do PDF e a escolha da categoria de cada item são no painel. O consultor recusa PDF de propósito: a senha do PDF nunca passa pelo Claude.
+**No consultor (Claude Code):** peça "mostra minhas faturas", "mostra as faturas do cartão X" (filtro por conta: `faturas --conta ID`) ou "mostra os itens da fatura 1". Na lista, `divergencia_sentido` diz se o total impresso ficou **acima** ou **abaixo** da soma dos itens (ou **zero**). Ele só consulta e sugere categorias; a importação do PDF, a escolha da categoria de cada item, casar o pagamento e descartar uma prevista são no painel. Ele recusa marcar a fatura como paga (`pagar`). O consultor recusa PDF de propósito: a senha do PDF nunca passa pelo Claude.
 
 ## 4. Organizar os lançamentos
 
@@ -108,7 +109,7 @@ O consultor do Claude Code apenas lê as categorias; para criar, renomear, mover
 
 Em **Contas a pagar** você vê, em cartões, **Vencidas** (borda vermelha), **A vencer (7 dias)** (borda âmbar), **Próximos vencimentos**, **Receitas previstas**, **Possíveis correspondências no extrato**, **Parcelamentos**, **Contas fixas e receitas recorrentes** e **Contas e cartões**. Use o seletor **Horizonte** (3, 6 ou 12 meses) no topo e clique em **Atualizar** para mudar a previsão.
 
-Em cada linha de vencimento, o botão **Ações** abre **Marcar como pago** (valor real e data) e, nas contas fixas, **Pular este mês**.
+Em cada linha de vencimento, o botão **Ações** abre **Marcar como pago** (valor real e data) e, nas contas fixas, **Pular este mês**. A linha da **fatura de cartão** não tem **Marcar como pago**: use **Casar pagamento**, que leva a Lançamentos (veja "Importar fatura do cartão").
 
 ### Compra parcelada
 **Novo parcelamento**: descrição, **Valor total**, **Nº de parcelas**, **Primeiro vencimento**, conta e categoria. O app cria uma parcela pendente por mês (1/10, 2/10...). A última parcela absorve a diferença de centavos. Para editar ou excluir as parcelas ainda pendentes, use o botão **Ações** da linha do parcelamento (**Editar pendentes** e **Excluir pendentes**).
@@ -158,7 +159,7 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 - Importar: "importa este extrato: C:\caminho\extrato.csv"
 - Categorizar: "categoriza o que está sem categoria"
 - Painel: "abre o painel"
-- Faturas: "mostra minhas faturas de cartão", "quais itens da fatura 1 estão sem categoria?"
+- Faturas: "mostra minhas faturas de cartão", "faturas do cartão 2" (`faturas --conta 2`), "quais itens da fatura 1 estão sem categoria?"
 
 ### O que ele faz sozinho e o que só faz com o seu "sim"
 - **Sozinho (só consulta):** ver saldos, resumo do mês, vencimentos, projeção, gastos, lançamentos, faturas de cartão (lista e itens), contas e categorias.

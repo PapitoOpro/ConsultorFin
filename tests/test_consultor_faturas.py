@@ -127,3 +127,17 @@ def test_importar_recusa_pdf(db: Path, tmp_path: Path, capsys: pytest.CaptureFix
                       "--confirmar")
     assert codigo == 1
     assert "painel" in r["erro"] and "Importar" in r["erro"] and "senha" in r["erro"]
+
+
+@pytest.mark.parametrize(("impresso", "sentido", "centavos"),
+                         [(15000, "zero", None), (15300, "acima", 300), (14800, "abaixo", -200)])
+def test_faturas_divergencia_sentido(db: Path, capsys: pytest.CaptureFixture[str],
+                                     impresso: int, sentido: str, centavos: int | None) -> None:
+    con = conectar(db)
+    try:
+        con.execute("UPDATE faturas SET total_impresso_centavos = ?", (impresso,))
+        con.commit()
+    finally:
+        con.close()
+    f = rodar(capsys, db, "faturas")[1]["faturas"][0]
+    assert (f["divergencia_sentido"], f["divergencia_centavos"]) == (sentido, centavos)
