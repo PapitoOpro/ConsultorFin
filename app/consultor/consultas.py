@@ -18,6 +18,8 @@ from app.dominio.saldo import saldo_atual
 from app.repo import contas as repo_contas
 
 MAX_LIMITE = 200
+NOTA_TOTAIS = ("categorias por data da compra (itens de fatura); "
+               "saídas por data do pagamento (caixa)")
 LIMITE_PADRAO = 50
 DIAS_PADRAO = 30
 
@@ -82,7 +84,7 @@ def resumo(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any]:
         **dinheiro("saidas", saidas), **dinheiro("sobra", entradas - saidas),
         **dinheiro("saldo_total", lista["saldo_total_centavos"]), "contas": lista["contas"],
         "vencidas": len(venc.vencidas), "a_vencer": len(venc.a_vencer), **_totais_venc(venc),
-        "janela_dias": config.JANELA_VENCER_DIAS,
+        "janela_dias": config.JANELA_VENCER_DIAS, "nota_totais": NOTA_TOTAIS,
         "maiores_categorias": [
             {"nome": n, **dinheiro("total", v)}
             for n, v in painel.top_com_outros([(c.nome, c.total_centavos) for c in cats],
@@ -127,6 +129,8 @@ def gastos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any]:
     return {
         **data("hoje", hoje.isoformat()), "mes": f"{ano:04d}-{m:02d}",
         **dinheiro("saidas", dom_categorias.despesas_do_mes(con, ano, m)),
+        **dinheiro("consumo", dom_categorias.consumo_do_mes(con, ano, m)),
+        "nota_totais": NOTA_TOTAIS,
         "categorias": [
             {"id": c.id, "nome": c.nome, **dinheiro("total", c.total_centavos),
              "subcategorias": [{"id": s.id, "nome": s.nome, **dinheiro("total", s.total_centavos),

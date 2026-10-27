@@ -3,7 +3,8 @@ import sqlite3
 
 
 def despesas_detalhadas(con: sqlite3.Connection, inicio_iso: str, fim_iso: str) -> list[sqlite3.Row]:
-    """Mesmo critério de `despesas_do_mes`: saídas e pagamentos de fatura não casados,
+    """Consumo — mesmo critério de `consumo_do_mes` (não é o caixa de `despesas_do_mes`):
+    saídas e pagamentos de fatura não casados,
     compensados, de contas não-cartão, com data_compensacao em [inicio, fim); mais os itens de
     fatura pela data da compra (crédito com valor negativo, abate). `origem`: 'lancamento' ou
     'fatura_item' (os ids são de tabelas diferentes). Categoria e categoria-pai (NULL = sem)."""

@@ -190,13 +190,15 @@ def definir_categoria_do_lancamento(
 def total_compensado_do_mes(
     con: sqlite3.Connection, tipos: tuple[str, ...], inicio_iso: str, fim_iso: str
 ) -> int:
-    """Soma (com sinal) dos compensados de contas não-cartão com data_compensacao em [inicio, fim).
-    Pagamento de fatura casado com uma fatura fica fora (contam os itens da fatura)."""
+    """Soma (com sinal) dos compensados com data_compensacao em [inicio, fim): contas não-cartão
+    e, nas contas-cartão, só a linha da fatura ('fatura' em `tipos`; conta na data do pagamento).
+    Pagamento de fatura casado com uma fatura fica fora (a linha da fatura é que conta)."""
     marcas = ",".join("?" for _ in tipos)
     row = con.execute(
         "SELECT COALESCE(SUM(l.valor_centavos), 0) AS s FROM lancamentos l"
         " JOIN contas c ON c.id = l.conta_id"
-        f" WHERE l.compensado = 1 AND c.tipo != 'cartao' AND l.tipo IN ({marcas})"
+        " WHERE l.compensado = 1 AND (c.tipo != 'cartao' OR l.tipo = 'fatura')"
+        f" AND l.tipo IN ({marcas})"
         " AND l.data_compensacao >= ? AND l.data_compensacao < ?"
         " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)",
         (*tipos, inicio_iso, fim_iso),

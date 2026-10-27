@@ -147,3 +147,23 @@ def test_recorrente_aparece_e_e_idempotente(banco: Any) -> None:
     assert p["recorrentes_geradas"] == 1  # dezembro
     assert p["pontos"][0]["saida_pendente_centavos"] == 150000
     assert consultas.resumo(banco, HOJE)["a_vencer"] == 1
+
+
+def test_gastos_com_fatura_separa_caixa_de_consumo(banco: Any) -> None:
+    from app.dominio import faturas as dom_fat
+    from app.importacao.fatura.modelo import FaturaLida, ItemFatura
+    from app.repo import contas as repo_contas
+
+    cartao = repo_contas.criar_conta(banco, "Cartao Teste", "cartao", final_numero="9999")
+    item = ItemFatura(data="2026-10-05", descricao="LOJA INVENTADA", valor_centavos=-12300,
+                      tipo="compra", parcela_atual=None, parcela_total=None,
+                      final_cartao="9999", categoria_banco=None)
+    f = FaturaLida(emissor="Banco Teste", bandeira=None, produto=None, final_cartao="9999",
+                   data_vencimento="2026-11-10", data_fechamento=None,
+                   total_impresso_centavos=12300, ajustes_resumo_centavos=0, itens=[item])
+    dom_fat.importar_fatura(banco, f, "h1", "f.pdf", cartao, HOJE, [None])
+    r = consultas.gastos(banco, HOJE, "2026-10")
+    assert sum(c["total_centavos"] for c in r["categorias"]) == r["consumo_centavos"]
+    assert r["consumo_centavos"] == r["saidas_centavos"] + 12300  # fatura ainda não paga
+    assert "data da compra" in r["nota_totais"] and "data do pagamento" in r["nota_totais"]
+    assert consultas.resumo(banco, HOJE, "2026-10")["nota_totais"] == r["nota_totais"]
