@@ -13,11 +13,15 @@ _ITEM = re.compile(
 _CARTAO = re.compile(r"Cart[aã]o\s+(Visa|Mastercard)\s+\[\*+(\d{4})\]", re.I)
 _DATA = re.compile(r"(\d{2}/\d{2}/\d{4})")
 _RS = re.compile(rf"R\$\s*({_VAL})")
-_FECHAMENTO = re.compile(r"Fechamento da fatura\s+(\d{2}/\d{2}/\d{4})")
+_FECHAMENTO = re.compile(r"Fechamento\s*da\s*fatura\s*(\d{2}/\d{2}/\d{4})")
 _ANTERIOR = re.compile(rf"Total da fatura de \S+\s+R\$\s*({_VAL})")
+_TOTAL_A_PAGAR = re.compile(r"^total\s*a\s*pagar")
 _INICIO = "movimentações na fatura"
 _FIM = ("parcele a fatura", "lançamentos futuros")
 _ENCARGO = ("juros", "multa", "iof", "tarifa")
+_PAGAMENTO = ("pagamento", "pgto", "pagto")
+_AVISO_DESCONHECIDA = "Movimentação não reconhecida tratada como compra."
+_AVISO_SEM_ANTERIOR = "Total da fatura anterior não encontrado: conferência sem ajustes."
 
 
 def _iso(data_br: str) -> str:
@@ -42,6 +46,8 @@ class ParserMercadoPago:
         itens, pagamentos = self._lancamentos(todo, venc, m_cartao.group(2), avisos)
         m_ant = _ANTERIOR.search(todo)
         ajustes = valor_br_para_centavos(m_ant.group(1)) - pagamentos if m_ant else 0
+        if not m_ant:
+            avisos.append(_AVISO_SEM_ANTERIOR)
         m_fech = _FECHAMENTO.search(todo)
         return FaturaLida(
             emissor=self.emissor,
@@ -60,7 +66,7 @@ class ParserMercadoPago:
     def _total_e_vencimento(todo: str) -> tuple[int, str]:
         linhas = [" ".join(ln.split()) for ln in todo.splitlines()]
         for i, ln in enumerate(linhas):
-            if ln.lower().startswith("total a pagar") and i + 1 < len(linhas):
+            if _TOTAL_A_PAGAR.match(ln.lower()) and i + 1 < len(linhas):
                 m_rs, m_dt = _RS.search(linhas[i + 1]), _DATA.search(linhas[i + 1])
                 if m_rs and m_dt:
                     return valor_br_para_centavos(m_rs.group(1)), _iso(m_dt.group(1))
@@ -90,7 +96,7 @@ class ParserMercadoPago:
             if not m:
                 continue
             desc, valor = m.group(2).strip(), valor_br_para_centavos(m.group(5))
-            if not em_cartao and desc.lower().startswith("pagamento"):
+            if not em_cartao and desc.lower().startswith(_PAGAMENTO):
                 pagamentos += valor
                 continue
             try:
@@ -104,8 +110,8 @@ class ParserMercadoPago:
                     tipo, assinado = "credito", valor
                 elif baixa_d.startswith(_ENCARGO):
                     tipo = "encargo"
-                else:
-                    avisos.append("Movimentação não reconhecida tratada como compra.")
+                elif _AVISO_DESCONHECIDA not in avisos:
+                    avisos.append(_AVISO_DESCONHECIDA)
             atual = int(m.group(3)) if m.group(3) else None
             total = int(m.group(4)) if m.group(4) else None
             itens.append(ItemFatura(

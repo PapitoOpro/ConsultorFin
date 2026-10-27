@@ -92,3 +92,49 @@ def test_pagamento_parcial_vai_para_ajustes() -> None:
 def test_sem_total_e_ilegivel() -> None:
     with pytest.raises(FaturaIlegivel):
         ParserMercadoPago().ler([PaginaTexto(1, "Mercado Pago\nMovimentações na fatura", "", "")])
+
+
+def _mp(movs: str, total: str = "10,00", extra: str = "Total da fatura de dezembro R$ 0,00\n") -> FaturaLida:
+    txt = (f"Mercado Pago\nTotal a pagar Vence em Limite total\nR$ {total} 15/02/2027 R$ 1,00\n"
+           f"{extra}Movimentações na fatura\n{movs}Parcele a fatura\n")
+    return ParserMercadoPago().ler([PaginaTexto(1, txt, "", "")])
+
+
+def test_descricao_desconhecida_vira_compra_com_um_aviso() -> None:
+    f = _mp("10/01 COBRANCA X R$ 4,00\n11/01 COBRANCA Y R$ 6,00\n",
+            extra="Cartão Visa [************0000]\nTotal da fatura de dezembro R$ 0,00\n")
+    assert [i.tipo for i in f.itens] == ["compra", "compra"]
+    assert f.avisos == ["Movimentação não reconhecida tratada como compra."]
+    assert f.conferencia().confere
+
+
+def test_variantes_de_pagamento() -> None:
+    f = _mp("10/01 PGTO FATURA R$ 5,00\n11/01 Pagto da fatura R$ 5,00\n"
+            "Cartão Visa [************0000]\n10/02 LOJA R$ 10,00\n",
+            extra="Total da fatura de dezembro R$ 10,00\n")
+    assert [i.descricao for i in f.itens] == ["LOJA"]
+    assert f.ajustes_resumo_centavos == 0
+    assert f.conferencia().confere
+
+
+def test_palavras_coladas_e_rs_colado() -> None:
+    txt = ("Mercado Pago\nTotalapagar Vence em Limite total\nR$10,00 15/02/2027 R$1,00\n"
+           "Fechamentodafatura 08/02/2027\nTotal da fatura de dezembro R$0,00\n"
+           "Movimentações na fatura\nCartão Visa [************0000]\n10/02 LOJA R$10,00\n")
+    f = ParserMercadoPago().ler([PaginaTexto(1, txt, "", "")])
+    assert f.total_impresso_centavos == 1000
+    assert f.data_fechamento == "2027-02-08"
+    assert f.conferencia().confere
+
+
+def test_sem_fechamento_e_sem_total_anterior_avisa() -> None:
+    f = _mp("Cartão Visa [************0000]\n10/02 LOJA R$ 10,00\n", extra="")
+    assert f.data_fechamento is None
+    assert f.ajustes_resumo_centavos == 0
+    assert f.avisos == ["Total da fatura anterior não encontrado: conferência sem ajustes."]
+
+
+def test_duplicata_mesmo_dia_e_valor_mantida() -> None:
+    f = _mp("Cartão Visa [************0000]\n10/02 LOJA R$ 5,00\n10/02 LOJA R$ 5,00\n")
+    assert len(f.itens) == 2 and f.itens[0] == f.itens[1]
+    assert f.conferencia().confere
