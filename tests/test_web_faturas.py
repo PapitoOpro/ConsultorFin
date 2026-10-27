@@ -391,3 +391,53 @@ def test_upload_pdf_pelo_formulario_do_extrato_vai_para_a_fatura(cliente: TestCl
     r = _enviar(cliente, rota="/importar/previa")
     assert r.status_code == 200
     assert "LOJA FICTICIA" in r.text and 'action="/faturas/confirmar"' in r.text
+
+
+MSG_FALHA_IMPORTAR = "Não foi possível importar a fatura. Nada foi gravado."
+
+
+def test_confirmar_valueerror_nao_dominio_vira_mensagem_generica(
+        cliente: TestClient, db: Path, fatura_fixa: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    previa = _enviar(cliente).text
+
+    def explode(*a: Any, **k: Any) -> Any:
+        raise ValueError("detalhe-interno-sigiloso")
+
+    monkeypatch.setattr("app.web.rotas.faturas.importar_fatura", explode)
+    caplog.set_level(logging.DEBUG)
+    r = _confirmar(cliente, previa, criar_conta="1")
+    assert r.status_code == 500 and MSG_FALHA_IMPORTAR in r.text
+    assert "detalhe-interno-sigiloso" not in r.text + caplog.text
+    assert "ValueError" in caplog.text
+
+
+def test_confirmar_erro_de_dominio_mostra_a_mensagem(
+        cliente: TestClient, fatura_fixa: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.dominio.faturas import ErroFatura
+    previa = _enviar(cliente).text
+
+    def recusa(*a: Any, **k: Any) -> Any:
+        raise ErroFatura("Regra de fatura violada.")
+
+    monkeypatch.setattr("app.web.rotas.faturas.importar_fatura", recusa)
+    r = _confirmar(cliente, previa, criar_conta="1")
+    assert r.status_code == 400 and "Regra de fatura violada." in r.text
+
+
+@pytest.mark.parametrize("etapa", ["previa", "confirmar"])
+def test_preparar_previa_com_falha_vira_mensagem_amigavel(
+        etapa: str, cliente: TestClient, fatura_fixa: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    previa = _enviar(cliente).text if etapa == "confirmar" else ""
+
+    def explode(*a: Any, **k: Any) -> Any:
+        raise RuntimeError("detalhe-interno-sigiloso")
+
+    monkeypatch.setattr("app.web.rotas.faturas.preparar_previa", explode)
+    caplog.set_level(logging.DEBUG)
+    r = _enviar(cliente) if etapa == "previa" else _confirmar(cliente, previa, criar_conta="1")
+    assert r.status_code == 500 and MSG_FALHA_IMPORTAR in r.text
+    assert "detalhe-interno-sigiloso" not in r.text + caplog.text
+    assert "RuntimeError" in caplog.text

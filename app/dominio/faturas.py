@@ -231,12 +231,12 @@ def criar_conta_cartao(con: Any, fatura: FaturaLida) -> int:
 def _validar(con: Any, fatura: FaturaLida, conta_id: int | None,
              categorias: Sequence[int | None]) -> None:
     if len(categorias) != len(fatura.itens):
-        raise ValueError("A lista de categorias não corresponde aos itens da fatura.")
+        raise ErroFatura("A lista de categorias não corresponde aos itens da fatura.")
     if conta_id is not None and repo_contas.obter(con, conta_id) is None:
-        raise ValueError("Conta do cartão não encontrada.")
+        raise ErroFatura("Conta do cartão não encontrada.")
     for cat in {c for c in categorias if c is not None}:
         if not repo_categorias.existe(con, cat):
-            raise ValueError("Categoria não encontrada.")
+            raise ErroFatura("Categoria não encontrada.")
 
 
 Chave = tuple[str, str, int]
