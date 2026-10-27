@@ -447,6 +447,30 @@ def excluir_previstas_dos_grupos(con: sqlite3.Connection, grupos: list[str]) -> 
     return cur.rowcount
 
 
+def pagamentos_fatura_livres(con: sqlite3.Connection, valor_centavos: int, data_min: str,
+                             data_max: str) -> list[sqlite3.Row]:
+    """Pagamentos de fatura compensados de contas não-cartão, com o valor exato, data em
+    [data_min, data_max] e ainda não casados com nenhuma fatura."""
+    return con.execute(
+        "SELECT l.* FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " WHERE l.tipo = 'pagamento_fatura' AND l.compensado = 1 AND c.tipo <> 'cartao'"
+        " AND l.valor_centavos = ? AND l.data >= ? AND l.data <= ?"
+        " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
+        " ORDER BY l.data, l.id",
+        (valor_centavos, data_min, data_max),
+    ).fetchall()
+
+
+def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,
+                               data_compensacao: str | None) -> None:
+    """Linha da fatura paga (data) ou de volta a pendente (None)."""
+    con.execute(
+        "UPDATE lancamentos SET compensado = ?, data_compensacao = ? WHERE id = ?"
+        " AND tipo = 'fatura'",
+        (int(data_compensacao is not None), data_compensacao, lancamento_id),
+    )
+
+
 def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
     """Previstas pendentes cuja data já foi coberta por uma fatura importada da mesma conta
     (vencimento >= data da prevista) sem que um item a tenha baixado."""

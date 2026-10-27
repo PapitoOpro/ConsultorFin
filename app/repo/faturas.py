@@ -38,6 +38,12 @@ def por_lancamento(con: sqlite3.Connection, lancamento_id: int) -> sqlite3.Row |
     ).fetchone()
 
 
+def por_pagamento(con: sqlite3.Connection, lancamento_id: int) -> sqlite3.Row | None:
+    return con.execute(
+        "SELECT * FROM faturas WHERE pagamento_lancamento_id = ?", (lancamento_id,)
+    ).fetchone()
+
+
 def definir_lancamento(con: sqlite3.Connection, fatura_id: int, lancamento_id: int) -> None:
     con.execute("UPDATE faturas SET lancamento_id = ? WHERE id = ?", (lancamento_id, fatura_id))
 
