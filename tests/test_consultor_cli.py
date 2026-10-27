@@ -208,7 +208,7 @@ def test_importar_entradas_invalidas(db: Path, tmp_path: Path,
     estranho.write_text("a;b\n1;2\n", encoding="utf-8")
     casos = [
         (["--arquivo", str(tmp_path / "nao.csv"), "--conta", "1"], "não encontrado"),
-        (["--arquivo", str(pdf), "--conta", "1"], ".csv, .xlsx ou .ofx"),
+        (["--arquivo", str(pdf), "--conta", "1"], "tela Importar"),
         (["--arquivo", str(grande), "--conta", "1"], "5 MB"),
         (["--arquivo", str(estranho), "--conta", "1"], "painel"),
         (["--arquivo", str(EXTRATO), "--conta", "abc"], "Conta inválida"),
@@ -318,7 +318,7 @@ def test_importar_extensao_continua_restrita(tmp_path: Path, capsys: pytest.Capt
     pdf = tmp_path / "x.pdf"
     pdf.write_bytes(b"%PDF")
     codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(pdf), "--conta", "1")
-    assert codigo == 1 and ".ofx" in r["erro"]
+    assert codigo == 1 and "tela Importar" in r["erro"]
 
 
 def test_categorizar_e_regra(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -401,7 +401,7 @@ def test_excecao_inesperada_vira_json(db_cheio: Path, capsys: pytest.CaptureFixt
 def test_parser_expoe_subcomandos() -> None:
     sub = next(a for a in cli.construir_parser()._actions if a.dest == "comando")
     assert set(sub.choices) == {"saldos", "resumo", "vencimentos", "projecao", "gastos",
-                                "lancamentos", "contas", "categorias", "importar", "casar",
+                                "lancamentos", "faturas", "contas", "categorias", "importar", "casar",
                                 "categorizar", "regra", "pagar", "criar-conta"}
 
 

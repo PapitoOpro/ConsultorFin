@@ -10,12 +10,15 @@ from typing import Any
 
 from app import config
 from app.dominio import categorias as dom_categorias
+from app.dominio import faturas as dom_faturas
 from app.dominio import lancamentos as dom_lanc
 from app.dominio import painel, projecao as dom_proj
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.dominio.recorrentes import gerar_recorrentes
 from app.dominio.saldo import saldo_atual
+from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
+from app.repo import faturas as repo_faturas
 
 MAX_LIMITE = 200
 NOTA_TOTAIS = ("categorias por data da compra (itens de fatura); "
@@ -194,3 +197,38 @@ def categorias(con: Any, hoje: date) -> dict[str, Any]:
             {"id": int(s["id"]), "nome": s["nome"]}
             for s in dom_categorias.listar_subcategorias(con, int(c["id"]))]}
         for c in dom_categorias.listar_categorias(con)]}
+
+
+def _cab_fatura(con: Any, f: Any, n_itens: int) -> dict[str, Any]:
+    conta = repo_contas.obter(con, int(f["conta_id"]))
+    div = int(f["total_impresso_centavos"]) - (
+        int(f["total_calculado_centavos"]) + int(f["ajustes_resumo_centavos"]))
+    return {
+        "id": int(f["id"]), "conta_id": int(f["conta_id"]),
+        "conta": conta["nome"] if conta else None, "competencia": f["competencia"],
+        **data("vencimento", f["data_vencimento"]),
+        **dinheiro("total", int(f["total_impresso_centavos"])),
+        "status": "paga" if f["pagamento_lancamento_id"] is not None else "a_pagar",
+        "n_itens": n_itens, "divergencia_centavos": div or None,
+        "divergencia": formatar_brl(abs(div)) if div else None}
+
+
+def faturas(con: Any, hoje: date, conta_id: int | None = None) -> dict[str, Any]:
+    """Faturas importadas (mais recentes primeiro), só leitura."""
+    return {"faturas": [
+        _cab_fatura(con, f, len(repo_faturas.itens(con, int(f["id"]))))
+        for f in repo_faturas.listar(con, conta_id)]}
+
+
+def fatura_ver(con: Any, hoje: date, fatura_id: int) -> dict[str, Any]:
+    """Cabeçalho e itens de uma fatura, só leitura."""
+    fat, itens = dom_faturas.detalhe(con, fatura_id)
+    nomes = {int(c["id"]): c["nome"] for c in repo_categorias.todas(con)}
+    return {"fatura": _cab_fatura(con, fat, len(itens)), "itens": [
+        {"id": int(i["id"]), **data("data", i["data"]), "descricao": i["descricao"],
+         **dinheiro("valor", int(i["valor_centavos"])), "tipo": i["tipo"],
+         "credito": int(i["valor_centavos"]) > 0,
+         "categoria_id": i["categoria_id"], "categoria": nomes.get(i["categoria_id"]),
+         "parcela": (f"{i['parcela_atual']}/{i['parcela_total']}"
+                     if i["parcela_atual"] and i["parcela_total"] else None),
+         "portador": i["final_cartao"]} for i in itens]}

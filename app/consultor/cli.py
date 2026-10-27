@@ -101,6 +101,10 @@ def construir_parser() -> argparse.ArgumentParser:
     for flag in ("--de", "--ate", "--conta", "--categoria", "--tipo", "--status", "--texto"):
         s.add_argument(flag, default=None)
     s.add_argument("--limite", default=str(consultas.LIMITE_PADRAO))
+    s = sub.add_parser("faturas", help="Faturas de cartão importadas (somente leitura).")
+    s.add_argument("acao", nargs="?", choices=["ver"], default=None)
+    s.add_argument("id", nargs="?", default=None)
+    s.add_argument("--conta", default=None)
     sub.add_parser("contas", help="Contas cadastradas.")
     sub.add_parser("categorias", help="Categorias e subcategorias.")
     s = sub.add_parser("importar", help="Importa um extrato (simula sem --confirmar).")
@@ -139,6 +143,14 @@ def _lancamentos(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
         limite=_int(a.limite, "Limite"))
 
 
+def _faturas(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
+    if a.acao == "ver":
+        return consultas.fatura_ver(con, hoje, _id(a.id, "Fatura"))
+    if a.id is not None:
+        raise ErroLancamento("Use: faturas [--conta ID] ou faturas ver ID.")
+    return consultas.faturas(con, hoje, _id(a.conta, "Conta") if a.conta else None)
+
+
 COMANDOS: dict[str, Comando] = {
     "saldos": lambda con, hoje, a: consultas.saldos(con, hoje),
     "resumo": lambda con, hoje, a: consultas.resumo(con, hoje, a.mes),
@@ -146,6 +158,7 @@ COMANDOS: dict[str, Comando] = {
     "projecao": lambda con, hoje, a: consultas.projecao(con, hoje, _int(a.meses, "Horizonte")),
     "gastos": lambda con, hoje, a: consultas.gastos(con, hoje, a.mes),
     "lancamentos": _lancamentos,
+    "faturas": _faturas,
     "contas": lambda con, hoje, a: consultas.contas(con, hoje),
     "categorias": lambda con, hoje, a: consultas.categorias(con, hoje),
 }
