@@ -123,3 +123,14 @@ def atualizar_vencimento(con: sqlite3.Connection, fatura_id: int, data_venciment
                          data_fechamento: str | None) -> None:
     con.execute("UPDATE faturas SET data_vencimento = ?, data_fechamento = ? WHERE id = ?",
                 (data_vencimento, data_fechamento, fatura_id))
+
+
+def itens_parcelados_da_conta(con: sqlite3.Connection, conta_id: int,
+                              excluir_fatura_id: int | None) -> list[sqlite3.Row]:
+    """Itens com grupo de parcelas das faturas da conta (exceto `excluir_fatura_id`)."""
+    return con.execute(
+        "SELECT i.* FROM fatura_itens i JOIN faturas f ON f.id = i.fatura_id"
+        " WHERE f.conta_id = ? AND i.fatura_id <> COALESCE(?, -1)"
+        " AND i.grupo_parcela_uuid IS NOT NULL ORDER BY i.id",
+        (conta_id, excluir_fatura_id),
+    ).fetchall()

@@ -53,6 +53,7 @@ class ResumoFatura:
     itens: int
     previstas_criadas: int
     previstas_baixadas: int
+    conta_id: int
 
 
 @contextmanager
@@ -84,12 +85,14 @@ def nome_cartao(fatura: FaturaLida) -> str:
 
 
 def _conta_do_cartao(con: Any, final: str) -> int | None:
-    ids = [cid for cid, fin in repo_contas.ids_por_final_numero(con) if fin == final]
-    for cid in ids:
+    """Só contas do tipo cartão (sem cartão: a prévia oferece criar a conta)."""
+    for cid, fin in repo_contas.ids_por_final_numero(con):
+        if fin != final:
+            continue
         conta = repo_contas.obter(con, cid)
         if conta is not None and conta["tipo"] == "cartao":
             return cid
-    return ids[0] if ids else None
+    return None
 
 
 def _situacao(con: Any, conta_id: int | None, fatura: FaturaLida,
@@ -109,11 +112,13 @@ def _sugerir_categoria(con: Any, item: ItemFatura) -> int | None:
     return cat
 
 
-def _parecidas(a: str, b: str) -> bool:
+def _similaridade(a: str, b: str) -> float:
     na, nb = normalizar_descricao(a), normalizar_descricao(b)
     if not na or not nb:
-        return False
-    return na in nb or nb in na or SequenceMatcher(None, na, nb).ratio() >= SIMILARIDADE_MINIMA
+        return 0.0
+    if na in nb or nb in na:
+        return 1.0
+    return SequenceMatcher(None, na, nb).ratio()
 
 
 def _valor_proximo(previsto: int, real: int) -> bool:
@@ -121,23 +126,59 @@ def _valor_proximo(previsto: int, real: int) -> bool:
     return abs(previsto - real) <= tolerancia
 
 
-def _casar_previstas(previstas: list[Any], itens: list[ItemFatura]) -> list[Any | None]:
-    """Para cada item parcelado, a prevista pendente correspondente (cada uma usada uma vez)."""
-    livres = list(previstas)
-    casadas: list[Any | None] = []
+def _compativel(row: Any, item: ItemFatura) -> bool:
+    """Mesmo total de parcelas, valor dentro da tolerância e descrição parecida."""
+    return (row["parcela_total"] == item.parcela_total
+            and _valor_proximo(int(row["valor_centavos"]), item.valor_centavos)
+            and _similaridade(str(row["descricao"]), item.descricao) >= SIMILARIDADE_MINIMA)
+
+
+def _melhor(candidatos: list[Any], item: ItemFatura) -> Any | None:
+    """Valor mais próximo; depois descrição mais parecida; depois menor id."""
+    if not candidatos:
+        return None
+    return min(candidatos, key=lambda r: (abs(int(r["valor_centavos"]) - item.valor_centavos),
+                                          -_similaridade(str(r["descricao"]), item.descricao),
+                                          int(r["id"])))
+
+
+@dataclass
+class _Plano:
+    prevista: Any | None  # prevista pendente a baixar
+    grupo: str | None  # grupo da prevista ou inferido de item de outra fatura
+
+
+def _planejar(con: Any, conta_id: int, itens: list[ItemFatura],
+              excluir_fatura_id: int | None) -> list[_Plano]:
+    """Casa cada item parcelado com uma prevista (cada uma usada uma vez) ou, sem prevista,
+    com o grupo de um item parcelado de outra fatura da conta (importação fora de ordem)."""
+    livres = list(repo_lanc.previstas_pendentes_da_conta(con, conta_id))
+    existentes = repo.itens_parcelados_da_conta(con, conta_id, excluir_fatura_id)
+    ocupados: set[tuple[str, int]] = set()
+    planos: list[_Plano] = []
     for item in itens:
-        achada = None
-        if item.parcela_atual is not None:
-            for p in livres:
-                if (p["parcela_atual"] == item.parcela_atual
-                        and _valor_proximo(int(p["valor_centavos"]), item.valor_centavos)
-                        and _parecidas(str(p["descricao"]), item.descricao)):
-                    achada = p
-                    break
-        if achada is not None:
-            livres.remove(achada)
-        casadas.append(achada)
-    return casadas
+        n = item.parcela_atual
+        if n is None or item.parcela_total is None:
+            planos.append(_Plano(None, None))
+            continue
+        prevista = _melhor([p for p in livres if p["parcela_atual"] == n
+                            and (str(p["grupo_parcela_uuid"]), n) not in ocupados
+                            and _compativel(p, item)], item)
+        grupo: str | None
+        if prevista is not None:
+            livres.remove(prevista)
+            grupo = str(prevista["grupo_parcela_uuid"])
+        else:
+            irmao = _melhor([e for e in existentes if e["parcela_atual"] != n
+                             and (str(e["grupo_parcela_uuid"]), n) not in ocupados
+                             and _compativel(e, item)
+                             and not repo_lanc.parcela_existe_no_grupo(
+                                 con, str(e["grupo_parcela_uuid"]), n, excluir_fatura_id)], item)
+            grupo = None if irmao is None else str(irmao["grupo_parcela_uuid"])
+        if grupo is not None:
+            ocupados.add((grupo, n))
+        planos.append(_Plano(prevista, grupo))
+    return planos
 
 
 def _parcelas_futuras(item: ItemFatura) -> range:
@@ -146,9 +187,12 @@ def _parcelas_futuras(item: ItemFatura) -> range:
     return range(item.parcela_atual + 1, item.parcela_total + 1)
 
 
-def _a_criar(con: Any, item: ItemFatura, grupo: str | None) -> list[int]:
+def _a_criar(con: Any, item: ItemFatura, grupo: str | None,
+             excluir_fatura_id: int | None) -> list[int]:
+    """Parcelas futuras que ainda não existem no grupo (nem prevista nem item de outra fatura)."""
     return [k for k in _parcelas_futuras(item)
-            if grupo is None or not repo_lanc.parcela_existe_no_grupo(con, grupo, k)]
+            if grupo is None
+            or not repo_lanc.parcela_existe_no_grupo(con, grupo, k, excluir_fatura_id)]
 
 
 def preparar_previa(con: Any, fatura: FaturaLida, arquivo_hash: str) -> PreviaFatura:
@@ -156,28 +200,31 @@ def preparar_previa(con: Any, fatura: FaturaLida, arquivo_hash: str) -> PreviaFa
     conta_id = _conta_do_cartao(con, fatura.final_cartao)
     situacao = _situacao(con, conta_id, fatura, arquivo_hash)
     sugeridas = [_sugerir_categoria(con, i) for i in fatura.itens]
-    baixar = criar = 0
-    if conta_id is not None:
-        casadas = _casar_previstas(repo_lanc.previstas_pendentes_da_conta(con, conta_id),
-                                   fatura.itens)
-        baixar = sum(p is not None for p in casadas)
-        criar = sum(len(_a_criar(con, i, None if p is None else str(p["grupo_parcela_uuid"])))
-                    for i, p in zip(fatura.itens, casadas))
-    else:
+    if conta_id is None:
         criar = sum(len(_parcelas_futuras(i)) for i in fatura.itens)
+        return PreviaFatura(fatura, arquivo_hash, None, situacao, sugeridas, 0, criar)
+    existente = repo.por_conta_competencia(con, conta_id, _competencia(fatura))
+    excluir = None if existente is None else int(existente["id"])
+    planos = _planejar(con, conta_id, fatura.itens, excluir)
+    baixar = sum(p.prevista is not None for p in planos)
+    criar = sum(len(_a_criar(con, i, p.grupo, excluir)) for i, p in zip(fatura.itens, planos))
     return PreviaFatura(fatura, arquivo_hash, conta_id, situacao, sugeridas, baixar, criar)
 
 
 def criar_conta_cartao(con: Any, fatura: FaturaLida) -> int:
-    return repo_contas.criar_conta(con, nome_cartao(fatura), "cartao",
-                                   instituicao=fatura.emissor, final_numero=fatura.final_cartao)
+    """Cria a conta-cartão sem commit próprio: transação própria, ou SAVEPOINT dentro da
+    transação do chamador (que decide confirmar ou reverter)."""
+    with _escrita(con):
+        return repo_contas.criar_conta(con, nome_cartao(fatura), "cartao",
+                                       instituicao=fatura.emissor,
+                                       final_numero=fatura.final_cartao, commit=False)
 
 
-def _validar(con: Any, fatura: FaturaLida, conta_id: int,
+def _validar(con: Any, fatura: FaturaLida, conta_id: int | None,
              categorias: Sequence[int | None]) -> None:
     if len(categorias) != len(fatura.itens):
         raise ValueError("A lista de categorias não corresponde aos itens da fatura.")
-    if repo_contas.obter(con, conta_id) is None:
+    if conta_id is not None and repo_contas.obter(con, conta_id) is None:
         raise ValueError("Conta do cartão não encontrada.")
     for cat in {c for c in categorias if c is not None}:
         if not repo_categorias.existe(con, cat):
@@ -185,15 +232,16 @@ def _validar(con: Any, fatura: FaturaLida, conta_id: int,
 
 
 Chave = tuple[str, str, int]
+Guardados = dict[Chave, deque[tuple[int | None, str | None]]]
 
 
 def _chave(data: str, descricao: str, valor: int) -> Chave:
     return data, normalizar_descricao(descricao), valor
 
 
-def _desfazer_anterior(con: Any, fatura_id: int) -> dict[Chave, deque[tuple[int | None, str | None]]]:
+def _desfazer_anterior(con: Any, fatura_id: int) -> Guardados:
     """Apaga itens e previstas da fatura anterior; devolve categoria/grupo por item."""
-    guardados: dict[Chave, deque[tuple[int | None, str | None]]] = defaultdict(deque)
+    guardados: Guardados = defaultdict(deque)
     antigos = repo.itens(con, fatura_id)
     for it in antigos:
         guardados[_chave(str(it["data"]), str(it["descricao"]), int(it["valor_centavos"]))
@@ -238,13 +286,16 @@ def _gravar_cabecalho(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_n
 
 
 def importar_fatura(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nome: str,
-                    conta_id: int, hoje: date, categorias: list[int | None],
+                    conta_id: int | None, hoje: date, categorias: list[int | None],
                     substituir: bool = False) -> ResumoFatura:
-    """Grava fatura, itens, baixa/cria previstas — tudo numa transação."""
+    """Grava fatura, itens, baixa/cria previstas — tudo numa transação. conta_id None:
+    cria a conta-cartão (dados da fatura) na mesma transação."""
     _validar(con, fatura, conta_id, categorias)
     with _escrita(con):
+        if conta_id is None:
+            conta_id = criar_conta_cartao(con, fatura)
         existente = repo.por_conta_competencia(con, conta_id, _competencia(fatura))
-        guardados: dict[Chave, deque[tuple[int | None, str | None]]] = {}
+        guardados: Guardados = {}
         if existente is not None:
             if existente["arquivo_hash"] == arquivo_hash:
                 raise FaturaJaImportada()
@@ -253,22 +304,21 @@ def importar_fatura(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nom
             guardados = _desfazer_anterior(con, int(existente["id"]))
         fid, lid = _gravar_cabecalho(con, fatura, arquivo_hash, arquivo_nome, conta_id, hoje,
                                      existente)
-        casadas = _casar_previstas(repo_lanc.previstas_pendentes_da_conta(con, conta_id),
-                                   fatura.itens)
+        planos = _planejar(con, conta_id, fatura.itens, fid)
         vencimento = date.fromisoformat(fatura.data_vencimento)
         criadas = baixadas = 0
-        for ordem, (item, cat, prevista) in enumerate(zip(fatura.itens, categorias, casadas), 1):
+        for ordem, (item, cat, plano) in enumerate(zip(fatura.itens, categorias, planos), 1):
             fila = guardados.get(_chave(item.data, item.descricao, item.valor_centavos))
             cat_antiga, grupo_antigo = fila.popleft() if fila else (None, None)
             categoria = cat_antiga if cat_antiga is not None else cat
+            if plano.prevista is not None:
+                if categoria is None:
+                    categoria = plano.prevista["categoria_id"]
+                repo_lanc.excluir(con, int(plano.prevista["id"]))
+                baixadas += 1
             grupo: str | None = None
-            if item.parcela_atual is not None:
-                if prevista is not None:
-                    grupo = str(prevista["grupo_parcela_uuid"])
-                    repo_lanc.excluir(con, int(prevista["id"]))
-                    baixadas += 1
-                else:
-                    grupo = grupo_antigo or str(uuid.uuid4())
+            if item.parcela_atual is not None and item.parcela_total is not None:
+                grupo = plano.grupo or grupo_antigo or str(uuid.uuid4())
             repo.inserir_item(
                 con, fid, ordem=ordem, data=item.data, descricao=item.descricao,
                 valor_centavos=item.valor_centavos, tipo=item.tipo, categoria_id=categoria,
@@ -277,7 +327,7 @@ def importar_fatura(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nom
                 final_cartao=item.final_cartao)
             if grupo is None:
                 continue
-            for k in _a_criar(con, item, grupo):
+            for k in _a_criar(con, item, grupo, fid):
                 repo_lanc.inserir_prevista(
                     con, conta_id=conta_id,
                     data=somar_meses(vencimento, k - int(item.parcela_atual), vencimento.day
@@ -287,7 +337,7 @@ def importar_fatura(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nom
                     categoria_id=categoria, grupo_parcela_uuid=grupo, parcela_atual=k,
                     parcela_total=int(item.parcela_total))
                 criadas += 1
-        return ResumoFatura(fid, lid, len(fatura.itens), criadas, baixadas)
+        return ResumoFatura(fid, lid, len(fatura.itens), criadas, baixadas, conta_id)
 
 
 def alterar_categoria_item(con: Any, item_id: int, categoria_id: int | None) -> None:

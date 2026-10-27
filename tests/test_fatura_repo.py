@@ -138,3 +138,29 @@ def test_categoria_por_nome_e_regras_ignoram_fatura(con: sqlite3.Connection) -> 
     criar_regra(con, "OTICA", cat)
     assert aplicar_regras(con) == 0
     assert repo_l.obter(con, lid)["categoria_id"] is None
+
+
+def test_parcela_existe_olha_itens_de_outras_faturas(con: sqlite3.Connection) -> None:
+    from app.repo import lancamentos as repo_l
+
+    conta = _conta(con)
+    fid = _fatura(con, conta)
+    repo.inserir_item(con, fid, ordem=1, data="2026-10-01", descricao="TV", valor_centavos=-1,
+                      tipo="compra", categoria_id=None, categoria_banco=None, parcela_atual=4,
+                      parcela_total=5, grupo_parcela_uuid="g9", final_cartao=None)
+    assert repo_l.parcela_existe_no_grupo(con, "g9", 4)
+    assert not repo_l.parcela_existe_no_grupo(con, "g9", 4, excluir_fatura_id=fid)
+    assert not repo_l.parcela_existe_no_grupo(con, "g9", 5)
+    assert [r["grupo_parcela_uuid"] for r in repo.itens_parcelados_da_conta(con, conta, None)
+            ] == ["g9"]
+    assert repo.itens_parcelados_da_conta(con, conta, fid) == []
+
+
+def test_criar_conta_sem_commit(con: sqlite3.Connection) -> None:
+    from app.repo import contas as repo_contas
+
+    con.execute("BEGIN")
+    repo_contas.criar_conta(con, "X", "cartao", commit=False)
+    assert con.in_transaction
+    con.execute("ROLLBACK")
+    assert repo_contas.listar(con) == []

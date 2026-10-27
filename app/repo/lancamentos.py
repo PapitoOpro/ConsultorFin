@@ -422,10 +422,15 @@ def previstas_pendentes_da_conta(con: sqlite3.Connection, conta_id: int) -> list
     ).fetchall()
 
 
-def parcela_existe_no_grupo(con: sqlite3.Connection, grupo_uuid: str, parcela: int) -> bool:
+def parcela_existe_no_grupo(con: sqlite3.Connection, grupo_uuid: str, parcela: int,
+                            excluir_fatura_id: int | None = None) -> bool:
+    """A parcela já existe no grupo: como lançamento (prevista/real) ou como item de fatura
+    (exceto os da fatura `excluir_fatura_id`)."""
     return con.execute(
-        "SELECT 1 FROM lancamentos WHERE grupo_parcela_uuid = ? AND parcela_atual = ? LIMIT 1",
-        (grupo_uuid, parcela),
+        "SELECT 1 FROM lancamentos WHERE grupo_parcela_uuid = :g AND parcela_atual = :p"
+        " UNION ALL SELECT 1 FROM fatura_itens WHERE grupo_parcela_uuid = :g"
+        " AND parcela_atual = :p AND fatura_id <> COALESCE(:f, -1) LIMIT 1",
+        {"g": grupo_uuid, "p": parcela, "f": excluir_fatura_id},
     ).fetchone() is not None
 
 

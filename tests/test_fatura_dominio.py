@@ -214,3 +214,102 @@ def test_categorizar_itens_em_lote_e_aplicar_regras(con: sqlite3.Connection) -> 
     assert repo_faturas.obter_item(con, ids[0])["categoria_id"] is None
     lanc = con.execute("SELECT categoria_id FROM lancamentos WHERE tipo = 'fatura'").fetchone()
     assert lanc["categoria_id"] is None
+
+
+# --- Fix round 1 ------------------------------------------------------------------------------
+
+def test_casamento_exige_mesmo_total_de_parcelas(con: sqlite3.Connection) -> None:
+    conta = _conta(con)
+    _importar(con, _fatura([_item("LOJA X", -100, parcela=(3, 10)),
+                            _item("LOJA X", -100, parcela=(3, 5))]), conta)
+    f2 = _fatura([_item("LOJA X", -100, parcela=(4, 5)),
+                  _item("LOJA X", -100, parcela=(4, 10))], venc="2026-11-10")
+    r = _importar(con, f2, conta, "h2")
+    assert (r.previstas_baixadas, r.previstas_criadas) == (2, 0)
+    assert len(_previstas(con)) == 7
+
+
+def test_casamento_escolhe_valor_mais_proximo(con: sqlite3.Connection) -> None:
+    conta = _conta(con)
+    _importar(con, _fatura([_item("CADEIRA", -10000, parcela=(3, 5)),
+                            _item("CADEIRA", -10100, parcela=(3, 5))]), conta)
+    grupo_por_valor = {p["valor_centavos"]: p["grupo_parcela_uuid"] for p in _previstas(con)}
+    f2 = _fatura([_item("CADEIRA", -10100, parcela=(4, 5)),
+                  _item("CADEIRA", -10000, parcela=(4, 5))], venc="2026-11-10")
+    r = _importar(con, f2, conta, "h2")
+    for it in repo_faturas.itens(con, r.fatura_id):
+        assert it["grupo_parcela_uuid"] == grupo_por_valor[it["valor_centavos"]]
+
+
+def test_fora_de_ordem_nao_duplica_previstas(con: sqlite3.Connection) -> None:
+    conta = _conta(con)
+    _importar(con, _fatura([_item("TV", -10000, parcela=(4, 5))], venc="2026-11-10"), conta)
+    f_out = _fatura([_item("TV", -10000, parcela=(3, 5))], venc="2026-10-10")
+    previa = dom.preparar_previa(con, f_out, "h2")
+    assert previa.previstas_a_criar == 0
+    r = _importar(con, f_out, conta, "h2")
+    assert r.previstas_criadas == 0
+    prev = _previstas(con)
+    assert [p["parcela_atual"] for p in prev] == [5]
+    grupos = {i["grupo_parcela_uuid"] for i in con.execute("SELECT * FROM fatura_itens")}
+    assert grupos == {prev[0]["grupo_parcela_uuid"]}
+
+
+def test_substituir_anterior_nao_duplica_previstas(con: sqlite3.Connection) -> None:
+    conta = _conta(con)
+    f_out = _fatura([_item("TV", -10000, parcela=(3, 5))], venc="2026-10-10")
+    _importar(con, f_out, conta, "h1")
+    _importar(con, _fatura([_item("TV", -10000, parcela=(4, 5))], venc="2026-11-10"), conta,
+              "h2")
+    f_out2 = _fatura([_item("TV", -10000, parcela=(3, 5)), _item("CAFE", -500)],
+                     venc="2026-10-10")
+    _importar(con, f_out2, conta, "h3", substituir=True)
+    prev = _previstas(con)
+    assert [p["parcela_atual"] for p in prev] == [5]
+    grupos = {i["grupo_parcela_uuid"] for i in con.execute(
+        "SELECT * FROM fatura_itens WHERE grupo_parcela_uuid IS NOT NULL")}
+    assert grupos == {prev[0]["grupo_parcela_uuid"]}
+
+
+def test_importar_cria_conta_na_mesma_transacao(con: sqlite3.Connection) -> None:
+    f = _fatura([_item("LOJA", -100)])
+    r = dom.importar_fatura(con, f, "h1", "f.pdf", None, HOJE, [None])
+    assert not con.in_transaction
+    conta = repo_contas.obter(con, r.conta_id)
+    assert (conta["tipo"], conta["final_numero"]) == ("cartao", "9999")
+    assert repo_faturas.obter(con, r.fatura_id)["conta_id"] == r.conta_id
+
+
+def test_importar_com_falha_nao_deixa_conta(con: sqlite3.Connection,
+                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    def falha(*args: object, **kwargs: object) -> int:
+        raise RuntimeError("falha simulada")
+
+    monkeypatch.setattr(repo_faturas, "inserir_item", falha)
+    with pytest.raises(RuntimeError):
+        dom.importar_fatura(con, _fatura([_item("LOJA", -100)]), "h1", "f.pdf", None, HOJE,
+                            [None])
+    assert con.execute("SELECT COUNT(*) FROM contas").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM faturas").fetchone()[0] == 0
+
+
+def test_criar_conta_cartao_dentro_de_transacao_externa_reverte(con: sqlite3.Connection) -> None:
+    con.execute("BEGIN")
+    dom.criar_conta_cartao(con, _fatura([_item("LOJA", -100)]))
+    assert con.in_transaction
+    con.execute("ROLLBACK")
+    assert con.execute("SELECT COUNT(*) FROM contas").fetchone()[0] == 0
+
+
+def test_conta_nao_cartao_com_mesmo_final_nao_e_usada(con: sqlite3.Connection) -> None:
+    repo_contas.criar_conta(con, "Corrente", "corrente", final_numero="9999")
+    assert dom.preparar_previa(con, _fatura([_item("LOJA", -100)]), "h").conta_id is None
+
+
+def test_prevista_baixada_passa_categoria_ao_item(con: sqlite3.Connection) -> None:
+    conta = _conta(con)
+    cat = criar_categoria(con, "Cat Prevista")
+    _importar(con, _fatura([_item("TV", -10000, parcela=(3, 5))]), conta, categorias=[cat])
+    r = _importar(con, _fatura([_item("TV", -10000, parcela=(4, 5))], venc="2026-11-10"), conta,
+                  "h2")
+    assert repo_faturas.itens(con, r.fatura_id)[0]["categoria_id"] == cat
