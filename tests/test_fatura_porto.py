@@ -77,3 +77,51 @@ def test_credito_negativo_nao_pagamento() -> None:
 def test_porto_nao_reconhece_outros_emissores() -> None:
     for nome in ("itau_visa", "itau_mastercard", "itau_passai", "mercadopago"):
         assert not ParserPorto().reconhece(paginas_de_fixture(nome))
+
+
+def _porto(corpo: str, total: str = "10,00", periodo: str = "") -> FaturaLida:
+    txt = (f"Cartão 5000 00** **** *000\nEsta fatura vence em\n20/01/2027\nO valor total é\nR$ {total}\n"
+           f"{periodo}Lançamentos: compras e saques\nTITULAR TESTE (final *000)\n{corpo}")
+    return ParserPorto().ler([PaginaTexto(1, txt, "", "")])
+
+
+def test_encargo_por_prefixo_encargo() -> None:
+    f = _porto("05/01 LOJA 7,00\n06/01 ENCARGOS ROTATIVO 3,00\n")
+    assert [i.tipo for i in f.itens] == ["compra", "encargo"]
+    assert f.conferencia().confere
+
+
+def test_variantes_de_pagamento_fora_dos_itens() -> None:
+    f = _porto("05/01 LOJA 10,00\n06/01 PGTO DEBITO CONTA -5,00\n07/01 PAGTO BOLETO -5,00\n"
+               "08/01 DÉBITO AUTOMÁTICO -5,00\n09/01 DEBITO AUTOMATICO -5,00\n")
+    assert [i.descricao for i in f.itens] == ["LOJA"]
+
+
+def test_fim_do_cartao_no_subtotal_ignora_simulacao_datada() -> None:
+    f = _porto("05/01 LOJA 10,00\nLançamentos no cartão (final *000) 10,00\n"
+               "20/02 SIMULACAO PARCELAMENTO 99,00\n")
+    assert [i.descricao for i in f.itens] == ["LOJA"]
+    assert f.conferencia().confere
+
+
+def test_pagina_so_de_simulacao_nao_gera_itens() -> None:
+    f = _porto("05/01 LOJA 10,00\n")
+    simulacao = PaginaTexto(2, "Opções de parcelamento\n20/02 SIMULACAO 12x 99,00\n", "", "")
+    g = ParserPorto().ler([
+        PaginaTexto(1, "\n".join(["Cartão 5000 00** **** *000", "Esta fatura vence em 20/01/2027",
+                                  "O valor total é R$ 10,00", "Lançamentos: compras e saques",
+                                  "05/01 LOJA 10,00", "Contestações poderão ser feitas"]), "", ""),
+        simulacao])
+    assert len(f.itens) == len(g.itens) == 1
+
+
+def test_sem_periodo_fechamento_nulo() -> None:
+    assert _porto("05/01 LOJA 10,00\n").data_fechamento is None
+    assert _porto("05/01 LOJA 10,00\n", periodo="(06/12 a 05/01)\n").data_fechamento == "2027-01-05"
+
+
+def test_compra_igual_em_titular_e_adicional() -> None:
+    f = _porto("05/01 LOJA 5,00\nLançamentos no cartão (final *000) 5,00\n"
+               "Lançamentos: compras e saques\nADICIONAL TESTE (final *111)\n05/01 LOJA 5,00\n")
+    assert [(i.descricao, i.final_cartao) for i in f.itens] == [("LOJA", "000"), ("LOJA", "111")]
+    assert f.conferencia().confere

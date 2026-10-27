@@ -17,8 +17,9 @@ _PERIODO = re.compile(r"\(\d{2}/\d{2} a (\d{2}/\d{2})\)")
 _PARCELA_NN = re.compile(r"\s(\d{2})/(\d{2})(?=\s|$)")
 _PARCELA_ATUAL = re.compile(r"\s[A-Z]{2}/(\d{2})(?=\s|$)")
 _INICIO = "lançamentos: compras e saques"
-_FIM = ("contestações", "detalhamento geral")
-_ENCARGO = ("multa", "juros de mora", "iof")
+_FIM = ("contestações", "detalhamento geral", "lançamentos no cartão")
+_ENCARGO = ("multa", "juros de mora", "iof", "encargo")
+_PAGAMENTO = ("pagamento", "pgto", "pagto", "débito automático", "debito automatico")
 _BANDEIRAS = {"4": "Visa", "5": "Mastercard"}
 
 
@@ -111,7 +112,7 @@ class ParserPorto:
     def _item(m: re.Match[str], venc: str, final: str, avisos: list[str]) -> ItemFatura | None:
         desc = m.group(2).strip()
         valor = valor_br_para_centavos(m.group(3))
-        if valor < 0 and desc.lower().startswith("pagamento"):
+        if valor < 0 and desc.lower().startswith(_PAGAMENTO):
             return None
         atual: int | None = None
         total: int | None = None
