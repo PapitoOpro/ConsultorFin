@@ -95,17 +95,24 @@ Tema escuro estilo fintech. Use estas variáveis CSS (definidas em `app/web/stat
   --superficie: #111120;       /* cards */
   --superficie-2: #171728;     /* campos, hover, áreas internas */
   --borda: #242438;
+  --borda-hover: #323250;      /* borda em hover */
   --texto: #F5F5FA;            /* títulos (nunca #FFFFFF) */
   --texto-secundario: #9292AB; /* rótulos, datas */
   --texto-auxiliar: #6D6D88;   /* só decorativo (>= 3:1) */
   --primaria: #00D6A0;         /* marca, ações, positivo */
+  --primaria-escura: #00B98A;  /* fim do gradiente da marca */
+  --sobre-primaria: #04261D;   /* texto sobre a marca */
+  --sobre-primaria-forte: #04130F;
   --entrada: #00D6A0;
   --saida: #FF5470;
   --alerta: #FFB84D;           /* vencimentos e metas estouradas */
   --info: #4DA3FF;
   --roxo: #A78BFA;
-  --raio: 14px; --raio-pequeno: 10px;
+  --raio: 14px; --raio-pequeno: 10px; --raio-grande: 18px;
   --sombra: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.28);
+  --sombra-leve: 0 1px 2px rgba(0,0,0,.3);
+  --transicao: 160ms ease;
+  --anel-foco: 0 0 0 3px rgba(0,214,160,.35);
   --fonte-texto: "Inter", system-ui, sans-serif;
   --fonte-dados: "JetBrains Mono", ui-monospace, monospace;
 }
