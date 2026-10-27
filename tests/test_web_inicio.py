@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.db import conectar
 from app.dominio.categorias import criar_categoria, criar_subcategoria, despesas_do_mes
 from app.dominio.lancamentos import criar_lancamento_manual
+from app.dominio.painel import formatar_variacao, variacao_percentual
 from app.dominio.parcelas import criar_parcelamento
 from app.dominio.recorrentes import criar_recorrente
 from app.importacao.deteccao import detectar
@@ -99,10 +100,12 @@ def test_conta_sem_lancamentos_tambem_mostra_estado_vazio(cliente: TestClient, d
 def test_saldo_itau_em_verde_e_total(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/?mes=2026-10").text
     assert "Importar primeiro extrato" not in html
-    tiles = _bloco(html, "Saldos")
-    assert re.search(r'class="valor numero entrada">R\$ 1\.409,14<', tiles)
-    assert "Saldo total" in tiles
-    assert tiles.count("R$ 1.409,14") == 2
+    contas_ = _bloco(html, "Saldos")
+    assert re.search(r'class="valor entrada">R\$ 1\.409,14<', contas_)
+    assert contas_.count("R$ 1.409,14") == 1
+    kpis = _bloco(html, "Resumo do mês")
+    assert re.search(r'Saldo total</div>\s*<div class="valor numero">R\$ 1\.409,14<', kpis)
+    assert "kpi-destaque" in kpis
 
 
 def test_cartao_negativo_com_classe_saida_e_fora_do_total(
@@ -111,16 +114,56 @@ def test_cartao_negativo_com_classe_saida_e_fora_do_total(
     contas.criar_conta(con, "Nubank", "cartao", saldo_inicial_centavos=-231000,
                        data_saldo_inicial="2026-07-24")
     con.close()
-    tiles = _bloco(cliente.get("/?mes=2026-10").text, "Saldos")
-    assert re.search(r'class="valor numero saida">- R\$ 2\.310,00<', tiles)
-    assert tiles.count("R$ 1.409,14") == 2  # conta + total (cartão fora do total)
+    html = cliente.get("/?mes=2026-10").text
+    tiles = _bloco(html, "Saldos")
+    assert re.search(r'class="valor saida">- R\$ 2\.310,00<', tiles)
+    assert "cartão" in tiles
+    assert re.search(r'Saldo total</div>\s*<div class="valor numero">R\$ 1\.409,14<',
+                     _bloco(html, "Resumo do mês"))  # cartão fora do total
 
 
-def test_cartoes_entradas_saidas_sobra_de_outubro(cliente: TestClient, conta: int) -> None:
+def test_cartoes_entradas_saidas_resultado_de_outubro(cliente: TestClient, conta: int) -> None:
     resumo = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
     assert re.search(r'Entradas do mês</div>\s*<div class="valor numero entrada">R\$ 400,00<', resumo)
     assert re.search(r'Saídas do mês</div>\s*<div class="valor numero saida">R\$ 3\.233,29<', resumo)
-    assert re.search(r'Sobra do mês</div>\s*<div class="valor numero saida">- R\$ 2\.833,29<', resumo)
+    assert re.search(r'Resultado do mês</div>\s*<div class="valor numero saida">- R\$ 2\.833,29<', resumo)
+    assert "déficit" in resumo
+
+
+def test_resultado_positivo_em_verde_com_superavit(cliente: TestClient, conta: int) -> None:
+    resumo = _bloco(cliente.get("/?mes=2026-09").text, "Resumo do mês")
+    assert re.search(r'Resultado do mês</div>\s*<div class="valor numero entrada">R\$ 2\.906,20<', resumo)
+    assert "superávit" in resumo
+
+
+def test_variacao_percentual_vs_mes_anterior(cliente: TestClient, conta: int) -> None:
+    resumo = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
+    ent = resumo[resumo.index("Entradas do mês"):resumo.index("Saídas do mês")]
+    sai = resumo[resumo.index("Saídas do mês"):resumo.index("Resultado do mês")]
+    assert "-87,5%" in ent and "desce" in ent and "vs set/26" in ent  # menos entrada: ruim
+    assert "+1.000,5%" in sai and "desce" in sai and "subiu" in sai  # mais gasto: ruim
+    assert "icone" in ent and "icone" in sai  # seta, não só cor
+    assert "%" not in resumo[resumo.index("Resultado do mês"):]
+    assert "%" not in resumo[:resumo.index("Entradas do mês")]
+
+
+def test_variacao_boa_usa_classe_sobe(cliente: TestClient, conta: int, db: Path) -> None:
+    con = conectar(db)
+    try:
+        esperado = formatar_variacao(variacao_percentual(
+            despesas_do_mes(con, 2026, 9), despesas_do_mes(con, 2026, 8)) or 0.0)
+    finally:
+        con.close()
+    assert esperado.startswith("-")
+    resumo = _bloco(cliente.get("/?mes=2026-09").text, "Resumo do mês")
+    sai = resumo[resumo.index("Saídas do mês"):resumo.index("Resultado do mês")]
+    assert esperado in sai and "caiu" in sai and "sobe" in sai  # gastou menos que ago/26: bom
+
+
+def test_variacao_so_quando_calculavel(cliente: TestClient, conta: int) -> None:
+    resumo = _bloco(cliente.get("/?mes=2026-07").text, "Resumo do mês")  # jun/26 sem nada
+    assert "%" not in resumo
+    assert "sem mês anterior para comparar" in resumo
 
 
 def test_mes_default_e_o_mes_do_relogio(cliente: TestClient, conta: int) -> None:
@@ -129,20 +172,98 @@ def test_mes_default_e_o_mes_do_relogio(cliente: TestClient, conta: int) -> None
     assert "R$ 3.233,29" in html
 
 
-def test_vencida_e_a_vencer_no_bloco_ambar(cliente: TestClient, conta: int, db: Path) -> None:
+def test_vencida_e_a_vencer_no_bloco_de_vencimentos(cliente: TestClient, conta: int, db: Path) -> None:
     _manual(db, conta, date(2026, 10, 20), "Internet", -11990, False)
     _manual(db, conta, date(2026, 10, 30), "Luz", -21000, False)
     _manual(db, conta, date(2026, 10, 31), "Longe", -5000, False)
-    venc = _bloco(cliente.get("/?mes=2026-10").text, "Vencimentos")
+    venc = _bloco(cliente.get("/?mes=2026-10").text, "Próximos vencimentos")
     assert "Internet" in venc and "20/10/2026" in venc and "R$ 119,90" in venc
-    assert "Luz" in venc and "30/10/2026" in venc and "R$ 210,00" in venc
-    assert "Longe" not in venc
-    assert "1 vencida" in venc and "1 a vencer" in venc
+    assert "vencida" in venc and "Luz" in venc and "30/10/2026" in venc and "R$ 210,00" in venc
+    assert "em 7 dias" in venc
+    assert "Longe" in venc and "em 8 dias" in venc  # lista = próximos pendentes, sem janela fixa
+    assert "1 vencida" in venc and "1 a vencer" in venc  # resumo da janela de 7 dias
+    assert venc.index("Internet") < venc.index("Luz") < venc.index("Longe")
+    assert 'href="/contas-a-pagar"' in venc and "Ver todas" in venc
+
+
+def test_vence_hoje_e_limite_de_seis(cliente: TestClient, conta: int, db: Path) -> None:
+    _manual(db, conta, date(2026, 10, 23), "Aluguel", -100000, False)
+    for i in range(7):
+        _manual(db, conta, date(2026, 11, 1 + i), f"Conta{i}", -1000, False)
+    venc = _bloco(cliente.get("/").text, "Próximos vencimentos")
+    assert "vence hoje" in venc and "Aluguel" in venc
+    assert venc.count("Conta") == 5  # 1 + 5 = limite de 6
 
 
 def test_vencimentos_vazio(cliente: TestClient, conta: int) -> None:
-    venc = _bloco(cliente.get("/").text, "Vencimentos")
+    venc = _bloco(cliente.get("/").text, "Próximos vencimentos")
     assert "Nenhuma conta vencida ou a vencer" in venc
+    assert 'class="vazio' in venc
+
+
+def test_blocos_novos_do_dashboard_com_dados_reais(cliente: TestClient, conta: int) -> None:
+    html = cliente.get("/?mes=2026-10").text
+    for titulo in ("Saldo total", "Entradas do mês", "Saídas do mês", "Resultado do mês",
+                   "Fluxo de caixa", "Gastos por categoria", "Lançamentos recentes",
+                   "Próximos vencimentos"):
+        assert titulo in html, titulo
+    assert "Visão geral das suas finanças — outubro de 2026" in html
+    rec = _bloco(html, "Lançamentos recentes")
+    assert "PIX TRANSF RR Supo22/10" in rec and "22/10/2026" in rec and "- R$ 343,54" in rec
+    assert "UBER *TRIP" in rec and "Sem categoria" in rec and "Itaú" in rec
+    assert "PIX RECEBIDO Joao Teste" in rec and "+ R$ 400,00" in rec
+    assert len(re.findall(r"<li[ >]", rec)) == 5
+    assert re.search(r'href="/lancamentos"[^>]*>\s*Ver todos', rec)
+    fluxo = _bloco(html, "Fluxo de caixa")
+    assert 'id="graf-fluxo"' in fluxo and "sr-only" in fluxo
+    assert "R$ 3.233,29" in fluxo and "R$ 400,00" in fluxo and "set/26" in fluxo
+    assert 'id="graf-rosca"' in _bloco(html, "Gastos por categoria")
+
+
+def test_sem_avatar_sino_busca_saudacao(cliente: TestClient, conta: int) -> None:
+    html = cliente.get("/?mes=2026-10").text.lower()
+    for proibido in ("avatar", "notifica", "bom dia", "boa tarde", "olá,", "metas", 'type="search"'):
+        assert proibido not in html, proibido
+
+
+def test_filtros_mes_e_horizonte_alteram_numeros(cliente: TestClient, conta: int) -> None:
+    out = cliente.get("/?mes=2026-10&horizonte=3").text
+    sep = cliente.get("/?mes=2026-09&horizonte=12").text
+    assert "outubro de 2026" in out and "setembro de 2026" in sep
+    assert "R$ 3.233,29" in _bloco(out, "Resumo do mês")
+    assert "R$ 3.233,29" not in _bloco(sep, "Resumo do mês")
+    assert "R$ 293,80" in _bloco(sep, "Resumo do mês")
+    assert 'data-horizonte="3"' in out and 'data-horizonte="12"' in sep
+    m = re.search(r'<div class="filtro-periodo" role="group" aria-label="Horizonte">(.*?)</div>', out, re.S)
+    assert m
+    hor = m.group(1)
+    assert re.search(r'aria-current="true"[^>]*>\s*3 meses', hor)
+    assert "horizonte=12" in hor and "mes=2026-10" in hor
+
+
+def test_dados_json_traz_fluxo_e_campos_antigos(cliente: TestClient, conta: int) -> None:
+    d = cliente.get("/inicio/dados.json?mes=2026-10&horizonte=3").json()
+    assert [p["mes"] for p in d["fluxo"]] == [
+        "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
+    assert d["fluxo"][-1]["saidas_centavos"] == 323329 and d["fluxo"][-1]["entradas_centavos"] == 40000
+    assert d["fluxo"][-1]["saidas_fmt"] == "R$ 3.233,29"
+    for campo in ("mes", "horizonte", "rosca", "maiores", "parcelas", "saldo_projetado", "comparativo"):
+        assert campo in d
+
+
+def test_xss_em_todos_os_blocos(cliente: TestClient, conta: int, db: Path) -> None:
+    con = conectar(db)
+    cid = criar_categoria(con, "<img src=x onerror=alert(1)>")
+    con.close()
+    _manual(db, conta, date(2026, 10, 23), "<b>recente</b>", -1000, True, cid)
+    _manual(db, conta, date(2026, 10, 24), "<i>venc</i>", -1000, False, cid)
+    html = cliente.get("/?mes=2026-10").text
+    assert "<img src=x" not in html and "<b>recente" not in html and "<i>venc" not in html
+    rec = _bloco(html, "Lançamentos recentes")
+    assert "&lt;img src=x onerror=alert(1)&gt;" in rec and "&lt;b&gt;recente&lt;/b&gt;" in rec
+    assert "&lt;i&gt;venc&lt;/i&gt;" in _bloco(html, "Próximos vencimentos")
+    assert "&lt;img src=x" in _bloco(html, "Gastos por categoria")
+    assert "&lt;img src=x" in _bloco(html, "Detalhamento por categoria")
 
 
 @pytest.mark.parametrize("h,n", [(3, 3), (6, 6), (12, 12)])
@@ -367,7 +488,7 @@ def test_janeiro_compara_com_dezembro_do_ano_anterior(cliente: TestClient, conta
 
 def test_rotulos_dos_graficos(cliente: TestClient, conta: int) -> None:
     html_ = cliente.get("/?mes=2026-10").text
-    assert "Saldo projetado · a partir de out/26" in html_
+    assert "A partir de out/26" in html_
     assert "Colunas de saldo projetado por mês, a partir de out/26" in html_
     assert "Entradas e saídas: out/26 comparado a set/26" in html_
     assert "<thead>" in _bloco(html_, "Parcelas")
@@ -377,3 +498,97 @@ def test_rosca_vazia_mostra_texto(cliente: TestClient, conta: int) -> None:
     html_ = cliente.get("/?mes=2026-05").text
     bloco = _bloco(html_, "Gastos por categoria")
     assert "Sem gastos neste mês" in bloco and 'id="graf-rosca"' not in bloco
+
+
+def _conta_simples(db: Path) -> int:
+    con = conectar(db)
+    try:
+        return contas.criar_conta(con, "Itaú", "corrente", saldo_inicial_centavos=0,
+                                  data_saldo_inicial="2026-01-01")
+    finally:
+        con.close()
+
+
+def test_vencida_mostra_dias_de_atraso(cliente: TestClient, conta: int, db: Path) -> None:
+    _manual(db, conta, date(2026, 10, 22), "Ontem", -100, False)
+    _manual(db, conta, date(2026, 10, 20), "Antes", -100, False)
+    venc = _bloco(cliente.get("/").text, "Próximos vencimentos")
+    assert "vencida há 1 dia" in venc and "vencida há 3 dias" in venc
+
+
+def test_vencimento_de_cartao_marcado(cliente: TestClient, conta: int, db: Path) -> None:
+    con = conectar(db)
+    cartao = contas.criar_conta(con, "Nubank", "cartao", saldo_inicial_centavos=0,
+                                data_saldo_inicial="2026-01-01")
+    con.close()
+    _manual(db, cartao, date(2026, 10, 30), "Fatura Nubank", -9000, False)
+    venc = _bloco(cliente.get("/").text, "Próximos vencimentos")
+    assert "Nubank (cartão)" in venc
+
+
+def test_aviso_mes_anterior_zerado_e_sem_historico(cliente: TestClient, db: Path) -> None:
+    cid = _conta_simples(db)
+    _manual(db, cid, date(2026, 8, 5), "Ago", -5000, True)
+    _manual(db, cid, date(2026, 10, 5), "Out", -3000, True)
+    out = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
+    assert out.count("mês anterior sem movimento") == 2 and "%" not in out
+    ago = _bloco(cliente.get("/?mes=2026-08").text, "Resumo do mês")
+    assert ago.count("sem mês anterior para comparar") == 2 and "%" not in ago
+
+
+def test_mes_futuro_sem_percentual(cliente: TestClient, conta: int) -> None:
+    resumo = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
+    assert resumo.count("mês ainda sem movimento") == 2
+    assert "%" not in resumo and "-100,0" not in resumo
+
+
+def test_tabelas_ocultas_dentro_de_wrapper_sr_only(cliente: TestClient, conta: int, db: Path) -> None:
+    longo = "Categoria com nome muito comprido " + "x" * 27  # 61 caracteres
+    assert len(longo) == 61
+    con = conectar(db)
+    cid = criar_categoria(con, longo)
+    con.close()
+    _manual(db, conta, date(2026, 10, 9), "Gasto", -5000, True, cid)
+    html = cliente.get("/?mes=2026-10").text
+    tabelas = re.findall(r"<table[^>]*>", html)
+    assert not [t for t in tabelas if "sr-only" in t]  # a classe nunca fica na própria tabela
+    ocultas = re.findall(r'<div class="sr-only"><table>', html)
+    assert len(ocultas) == 6  # fluxo, rosca, saldo, parcelas, maiores, comparativo
+    assert longo in html
+    css = (Path(__file__).parent.parent / "app/web/static/css/tema.css").read_text(encoding="utf-8")
+    regra = re.search(r"\.sr-only \{([^}]*)\}", css)
+    assert regra and "position: absolute" in regra.group(1) and "overflow: hidden" in regra.group(1)
+
+
+def test_vencimentos_cinco_vencidas_mostra_tres_e_todas_as_a_vencer(
+        cliente: TestClient, conta: int, db: Path) -> None:
+    for i in range(5):
+        _manual(db, conta, date(2026, 10, 10 + i), f"Venc{i}", -1000, False)
+    _manual(db, conta, date(2026, 10, 25), "Dois dias", -2000, False)
+    _manual(db, conta, date(2026, 10, 30), "IPTU", -32000, False)
+    _manual(db, conta, date(2026, 11, 20), "Longe", -500, False)
+    venc = _bloco(cliente.get("/?mes=2026-10").text, "Próximos vencimentos")
+    assert "5 vencidas · 2 a vencer em 7 dias" in venc
+    assert all(f"Venc{i}" in venc for i in range(3)) and "Venc3" not in venc and "Venc4" not in venc
+    assert "Dois dias" in venc and "IPTU" in venc and "R$ 320,00" in venc
+    assert "Longe" in venc and "em 28 dias" in venc  # 3 + 2 = 5: sobra 1 vaga dos 6
+    assert '<a href="/contas-a-pagar#vencidas">+2 vencidas</a>' in venc
+    assert "a vencer</a>" not in venc
+
+
+def test_vencimentos_mais_de_cinco_a_vencer_mostra_link(cliente: TestClient, conta: int, db: Path) -> None:
+    for i in range(7):
+        _manual(db, conta, date(2026, 10, 24 + (i % 4)), f"Prox{i}", -1000, False)
+    venc = _bloco(cliente.get("/?mes=2026-10").text, "Próximos vencimentos")
+    assert venc.count("Prox") == 5
+    assert '<a href="/contas-a-pagar#a-vencer">+2 a vencer</a>' in venc
+    assert "vencidas</a>" not in venc and "vencida</a>" not in venc
+
+
+def test_resultado_zero_nao_diz_superavit(cliente: TestClient, conta: int, db: Path) -> None:
+    sem = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
+    assert "sem movimento" in sem and "superávit" not in sem and "déficit" not in sem
+    _manual(db, conta, date(2026, 12, 5), "Entra", 5000, True)
+    _manual(db, conta, date(2026, 12, 6), "Sai", -5000, True)
+    eq = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
+    assert "equilibrado" in eq and "superávit" not in eq

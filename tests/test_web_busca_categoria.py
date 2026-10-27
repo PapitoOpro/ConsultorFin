@@ -220,3 +220,75 @@ def test_node_enter_so_confirma_escolha_explicita() -> None:
                     "B.deveConfirmar('merc', false),"  # digitou: confirma o destacado
                     "B.deveConfirmar('', true)]));")   # setas/hover/clique: confirma
     assert r == [False, False, True, True]
+
+
+def _pos(rect: dict[str, float], largura: int, altura: int) -> dict[str, Any]:
+    r = _rodar_node(PRE + f"console.log(JSON.stringify(B.posicionarLista({json.dumps(rect)}, {largura}, {altura})));")
+    assert isinstance(r, dict)
+    return r
+
+
+def test_node_posicionar_lista_abaixo_quando_ha_espaco() -> None:
+    r = _pos({"left": 100, "right": 300, "top": 100, "bottom": 138}, 1280, 900)
+    assert r["lado"] == "abaixo" and r["top"] == 142 and r["left"] == 100
+    assert r["minWidth"] == 200 and r["maxHeight"] == 320
+
+
+def test_node_posicionar_lista_acima_na_ultima_linha() -> None:
+    r = _pos({"left": 100, "right": 300, "top": 800, "bottom": 838}, 1280, 900)
+    assert r["lado"] == "acima" and r["bottom"] == 104 and "top" not in r
+    assert r["maxHeight"] == 320
+
+
+def test_node_posicionar_lista_limita_altura_ao_espaco_do_lado_maior() -> None:
+    r = _pos({"left": 10, "right": 210, "top": 300, "bottom": 338}, 390, 400)
+    assert r["lado"] == "acima" and r["maxHeight"] == 292  # 300 - margem 8
+    r2 = _pos({"left": 10, "right": 210, "top": 120, "bottom": 158}, 390, 400)
+    assert r2["lado"] == "abaixo" and r2["maxHeight"] == 234  # 400 - 158 - 8
+
+
+def test_node_posicionar_lista_nao_sai_da_janela() -> None:
+    r = _pos({"left": 330, "right": 380, "top": 100, "bottom": 138}, 390, 900)
+    assert r["left"] >= 8 and r["left"] + r["minWidth"] <= 390 - 8
+    assert r["maxWidth"] <= 390 - 16
+
+
+def _visivel(campo: dict[str, float], area: dict[str, float], cont: dict[str, float] | None) -> bool:
+    r = _rodar_node(PRE + f"console.log(JSON.stringify(B.entradaVisivel({json.dumps(campo)}, "
+                    f"{json.dumps(area)}, {json.dumps(cont)})));")
+    return bool(r)
+
+
+AREA = {"top": 0, "bottom": 800, "left": 0, "right": 1280}
+
+
+def test_node_entrada_visivel() -> None:
+    campo = {"top": 300, "bottom": 338, "left": 100, "right": 300}
+    assert _visivel(campo, AREA, None)
+    assert _visivel(campo, AREA, {"top": 200, "bottom": 500, "left": 50, "right": 900})
+
+
+def test_node_entrada_fora_da_janela_ou_do_contenedor() -> None:
+    assert not _visivel({"top": -68, "bottom": -30, "left": 100, "right": 300}, AREA, None)
+    assert not _visivel({"top": 790, "bottom": 828, "left": 100, "right": 300}, AREA, None)  # < metade
+    assert _visivel({"top": 781, "bottom": 819, "left": 100, "right": 300}, AREA, None)  # metade ou mais
+    cont = {"top": 200, "bottom": 400, "left": 50, "right": 900}
+    assert not _visivel({"top": 450, "bottom": 488, "left": 100, "right": 300}, AREA, cont)
+    assert not _visivel({"top": 300, "bottom": 338, "left": 880, "right": 1080}, AREA, cont)
+
+
+def test_node_posicionar_lista_respeita_visual_viewport_e_scrollbar() -> None:
+    # largura útil 1430 (sem barra de rolagem de 10px): lista não passa de 1430 - 8
+    r = _rodar_node(PRE + "console.log(JSON.stringify(B.posicionarLista("
+                    "{left:1300,right:1420,top:100,bottom:138}, 1430, 900)));")
+    assert r["left"] + r["minWidth"] <= 1430 - 8
+    # visual viewport (zoom): área menor restringe espaço abaixo e largura
+    r2 = _rodar_node(PRE + "console.log(JSON.stringify(B.posicionarLista("
+                     "{left:20,right:220,top:300,bottom:338}, 1430, 900,"
+                     "{left:0,top:100,width:400,height:300})));")
+    assert r2["lado"] == "acima" and r2["maxHeight"] == 192  # 300 - top 100 - margem 8
+    assert r2["maxWidth"] <= 400 - 16
+    r3 = _rodar_node(PRE + "console.log(JSON.stringify(B.posicionarLista("
+                     "{left:20,right:220,top:120,bottom:158}, 1430, 900,"
+                     "{left:0,top:100,width:400,height:300})));")
+    assert r3["lado"] == "abaixo" and r3["maxHeight"] == 234  # 400 - 158 - 8

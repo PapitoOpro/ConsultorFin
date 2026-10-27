@@ -1,1 +1,2 @@
-{% if erro %}<div class="alerta proposta">{{ erro }}</div>{% else %}<div class="bloco proposta">Casamento confirmado.</div>{% endif %}
+{% from "_icones.html" import icone %}
+{% if erro %}<div class="alerta erro proposta" role="alert">{{ icone("x-circle", 18) }}<span>{{ erro }}</span></div>{% else %}<div class="proposta confirmada">{{ icone("check-circle", 18) }}<span>Casamento confirmado.</span></div>{% endif %}

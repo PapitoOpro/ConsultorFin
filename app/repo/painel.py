@@ -22,3 +22,41 @@ def despesas_detalhadas(con: sqlite3.Connection, inicio_iso: str, fim_iso: str) 
 
 def total_lancamentos(con: sqlite3.Connection) -> int:
     return int(con.execute("SELECT COUNT(*) AS n FROM lancamentos").fetchone()["n"])
+
+
+def ultimos_efetivados(con: sqlite3.Connection, limite: int) -> list[sqlite3.Row]:
+    """Lançamentos compensados mais recentes (data de compensação, depois id), de qualquer conta.
+    Traz a conta e a categoria com a categoria-pai (NULL = sem categoria)."""
+    return con.execute(
+        "SELECT l.id, COALESCE(l.data_compensacao, l.data) AS data, l.descricao,"
+        " l.valor_centavos, l.tipo, c.nome AS conta_nome, c.tipo AS conta_tipo,"
+        " cat.nome AS cat_nome, pai.nome AS pai_nome"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
+        " LEFT JOIN categorias pai ON pai.id = cat.pai_id"
+        " WHERE l.compensado = 1"
+        " ORDER BY COALESCE(l.data_compensacao, l.data) DESC, l.id DESC LIMIT ?",
+        (limite,),
+    ).fetchall()
+
+
+def saidas_pendentes_proximas(con: sqlite3.Connection, limite: int) -> list[sqlite3.Row]:
+    """Saídas pendentes (valor < 0) por data e id: as vencidas vêm naturalmente primeiro."""
+    return con.execute(
+        "SELECT l.id, l.data, l.descricao, l.valor_centavos, l.estimado, c.nome AS conta_nome,"
+        " c.tipo AS conta_tipo,"
+        " cat.nome AS cat_nome, pai.nome AS pai_nome"
+        " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
+        " LEFT JOIN categorias pai ON pai.id = cat.pai_id"
+        " WHERE l.compensado = 0 AND l.valor_centavos < 0"
+        " ORDER BY l.data, l.id LIMIT ?",
+        (limite,),
+    ).fetchall()
+
+
+def existe_compensado_antes(con: sqlite3.Connection, antes_iso: str) -> bool:
+    """Há algum lançamento compensado anterior a `antes_iso` (AAAA-MM-DD)?"""
+    return con.execute(
+        "SELECT 1 FROM lancamentos WHERE compensado = 1"
+        " AND COALESCE(data_compensacao, data) < ? LIMIT 1", (antes_iso,)).fetchone() is not None

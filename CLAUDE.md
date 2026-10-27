@@ -70,7 +70,7 @@ sincronização, mas **a v0.1 é 100% local**.
 | Armazenamento | SQLite local (arquivo na pasta `data/`) |
 | Linguagem | Python 3.11+ |
 | Leitura de arquivos | pandas e openpyxl (CSV/Excel); OFX/OFC e PDF entram na v0.2 |
-| Visual | Estilo "Cyber-Minimalista": fundo escuro, sem sombras pesadas |
+| Visual | Estilo "Dark Fintech Premium": fundo escuro, cards arredondados, sombras suaves |
 | Idioma da interface | Português brasileiro |
 | Moeda e datas | R$ 1.234,56 e DD/MM/AAAA na tela; ISO (AAAA-MM-DD) no banco |
 | Escopo da v0.1 | Telas Início, Importar e Lançamentos |
@@ -86,26 +86,44 @@ sincronização, mas **a v0.1 é 100% local**.
 
 ## 5. Visual
 
-Paleta e fontes definidas. Use estas variáveis CSS e não invente outras cores:
+Tema escuro estilo fintech. Use estas variáveis CSS (definidas em `app/web/static/css/tema.css`) e não invente outras cores:
 
 ```css
 :root {
-  --fundo: #121212;
-  --superficie: #1E1E1E;
-  --borda: #2C2C2C;            /* 1px solid, sem sombras */
-  --primaria: #38BDF8;         /* ciano: ações e destaques */
-  --alerta: #F59E0B;           /* âmbar: vencimentos e metas estouradas */
-  --entrada: #4ADE80;          /* verde suave: entradas */
-  --saida: #F87171;            /* vermelho suave: saídas */
-  --texto: #F3F4F6;            /* títulos (nunca #FFFFFF) */
-  --texto-secundario: #9CA3AF; /* rótulos, datas, textos auxiliares */
+  --fundo: #080912;
+  --fundo-menu: #0D0D19;       /* sidebar */
+  --superficie: #111120;       /* cards */
+  --superficie-2: #171728;     /* campos, hover, áreas internas */
+  --borda: #242438;
+  --borda-hover: #323250;      /* borda em hover */
+  --texto: #F5F5FA;            /* títulos (nunca #FFFFFF) */
+  --texto-secundario: #9292AB; /* rótulos, datas */
+  --texto-auxiliar: #6D6D88;   /* só decorativo (>= 3:1) */
+  --primaria: #00D6A0;         /* marca, ações, positivo */
+  --primaria-escura: #00B98A;  /* fim do gradiente da marca */
+  --sobre-primaria: #04261D;   /* texto sobre a marca */
+  --sobre-primaria-forte: #04130F;
+  --entrada: #00D6A0;
+  --saida: #FF5470;
+  --alerta: #FFB84D;           /* vencimentos e metas estouradas */
+  --info: #4DA3FF;
+  --roxo: #A78BFA;
+  --raio: 14px; --raio-pequeno: 10px; --raio-grande: 18px;
+  --sombra: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.28);
+  --sombra-leve: 0 1px 2px rgba(0,0,0,.3);
+  --transicao: 160ms ease;
+  --anel-foco: 0 0 0 3px rgba(0,214,160,.35);
   --fonte-texto: "Inter", system-ui, sans-serif;
   --fonte-dados: "JetBrains Mono", ui-monospace, monospace;
 }
 ```
 
-- Valores monetários **sempre** em fonte monoespaçada, alinhados à direita.
-- Entradas em `--entrada`, saídas em `--saida`.
+- Valores monetários em tabelas **sempre** em fonte monoespaçada, alinhados à direita; números grandes dos cards em Inter 700 com `tabular-nums`.
+- Entradas em `--entrada`, saídas em `--saida`; estado nunca só por cor (sinal, seta ou texto).
+- Raios de 12–18px e sombras suaves são permitidos; sem neon e sem emojis na interface.
+- Contraste de texto >= 4,5:1, foco visível e `prefers-reduced-motion` respeitado.
+- Ícones: macro `icone(nome, tamanho)` em `templates/_icones.html` (Lucide, SVG inline).
+- Gráficos: `window.ConsultorFinTema` em `static/js/graficos-tema.js` (cores, tooltip escapado, moeda pt-BR).
 - As fontes devem ser **incluídas no projeto** (o app funciona sem internet). Não use CDN.
 - Não copie layouts de outros produtos; use a estrutura descrita na seção 7.
 

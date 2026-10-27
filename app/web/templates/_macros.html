@@ -1,3 +1,8 @@
+{% from "_icones.html" import icone as _icone %}
+{# Estado vazio compacto: ícone + texto (+ ação opcional). #}
+{% macro estado_vazio(texto, icone_nome="inbox", acao_href=none, acao_texto=none) -%}
+<div class="vazio vazio-compacto"><span class="vazio-icone">{{ _icone(icone_nome, 20) }}</span><p>{{ texto }}</p>{% if acao_href %}<a class="botao secundario" href="{{ acao_href }}">{{ acao_texto }}</a>{% endif %}</div>
+{%- endmacro %}
 {# Opções de categoria agrupadas (<optgroup> por categoria). cats = [(id, rótulo, tipo)] #}
 {% macro opcoes_categoria(cats, selecionado=none, mostrar_tipo=false) -%}
 {%- for cid, rotulo, tp in cats -%}
@@ -9,4 +14,17 @@
 <option value="{{ cid }}"{{ " selected" if selecionado == cid }}>{{ rotulo }}</option>
 {%- if loop.last %}</optgroup>{% endif -%}
 {%- endfor -%}
+{%- endmacro %}
+
+{# Alerta com ícone + texto (nunca só cor). tipo: "" (âmbar), "info", "sucesso", "erro". Uso: {% call alerta("erro") %}texto{% endcall %} #}
+{% macro alerta(tipo="", extra="") -%}
+<div class="alerta{{ ' ' ~ tipo if tipo }}{{ ' ' ~ extra if extra }}">{{ _icone({"erro": "x-circle", "sucesso": "check-circle", "info": "info"}.get(tipo, "alert-triangle"), 18) }}<div class="alerta-corpo">{{ caller() }}</div></div>
+{%- endmacro %}
+{# Indicador de etapas da importação. atual: 1 Arquivo, 2 Prévia, 3 Confirmação, 4 Resultado #}
+{% macro etapas(atual) -%}
+<ol class="etapas" aria-label="Etapas da importação">
+{%- for n, nome in [(1, "Arquivo"), (2, "Prévia"), (3, "Confirmação"), (4, "Resultado")] %}
+<li{% if n == atual %} aria-current="step" class="atual"{% elif n < atual %} class="feita"{% endif %}><span class="etapa-num">{% if n < atual %}{{ _icone("check", 14) }}{% else %}{{ n }}{% endif %}</span><span class="etapa-nome">{{ nome }}</span>{% if n < atual %}<span class="sr-only"> (concluída)</span>{% endif %}</li>
+{%- endfor %}
+</ol>
 {%- endmacro %}

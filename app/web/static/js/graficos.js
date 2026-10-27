@@ -7,49 +7,40 @@
   var raiz = document.getElementById("inicio");
   if (!raiz || typeof echarts === "undefined") { return; }
 
-  var estilo = getComputedStyle(document.documentElement);
-  function cor(nome) { return estilo.getPropertyValue(nome).trim(); }
-  var C = {
-    primaria: cor("--primaria"), alerta: cor("--alerta"), entrada: cor("--entrada"),
-    saida: cor("--saida"), texto: cor("--texto"), sec: cor("--texto-secundario"),
-    borda: cor("--borda"), superficie: cor("--superficie"), fonte: cor("--fonte-texto")
-  };
+  var T = window.ConsultorFinTema;
+  if (!T) { return; }
+  var C = T.cores();
   var graficos = [];
 
-  function esc(t) {
-    return String(t).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  var agendado = false;
+  function redimensionar() {
+    if (agendado) { return; }
+    agendado = true;
+    window.requestAnimationFrame(function () {
+      agendado = false;
+      graficos.forEach(function (g) { g.resize(); });
     });
   }
+  var observador = typeof ResizeObserver !== "undefined" ? new ResizeObserver(redimensionar) : null;
 
   function criar(id, opcoes) {
     var el = document.getElementById(id);
-    if (!el) { return; }
+    if (!el) { return null; }
     var g = echarts.init(el, null, { renderer: "svg" });
-    g.setOption(Object.assign({
-      animation: false,
-      textStyle: { color: C.sec, fontFamily: C.fonte, fontSize: 10 },
-      tooltip: {
-        trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-        textStyle: { color: C.texto, fontSize: 11 }
-      }
-    }, opcoes));
+    g.setOption(Object.assign(T.base(C), opcoes));
     graficos.push(g);
+    if (observador) { observador.observe(el); }
+    return g;
   }
 
-  function tip(p) { return esc(p.name) + ": " + esc(p.data.fmt); }
+  var tip = T.textoTooltip;
 
   function colunas(id, pontos, corDe) {
     criar(id, {
-      grid: { left: 4, right: 4, top: 8, bottom: 18 },
-      xAxis: {
-        type: "category", data: pontos.map(function (p) { return p.rotulo; }),
-        axisLine: { lineStyle: { color: C.borda } }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 9, interval: 0 }
-      },
-      yAxis: { type: "value", show: false },
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
+      grid: T.grade(),
+      xAxis: T.eixoCategoria(pontos.map(function (p) { return p.rotulo; }), C,
+                             { axisLabel: { color: C.sec, fontSize: 9, interval: pontos.length > 6 ? 1 : 0, hideOverlap: true } }),
+      yAxis: T.eixoValor(C),
       series: [{
         type: "bar", barMaxWidth: 18,
         data: pontos.map(function (p) {
@@ -61,23 +52,88 @@
   }
 
   function rosca(fatias) {
-    var paleta = [C.primaria, C.alerta, C.entrada, C.saida, C.texto, C.sec];
+    var paleta = T.paleta(C);
+    var total = fatias.reduce(function (t, f) { return t + f.valor_centavos; }, 0);
     criar("graf-rosca", {
       color: paleta,
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
-      legend: { orient: "vertical", right: 0, top: "middle", icon: "roundRect",
-                itemWidth: 8, itemHeight: 8, textStyle: { color: C.sec, fontSize: 10 } },
+      tooltip: T.tooltip(C, {
+        confine: true,
+        position: function () { return [0, 0]; },  // canto do contêiner: nunca cobre o total central
+        formatter: function (p) {
+          var pct = total > 0 ? Math.round(p.value * 1000 / total) / 10 : 0;
+          return T.esc(p.name) + ": " + T.esc(p.data && p.data.fmt !== undefined ? p.data.fmt : T.moeda(p.value)) +
+            " (" + pct.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%)";
+        }
+      }),
+      title: {
+        text: T.moeda(total), subtext: "total em saídas", left: "center", top: "center",
+        itemGap: 4,
+        textStyle: { color: C.texto, fontSize: 18, fontWeight: 700, fontFamily: C.fonte },
+        subtextStyle: { color: C.sec, fontSize: 11, fontFamily: C.fonte }
+      },
       series: [{
-        type: "pie", radius: ["52%", "80%"], center: ["28%", "50%"],
-        label: { show: false }, labelLine: { show: false },
-        itemStyle: { borderColor: C.superficie, borderWidth: 2 },
+        type: "pie", radius: ["62%", "86%"], center: ["50%", "50%"],
+        label: { show: false }, labelLine: { show: false }, avoidLabelOverlap: false,
+        itemStyle: { borderColor: C.superficie, borderWidth: 3, borderRadius: 4 },
+        emphasis: { scaleSize: 4 },
         data: fatias.map(function (f, i) {
           return { value: f.valor_centavos, name: f.nome, fmt: f.valor_fmt,
                    itemStyle: { color: paleta[i % paleta.length] } };
         })
       }]
     });
+  }
+
+  function compacto(centavos) {
+    var n = Math.abs(centavos) / 100;
+    var txt = n >= 1000000 ? (n / 1000000).toFixed(1) + " mi"
+      : n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + " mil" : String(Math.round(n));
+    return "R$ " + txt.replace(".", ",");
+  }
+
+  function fluxo(meses) {
+    var topo = 0;  // escala mínima de R$ 1.000 quando todos os meses são baixos/zero
+    meses.forEach(function (m) { topo = Math.max(topo, m.entradas_centavos, m.saidas_centavos); });
+    function serie(nome, chave, fmt, cor) {
+      return {
+        name: nome, type: "line", smooth: 0.35, smoothMonotone: "x", symbol: "circle", symbolSize: 8, showSymbol: false,
+        lineStyle: { width: 3, color: cor }, itemStyle: { color: cor, borderColor: C.superficie, borderWidth: 2 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: cor + "55" }, { offset: 1, color: cor + "00" }])
+        },
+        data: meses.map(function (m) { return { value: m[chave], fmt: m[fmt], name: m.rotulo }; })
+      };
+    }
+    criar("graf-fluxo", {
+      grid: { left: 4, right: 26, top: 36, bottom: 4, containLabel: true },
+      legend: T.legenda(C, { right: 0, top: 0 }),
+      tooltip: T.tooltip(C, {
+        trigger: "axis", axisPointer: { type: "line", lineStyle: { color: C.borda } },
+        formatter: function (ps) {
+          var linhas = [T.esc(ps[0].name)];
+          ps.forEach(function (p) {
+            linhas.push(T.esc(p.seriesName) + ": " + T.esc(p.data.fmt));
+          });
+          return linhas.join("<br>");
+        }
+      }),
+      xAxis: T.eixoCategoria(meses.map(function (m) { return m.rotulo; }), C, {
+        boundaryGap: false, axisLabel: { color: C.sec, fontSize: 11, margin: 12 }
+      }),
+      yAxis: T.eixoValor(C, {
+        show: true, min: 0, max: topo < 100000 ? 100000 : undefined,
+        axisLabel: { color: C.sec, fontSize: 10, formatter: compacto },
+        splitLine: { lineStyle: { color: C.borda, type: "dashed", opacity: .6 } }
+      }),
+      series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.primaria),
+               serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
+    });
+  }
+
+  function larguraRotulo() {
+    var el = document.getElementById("graf-maiores");
+    return Math.max(70, Math.min(170, Math.round((el ? el.clientWidth : 300) * 0.4)));
   }
 
   function barras(itens) {
@@ -88,10 +144,8 @@
       yAxis: {
         type: "category", data: ord.map(function (i) { return i.nome; }),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 10, width: 70, overflow: "truncate" }
+        axisLabel: { color: C.sec, fontSize: 10, width: larguraRotulo(), overflow: "truncate" }
       },
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
       series: [{
         type: "bar", barMaxWidth: 8,
         data: ord.map(function (i) {
@@ -113,17 +167,10 @@
       };
     }
     criar("graf-comparativo", {
-      grid: { left: 4, right: 4, top: 8, bottom: 18 },
-      legend: { right: 0, top: 0, icon: "roundRect", itemWidth: 8, itemHeight: 8,
-                textStyle: { color: C.sec, fontSize: 10 } },
-      xAxis: {
-        type: "category", data: meses.map(function (m) { return m.rotulo; }),
-        axisLine: { lineStyle: { color: C.borda } }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 10 }
-      },
-      yAxis: { type: "value", show: false },
-      tooltip: { trigger: "item", backgroundColor: C.superficie, borderColor: C.borda,
-                 textStyle: { color: C.texto, fontSize: 11 }, formatter: tip },
+      grid: T.grade(),
+      legend: T.legenda(C, { right: 0, top: 0 }),
+      xAxis: T.eixoCategoria(meses.map(function (m) { return m.rotulo; }), C),
+      yAxis: T.eixoValor(C),
       series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.entrada),
                serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
     });
@@ -141,17 +188,21 @@
       return r.json();
     })
     .then(function (d) {
+      fluxo(d.fluxo);
       if (d.rosca.length) { rosca(d.rosca); }
       colunas("graf-parcelas", d.parcelas, function () { return C.primaria; });
       colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.alerta : C.primaria; });
-      barras(d.maiores);
+      if (d.maiores.length) { barras(d.maiores); }
       comparativo(d.comparativo);
     })
     .catch(function () {
       aviso("Não foi possível carregar os gráficos. Os números estão na tabela de apoio.");
     });
 
-  window.addEventListener("resize", function () {
-    graficos.forEach(function (g) { g.resize(); });
+  window.addEventListener("resize", redimensionar);
+  window.addEventListener("pagehide", function () {
+    if (observador) { observador.disconnect(); }
+    graficos.forEach(function (g) { g.dispose(); });
+    graficos.length = 0;
   });
 })();

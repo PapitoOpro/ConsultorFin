@@ -1,7 +1,8 @@
-<form method="post" action="/importar/conta" class="bloco">
-  <h2>Cadastrar conta ou cartão</h2>
+{% from "_icones.html" import icone %}
+<form method="post" action="/importar/conta" class="painel">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Cadastrar conta ou cartão</h2><p class="subtitulo">O saldo inicial é o saldo na data do primeiro lançamento que você vai importar.</p></div></div>
   {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
-  <div class="grade">
+  <div class="grade-form">
     <div class="campo"><label for="nome">Nome</label>
       <input id="nome" name="nome" required maxlength="80" placeholder="Itaú conta corrente"></div>
     <div class="campo"><label for="tipo">Tipo</label>
@@ -16,5 +17,5 @@
              value="{% if sugestao %}{{ sugestao[0] }}{% endif %}"></div>
   </div>
   {% include "importar/_sugestao_saldo.html" %}
-  <button type="submit">Cadastrar conta</button>
+  <button type="submit">{{ icone("plus", 16) }}Cadastrar conta</button>
 </form>

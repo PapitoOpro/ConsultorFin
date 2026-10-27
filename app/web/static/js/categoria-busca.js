@@ -62,7 +62,47 @@
     return normalizar(consulta) !== "" || interagiu === true;
   }
 
-  var API = { normalizar: normalizar, filtrar: filtrar, deveConfirmar: deveConfirmar };
+  /* Posição da lista aberta (portal, position: fixed) a partir do retângulo do campo e da janela.
+     Escolhe o lado com mais espaço (abaixo se couber um mínimo útil); altura máxima limitada a `teto`. */
+  var MARGEM_LISTA = 8;
+  var ALTURA_MINIMA_ABAIXO = 200;
+  var ALTURA_MAXIMA_LISTA = 320;
+  var LARGURA_MAXIMA_LISTA = 420;
+  /* largura/altura: área útil do layout (clientWidth/clientHeight, sem barras de rolagem);
+     vv (opcional): visual viewport {left, top, width, height}, que restringe ainda mais a área. */
+  function posicionarLista(rect, largura, altura, vv) {
+    var a0 = vv ? vv.left : 0;
+    var t0 = vv ? vv.top : 0;
+    var a1 = vv ? Math.min(largura, vv.left + vv.width) : largura;
+    var b1 = vv ? Math.min(altura, vv.top + vv.height) : altura;
+    var abaixo = b1 - rect.bottom - MARGEM_LISTA;
+    var acima = rect.top - t0 - MARGEM_LISTA;
+    var lado = (abaixo >= ALTURA_MINIMA_ABAIXO || abaixo >= acima) ? "abaixo" : "acima";
+    var espaco = Math.max(0, lado === "abaixo" ? abaixo : acima);
+    var minimo = Math.max(0, rect.right - rect.left);
+    var maxLarg = Math.max(minimo, Math.min(LARGURA_MAXIMA_LISTA, a1 - a0 - 2 * MARGEM_LISTA));
+    var left = Math.max(a0 + MARGEM_LISTA, Math.min(rect.left, a1 - MARGEM_LISTA - minimo));
+    var r = { lado: lado, left: left, minWidth: minimo, maxWidth: maxLarg,
+              maxHeight: Math.min(ALTURA_MAXIMA_LISTA, espaco) };
+    if (lado === "abaixo") { r.top = rect.bottom + 4; } else { r.bottom = altura - rect.top + 4; }
+    return r;
+  }
+
+  /* O campo continua "à vista"? Metade (ou mais) da altura e da largura dentro da área visível
+     e, se houver, dentro do contêiner rolável. Retângulos: {top, bottom, left, right}. */
+  function sobreposicao(a0, a1, b0, b1) { return Math.min(a1, b1) - Math.max(a0, b0); }
+  function entradaVisivel(campo, area, contenedor) {
+    var alt = campo.bottom - campo.top;
+    var larg = campo.right - campo.left;
+    function dentro(r) {
+      return sobreposicao(campo.top, campo.bottom, r.top, r.bottom) >= alt / 2 &&
+             sobreposicao(campo.left, campo.right, r.left, r.right) >= larg / 2;
+    }
+    return dentro(area) && (!contenedor || dentro(contenedor));
+  }
+
+  var API = { normalizar: normalizar, filtrar: filtrar, deveConfirmar: deveConfirmar,
+              posicionarLista: posicionarLista, entradaVisivel: entradaVisivel };
   raiz.ConsultorFinBusca = API;
   if (typeof module !== "undefined" && module.exports) { module.exports = API; }
 
@@ -73,6 +113,7 @@
   var contador = 0;
   var focoPendente = null; /* id da <tr> cujo combobox deve recuperar o foco após o swap */
   var TEMPO_FOCO_MS = 3000;
+  var portais = []; /* listas abertas no <body>: [{input, lista, wrap}] */
   var timerFoco = null;
 
   function definirFocoPendente(id) {
@@ -129,6 +170,70 @@
     if (texto != null) { e.textContent = texto; }
     return e;
   }
+
+  function areaUtil() {
+    var raizDoc = document.documentElement;
+    var v = window.visualViewport;
+    return {
+      largura: raizDoc.clientWidth, altura: raizDoc.clientHeight,
+      vv: v ? { left: v.offsetLeft, top: v.offsetTop, width: v.width, height: v.height } : null
+    };
+  }
+
+  function campoVisivel(input) {
+    var a = areaUtil();
+    var area = { top: a.vv ? a.vv.top : 0, left: a.vv ? a.vv.left : 0,
+                 bottom: a.vv ? Math.min(a.altura, a.vv.top + a.vv.height) : a.altura,
+                 right: a.vv ? Math.min(a.largura, a.vv.left + a.vv.width) : a.largura };
+    var rolavel = input.closest ? input.closest(".tabela-rolavel") : null;
+    return entradaVisivel(input.getBoundingClientRect(), area, rolavel ? rolavel.getBoundingClientRect() : null);
+  }
+
+  function aplicarPosicao(input, lista) {
+    var area = areaUtil();
+    var pos = posicionarLista(input.getBoundingClientRect(), area.largura, area.altura, area.vv);
+    var st = lista.style;
+    st.left = pos.left + "px";
+    st.minWidth = pos.minWidth + "px";
+    st.maxWidth = pos.maxWidth + "px";
+    st.maxHeight = pos.maxHeight + "px";
+    st.top = pos.lado === "abaixo" ? pos.top + "px" : "auto";
+    st.bottom = pos.lado === "acima" ? pos.bottom + "px" : "auto";
+    var larg = lista.offsetWidth; /* largura real (conteúdo): evita sair pela direita */
+    var limiteD = areaUtil().largura;
+    if (larg && pos.left + larg > limiteD - 8) {
+      st.left = Math.max(8, limiteD - 8 - larg) + "px";
+    }
+  }
+
+  function devolverLista(entrada) {
+    var i = portais.indexOf(entrada);
+    if (i >= 0) { portais.splice(i, 1); }
+    var lista = entrada.lista;
+    lista.classList.remove("portal");
+    lista.removeAttribute("style");
+    if (entrada.wrap.isConnected) { entrada.wrap.appendChild(lista); }
+    else if (lista.parentNode) { lista.parentNode.removeChild(lista); }
+  }
+
+  function reposicionarPortais() {
+    portais.slice().forEach(function (e) {
+      if (!e.input.isConnected) { e.lista.hidden = true; devolverLista(e); return; }
+      if (!campoVisivel(e.input)) { e.fechar(); return; }
+      aplicarPosicao(e.input, e.lista);
+    });
+  }
+
+  function limparOrfas() {
+    portais.slice().forEach(function (e) { if (!e.input.isConnected) { devolverLista(e); } });
+  }
+
+  window.addEventListener("scroll", function (ev) {
+    if (portais.length && !(ev.target && ev.target.classList && ev.target.classList.contains("busca-lista"))) {
+      reposicionarPortais();
+    }
+  }, true);
+  window.addEventListener("resize", reposicionarPortais);
 
   function atualizar(select) {
     if (select.getAttribute("data-busca-ok")) { return; }
@@ -253,12 +358,23 @@
       } else {
         destacar(linhas.length ? 0 : -1);
       }
+      if (aberto) { aplicarPosicao(input, lista); }
+    }
+
+    var entrada = { input: input, lista: lista, wrap: wrap, fechar: function () { fechar(); } };
+    function recolher() { /* devolve a lista ao wrapper (sai do portal) */
+      if (portais.indexOf(entrada) >= 0) { devolverLista(entrada); }
     }
 
     function abrir() {
       if (aberto || input.disabled) { return; }
       aberto = true;
       lista.hidden = false;
+      limparOrfas();
+      lista.classList.add("portal");
+      document.body.appendChild(lista);
+      portais.push(entrada);
+      aplicarPosicao(input, lista);
       input.setAttribute("aria-expanded", "true");
       interagiu = false;
       desenhar("");
@@ -267,6 +383,7 @@
       if (!aberto) { return; }
       aberto = false;
       lista.hidden = true;
+      recolher();
       input.setAttribute("aria-expanded", "false");
       input.removeAttribute("aria-activedescendant");
       mostrarRotulo();
@@ -276,6 +393,7 @@
       var mudou = select.value !== item.id;
       aberto = false;
       lista.hidden = true;
+      recolher();
       input.setAttribute("aria-expanded", "false");
       gravarRecente(item.id);
       if (mudou) {
@@ -372,5 +490,6 @@
   }
   document.addEventListener("htmx:responseError", function () { definirFocoPendente(null); });
   document.addEventListener("htmx:sendError", function () { definirFocoPendente(null); });
-  document.addEventListener("htmx:load", function (ev) { iniciar(ev.target); });
+  document.addEventListener("htmx:load", function (ev) { limparOrfas(); iniciar(ev.target); });
+  document.addEventListener("htmx:afterSwap", limparOrfas);
 })(typeof window !== "undefined" ? window : globalThis);

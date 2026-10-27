@@ -53,11 +53,15 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 
 Em **Lançamentos**:
 
-- **Filtros**: período, conta, categoria, tipo, status e busca no texto da descrição. Os totais no topo (entradas, saídas, líquido) acompanham o filtro.
-- **Categoria**: escolha direto na linha, ou marque várias linhas e use **Categorizar selecionados em**.
-- **Criar regra**: em uma linha, **Criar regra** gera "sempre que a descrição contiver X, categoria Y" e aplica nos lançamentos ainda sem categoria.
-- **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto) ou **pagamento de fatura**. Na v0.1, pagamento de fatura conta como despesa.
-- **Novo lançamento manual**: para o que não está em nenhum extrato. Só lançamentos manuais podem ser excluídos aqui.
+- **Filtros**: período, conta, categoria, tipo, status e busca no texto da descrição. Os quatro cartões de total no topo (**Entradas**, **Saídas**, **Resultado líquido** e **Pendentes no filtro**) acompanham o filtro.
+- **Categoria**: escolha direto na linha, ou marque várias linhas (ou **Marcar todas as linhas da página**, na caixa do cabeçalho da tabela) e use **Categorizar selecionados em**; o contador ao lado diz quantas linhas estão marcadas.
+- **Menu Ações** (botão **Ações** no fim de cada linha): reúne o que se faz com aquele lançamento.
+  - **Criar regra**: gera "sempre que a descrição contiver X, categoria Y" e aplica nos lançamentos ainda sem categoria.
+  - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto) ou **pagamento de fatura**. Na v0.1, pagamento de fatura conta como despesa.
+  - **Marcar como pago**: aparece nos lançamentos pendentes; informe o valor real e a data.
+  - **Excluir**: aparece só nos lançamentos manuais; os importados não podem ser excluídos aqui.
+- **Novo lançamento**: o botão no topo da página abre o formulário **Novo lançamento manual**, para o que não está em nenhum extrato.
+- Em telas pequenas (celular), a data, a conta, o tipo e o valor aparecem sob a descrição; arraste a tabela para o lado para ver a categoria e o menu **Ações**.
 
 ### Organizar as categorias
 
@@ -79,16 +83,18 @@ O consultor do Claude Code apenas lê as categorias; para criar, renomear, mover
 
 ## 5. Contas a pagar
 
-Em **Contas a pagar** você vê **Vencidas**, **A vencer (7 dias)** e **Próximos vencimentos**. Use o seletor **Horizonte** (3, 6 ou 12 meses) para a previsão.
+Em **Contas a pagar** você vê, em cartões, **Vencidas** (borda vermelha), **A vencer (7 dias)** (borda âmbar), **Próximos vencimentos**, **Receitas previstas**, **Possíveis correspondências no extrato**, **Parcelamentos**, **Contas fixas e receitas recorrentes** e **Contas e cartões**. Use o seletor **Horizonte** (3, 6 ou 12 meses) no topo e clique em **Atualizar** para mudar a previsão.
+
+Em cada linha de vencimento, o botão **Ações** abre **Marcar como pago** (valor real e data) e, nas contas fixas, **Pular este mês**.
 
 ### Compra parcelada
-**Novo parcelamento**: descrição, **Valor total**, **Nº de parcelas**, **Primeiro vencimento**, conta e categoria. O app cria uma parcela pendente por mês (1/10, 2/10...). A última parcela absorve a diferença de centavos. Você pode editar ou excluir as parcelas ainda pendentes.
+**Novo parcelamento**: descrição, **Valor total**, **Nº de parcelas**, **Primeiro vencimento**, conta e categoria. O app cria uma parcela pendente por mês (1/10, 2/10...). A última parcela absorve a diferença de centavos. Para editar ou excluir as parcelas ainda pendentes, use o botão **Ações** da linha do parcelamento (**Editar pendentes** e **Excluir pendentes**).
 
 ### Contas fixas e receitas recorrentes (aluguel, luz, salário)
 **Nova conta fixa ou receita recorrente**: nome, tipo (saída ou entrada), **Dia do mês**, **Valor estimado**, conta e categoria. O painel gera os lançamentos dos próximos meses marcados como **estimado** e usa esses valores na previsão.
 
 Quando a conta chegar:
-1. Em **Marcar como pago**, informe o **valor real** e a data do pagamento.
+1. No botão **Ações** da linha, use **Marcar como pago** (nas contas fixas, **Confirmar valor e pagar**): informe o **valor real** e a data do pagamento.
 2. A marca "estimado" some e os meses futuros passam a usar esse último valor real como estimativa.
 3. **Pular este mês** remove só aquele mês; **Desativar** para de gerar meses futuros (as vencidas ficam).
 
@@ -97,11 +103,15 @@ Quando uma conta que você lançou aparece depois no extrato importado, o app pr
 
 ## 6. Ler a tela Início
 
-- **Saldos por conta**: verde positivo, vermelho negativo; e o **Saldo total** (sem cartões).
-- **Entradas, Saídas e Sobra do mês**: transferências ficam de fora.
-- **Vencimentos** (âmbar): contas vencidas e a vencer em 7 dias.
-- **Gráficos**: gastos por categoria, parcelas por mês, saldo projetado (mês negativo em âmbar), maiores categorias e entradas × saídas contra o mês anterior. A previsão começa no mês atual.
-- Use o seletor de mês e de horizonte no topo. Os links "Ver no extrato" são aproximados e podem diferir do painel.
+- **Cartões do topo**: **Saldo total** (destaque verde, sem cartões de crédito), **Entradas do mês**, **Saídas do mês** (as duas comparadas ao mês anterior quando ele teve movimento) e **Resultado do mês**: verde com "superávit" quando sobra dinheiro, vermelho com "déficit" quando falta, "equilibrado" quando fecha em zero e "sem movimento" se o mês não teve nada. Transferências ficam de fora.
+- **Fluxo de caixa**: entradas e saídas dos últimos 6 meses.
+- **Gastos por categoria**: rosca com legenda; passe o mouse (ou toque) em uma fatia para ver o valor e a porcentagem.
+- **Lançamentos recentes**: os últimos lançamentos já efetivados. **Ver todos** abre Lançamentos.
+- **Próximos vencimentos**: primeiro as contas **vencidas** (até 3; se houver mais, aparece o link "+N vencidas"), depois **todas** as que vencem nos próximos 7 dias (até 5; se houver mais, "+N a vencer"). Se sobrar espaço, entram as próximas contas pendentes, até 6 itens no total. O subtítulo mostra quantas estão vencidas e quantas vencem em 7 dias. **Ver todas** abre Contas a pagar.
+- **Contas**: o saldo atual de cada conta (verde positivo, vermelho negativo); cartões não entram no saldo total.
+- **Saldo projetado**, **Parcelas futuras**, **Maiores categorias** e **Entradas × saídas** (contra o mês anterior): a previsão começa no mês atual.
+- **Saídas por categoria**: lista expansível por categoria e subcategoria, com o **Total** no fim.
+- No topo, escolha o **mês** (e clique em **Atualizar**) e o horizonte da projeção pelos botões **3 meses**, **6 meses** e **12 meses**. Os links "Ver no extrato" são aproximados e podem diferir do painel.
 
 ## 7. Rotina sugerida
 
