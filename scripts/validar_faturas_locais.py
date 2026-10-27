@@ -35,7 +35,8 @@ def main(argv: list[str]) -> int:
         print("pasta não encontrada")
         return 2
     senha = os.environ.get("FATURA_SENHA") or None
-    for n, pdf in enumerate(sorted(pasta.glob("*.pdf")), 1):
+    pdfs = sorted(p for p in pasta.iterdir() if p.is_file() and p.suffix.lower() == ".pdf")
+    for n, pdf in enumerate(pdfs, 1):
         try:
             linha = resumo_mascarado(ler_fatura(pdf.read_bytes(), senha))
         except Exception as e:  # só o tipo do erro: a mensagem pode conter dados

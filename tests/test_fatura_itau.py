@@ -264,3 +264,35 @@ def test_cartao_adicional_tem_final_proprio() -> None:
         ("LOJA TITULAR", "0001"), ("LOJA ADICIONAL", "0009")]
     assert f.final_cartao == "0001"
     assert f.conferencia().confere
+
+
+def test_categoria_colada_no_inicio_da_descricao() -> None:
+    esq = "\n".join([
+        "Lançamentos: compras e saques",
+        "05/01 bebidasLOJA FICTICIA 6,00",
+        "06/01 petshopMERCADO TESTE 4,00",
+        "lazer CIDADE TESTE",
+        "L Total dos lançamentos atuais 10,00",
+    ])
+    f = _sintetica(esq)
+    assert [(i.descricao, i.categoria_banco) for i in f.itens] == [
+        ("LOJA FICTICIA", "bebidas"), ("MERCADO TESTE", "lazer")]
+    assert f.conferencia().confere
+
+
+def test_descricao_com_minuscula_legitima_nao_e_cortada() -> None:
+    esq = "Lançamentos: compras e saques\n05/01 iFood TESTE 10,00\noutros CIDADE\n"
+    assert [i.descricao for i in _sintetica(esq).itens] == ["iFood TESTE"]
+
+
+def test_categoria_com_varias_palavras() -> None:
+    esq = "\n".join([
+        "Lançamentos: compras e saques",
+        "05/01 LOJA FICTICIA 6,00",
+        "casa e construção CIDADE TESTE",
+        "06/01 LOJA DOIS 4,00",
+        "outros Cidade Teste",
+        "L Total dos lançamentos atuais 10,00",
+    ])
+    f = _sintetica(esq)
+    assert [i.categoria_banco for i in f.itens] == ["casa e construção", "outros"]

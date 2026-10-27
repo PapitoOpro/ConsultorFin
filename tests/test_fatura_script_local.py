@@ -47,3 +47,12 @@ def test_main_sem_pdfs_sai_zero(tmp_path: Path, capsys: pytest.CaptureFixture[st
 
 def test_main_pasta_inexistente(tmp_path: Path) -> None:
     assert main([str(tmp_path / "nao_existe")]) == 2
+
+
+def test_main_aceita_extensao_maiuscula(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "a.pdf").write_bytes(b"x")
+    (tmp_path / "b.PDF").write_bytes(b"x")
+    (tmp_path / "c.txt").write_bytes(b"x")
+    assert main([str(tmp_path)]) == 0
+    linhas = capsys.readouterr().out.splitlines()
+    assert [ln.split()[0] for ln in linhas] == ["fatura#1", "fatura#2"]

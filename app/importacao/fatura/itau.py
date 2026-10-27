@@ -11,7 +11,8 @@ from app.importacao.fatura.texto import PaginaTexto
 
 _VAL = r"-?\d{1,3}(?:\.\d{3})*,\d{2}-?"
 _ITEM = re.compile(rf"^(\d{{2}}/\d{{2}})\s+(.+?)(?:\s+(\d{{2}}/\d{{2}}))?\s+({_VAL})$")
-_CATEGORIA = re.compile(r"^([a-zà-ÿ]+)(?=[A-ZÀ-Ý\s]|$)")
+_CATEGORIA = re.compile(r"^([a-zà-ÿ]+(?: [a-zà-ÿ]+)*)(?= ?[A-ZÀ-Ý]|$)")
+_CATEGORIA_COLADA = re.compile(r"^([a-zà-ÿ]{3,})(?=[A-ZÀ-Ý])")  # 'categoriaLOJA' no início
 _DETALHE_INTL = re.compile(rf"^[\d.]+,\d{{2}}\s+[A-Z]{{3}}\s+{_VAL}$")
 _IOF_INTL = re.compile(rf"^Repasse de IOF em R\$\s*({_VAL})$")
 _PRODUTO = re.compile(r"^\s*(Gold|Platinum|Black|Infinite|Signature|Classic|Standard)\s*$", re.M)
@@ -199,7 +200,11 @@ class ParserItau:
             data = inferir_ano(m.group(1), venc)
         except ValueError:
             raise FaturaIlegivel("Data inválida em um lançamento da fatura.") from None
-        return _Bruto(data, desc, _centavos(m.group(4)), secao, parcela, final)
+        categoria: str | None = None
+        colada = _CATEGORIA_COLADA.match(desc)
+        if colada:  # a linha de categoria logo abaixo, se houver, prevalece
+            categoria, desc = colada.group(1), desc[colada.end():].strip()
+        return _Bruto(data, desc, _centavos(m.group(4)), secao, parcela, final, categoria)
 
     @staticmethod
     def _item(b: _Bruto) -> ItemFatura:
