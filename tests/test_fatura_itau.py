@@ -30,8 +30,7 @@ def test_detectar_nao_confunde_porto_com_itau() -> None:
              "Pague no Banco Itaú 341-7 ou em qualquer banco\n")
     paginas = [PaginaTexto(1, texto, "", "")]
     assert not ParserItau().reconhece(paginas)
-    with pytest.raises(EmissorNaoSuportado):
-        detectar(paginas)
+    assert detectar(paginas).emissor == "porto"
 
 
 def test_detectar_emissor_desconhecido() -> None:

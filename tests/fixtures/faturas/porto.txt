@@ -1,0 +1,66 @@
+@@pagina
+Titular Teste
+Cartão 5000 00** **** *000
+Esta fatura vence em
+20/01/2027
+O valor total é
+R$ 265,00
+Confira outras opções de pagamento
+Pagamento mínimo de
+50,00
+R$
+12x 25,00
+Parcelamento de R$
+com seguro
+Total: R$ 300,00
+Limite total de crédito R$ 1.000,00
+Limite de saque R$ 100,00
+@@pagina
+Como
+pagar
+Copie a linha digitável do seu boleto:
+00000.00000 00000.000000 00000.000000 0 00000000000000
+Pague no Banco Itaú 341-7 ou em qualquer agência bancária.
+Consulte o contrato do seu cartão em www.cartaoportoseguro.com.br.
+@@pagina
+Resumo
+da fatura
+Despesas no Brasil
+Saldo fatura anterior R$ 500,00
+Pagamento/créditos (-) R$ 500,00
+Saldo financiado (+) R$ 0,00
+Encargos de rotativo (+) R$ 10,00
+Encargos de compras parceladas (+) R$ 2,00
+Encargos de parcelamento da fatura (+) R$ 0,00
+Encargos de saque (+) R$ 0,00
+Despesas/débitos (+) R$ 253,00
+Saldo R$ 265,00
+Encargos1 No Período Próx. Período
+(06/12 a 05/01) (06/01 a 05/02)
+Rotativo 10,00 % A.M. 10,00 % A.M.
+Previsão de fechamento da próxima fatura 28/01/2027
+@@pagina
+Detalhamento
+da fatura
+Lançamentos: compras e saques
+Titular Teste (final *000)
+Data Estabelecimento Valor em R$
+30/12 SEGURO TESTE PA/07 BZ 80,00
+10/11 LOJA PARCELADA 07/10 CIDADE BR 120,00
+05/01 MULTA POR ATRASO 10,00
+10/01 PAGAMENTO PIX -500,00
+15/01 IOF ADICIONAL SOBRE SALDO FINANCIA 2,00
+15/01 JUROS DE MORA 1,00
+Lançamentos no cartão (final *000) 213,00
+Lançamentos: compras e saques
+Adicional Teste (final *111)
+Data Estabelecimento Valor em R$
+12/12 LOJA TESTE 01/12 CIDADE BR 40,00
+Lançamentos no cartão (final *111) 40,00
+Contestações poderão ser feitas em até 60 dias.
+Detalhamento geral conforme resolução Banco Central
+Limites de crédito
+Limite total R$ 1.000,00
+@@pagina
+Simulação de parcelamento
+10/02 12x 25,00
