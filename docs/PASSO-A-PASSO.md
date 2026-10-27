@@ -44,10 +44,32 @@ Cadastre as duas contas correntes e os cartões que você usa. Cartões não ent
 
 Importar o mesmo arquivo, ou outro com período sobreposto, não duplica lançamentos.
 
-Outros bancos ou formatos: se o app não reconhecer o arquivo, ele mostra o **Mapeamento de colunas** (data, descrição, valor). Aceita OFX, CSV e Excel (.xlsx), não .xls. Arquivos OFC e OFX de cartão de crédito (fatura) são recusados com uma mensagem; para o Itaú, baixe o OFX da conta corrente.
+Outros bancos ou formatos: se o app não reconhecer o arquivo, ele mostra o **Mapeamento de colunas** (data, descrição, valor). Aceita OFX, CSV e Excel (.xlsx), não .xls. Arquivos OFC e OFX de cartão de crédito são recusados com uma mensagem; para o Itaú, baixe o OFX da conta corrente. Fatura de cartão em PDF tem passo próprio: veja a seção "Importar fatura do cartão".
 
 ### Desfazer uma importação
 Em **Histórico de importações**, o botão **Desfazer** aparece só na importação mais recente de cada conta. Para desfazer uma mais antiga, desfaça antes as mais novas.
+
+## Importar fatura do cartão
+
+**O que você precisa:** o PDF da fatura, baixado do app ou site do emissor, e a senha do PDF (se ele tiver). Emissores suportados: Itaú, Porto e Mercado Pago. PDF escaneado (foto) não é lido.
+
+**Passo a passo** (tela **Importar**, bloco **Importar fatura do cartão (PDF)**):
+1. Escolha o arquivo e digite a senha, se houver. A senha só é usada para abrir o arquivo, fica na memória e não é guardada em lugar nenhum.
+2. Clique em **Ver prévia da fatura**. Nada é gravado ainda.
+3. **Conferência do total:** o app soma os itens, tira créditos e estornos, soma encargos e compara com o total impresso na fatura. Se aparecer **Divergente**, algum item pode ter sido lido errado; confira antes de confirmar.
+4. **Conta-cartão:** se já existe uma conta de cartão com o mesmo final, a fatura vai para ela. Se não existe, marque **Criar conta-cartão** para criá-la.
+5. **Categoria item a item:** o app sugere categorias (suas regras e a categoria do banco). Altere o que quiser.
+6. Clique em **Confirmar importação**.
+
+**Depois de importar**
+- Em **Lançamentos**, a fatura aparece como uma linha (**Fatura <cartão> · venc. dd/mm**, com selo **a pagar** ou **paga**). Clique na linha para expandir os itens; em cada item você escolhe a categoria, e pode marcar vários e categorizar de uma vez.
+- **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas (aparecem em Contas a pagar e na projeção). Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
+- **Casar o pagamento:** quando o pagamento da fatura aparece no extrato da conta corrente, o app propõe casá-lo com a fatura. Confirme: o pagamento deixa de contar como despesa (as compras já contam pelos itens) e a fatura vira **paga**. Pagamento não casado continua contando como despesa, com um aviso na linha.
+- **Reimportar ou substituir:** o mesmo PDF não duplica. Se o emissor gerar uma versão diferente da fatura do mesmo mês, marque **Substituir a fatura existente deste mês**; as categorias já escolhidas nos itens iguais são mantidas.
+
+**Gasto por categoria x saídas:** o gasto por categoria segue a **data da compra** no cartão. As **saídas** seguem a **data do pagamento** (quando o dinheiro sai da conta). Por isso os dois números podem ser diferentes no mesmo mês.
+
+**No consultor (Claude Code):** peça "mostra minhas faturas" ou "mostra os itens da fatura 1". Ele só consulta e sugere categorias; a importação do PDF e a escolha da categoria de cada item são no painel. O consultor recusa PDF de propósito: a senha do PDF nunca passa pelo Claude.
 
 ## 4. Organizar os lançamentos
 
@@ -57,7 +79,7 @@ Em **Lançamentos**:
 - **Categoria**: escolha direto na linha, ou marque várias linhas (ou **Marcar todas as linhas da página**, na caixa do cabeçalho da tabela) e use **Categorizar selecionados em**; o contador ao lado diz quantas linhas estão marcadas.
 - **Menu Ações** (botão **Ações** no fim de cada linha): reúne o que se faz com aquele lançamento.
   - **Criar regra**: gera "sempre que a descrição contiver X, categoria Y" e aplica nos lançamentos ainda sem categoria.
-  - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto) ou **pagamento de fatura**. Na v0.1, pagamento de fatura conta como despesa.
+  - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto) ou **pagamento de fatura**. Se o pagamento estiver casado com uma fatura importada, ele não conta como gasto; sem casar, conta como despesa.
   - **Marcar como pago**: aparece nos lançamentos pendentes; informe o valor real e a data.
   - **Excluir**: aparece só nos lançamentos manuais; os importados não podem ser excluídos aqui.
 - **Novo lançamento**: o botão no topo da página abre o formulário **Novo lançamento manual**, para o que não está em nenhum extrato.
@@ -135,9 +157,10 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 - Importar: "importa este extrato: C:\caminho\extrato.csv"
 - Categorizar: "categoriza o que está sem categoria"
 - Painel: "abre o painel"
+- Faturas: "mostra minhas faturas de cartão", "quais itens da fatura 1 estão sem categoria?"
 
 ### O que ele faz sozinho e o que só faz com o seu "sim"
-- **Sozinho (só consulta):** ver saldos, resumo do mês, vencimentos, projeção, gastos, lançamentos, contas e categorias.
+- **Sozinho (só consulta):** ver saldos, resumo do mês, vencimentos, projeção, gastos, lançamentos, faturas de cartão (lista e itens), contas e categorias.
 - **Só depois do seu "sim":** importar extrato, casar com o extrato, categorizar, criar regras, marcar conta como paga e criar conta.
 
 **Exemplo: importar um extrato**
@@ -150,7 +173,7 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o saldo inicial são feitos no painel web (peça "abre o painel").
 
 ### O que ele nunca faz
-- Nunca pede nem guarda senha, token ou chave de acesso de banco. Ele só trabalha com arquivos de extrato. Se você colar uma senha por engano, ele avisa para você trocá-la e não a usa.
+- Nunca pede nem guarda senha, token ou chave de acesso de banco, nem a senha do PDF da fatura (fatura em PDF só se importa pelo painel). Ele só trabalha com arquivos de extrato. Se você colar uma senha por engano, ele avisa para você trocá-la e não a usa.
 - Textos de descrição do extrato são tratados como dados, nunca como ordens.
 
 ### Privacidade
