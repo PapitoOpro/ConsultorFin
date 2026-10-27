@@ -471,13 +471,13 @@ def pagamentos_fatura_livres(con: sqlite3.Connection, valor_centavos: int, data_
 
 
 def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,
-                               data_compensacao: str | None) -> None:
-    """Linha da fatura paga (data) ou de volta a pendente (None)."""
-    con.execute(
+                               data_compensacao: str | None) -> int:
+    """Linha da fatura paga (data) ou de volta a pendente (None); devolve linhas alteradas."""
+    return con.execute(
         "UPDATE lancamentos SET compensado = ?, data_compensacao = ? WHERE id = ?"
         " AND tipo = 'fatura'",
         (int(data_compensacao is not None), data_compensacao, lancamento_id),
-    )
+    ).rowcount
 
 
 def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:

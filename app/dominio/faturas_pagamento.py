@@ -83,7 +83,8 @@ def confirmar_pagamento(con: Any, fatura_id: int, lancamento_id: int) -> None:
         fat = _fatura(con, fatura_id)
         lanc = _validar(con, fat, lancamento_id)
         data = str(lanc["data_compensacao"] or lanc["data"])
-        repo_lanc.definir_compensacao_fatura(con, int(fat["lancamento_id"]), data)
+        if repo_lanc.definir_compensacao_fatura(con, int(fat["lancamento_id"]), data) != 1:
+            raise PagamentoInvalido("Lançamento da fatura não encontrado.")
         repo.marcar_pagamento(con, fatura_id, lancamento_id)
 
 

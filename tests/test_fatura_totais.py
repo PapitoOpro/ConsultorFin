@@ -4,7 +4,8 @@ from datetime import date
 
 from app.dominio import faturas as dom
 from app.dominio import faturas_pagamento as pag
-from app.dominio.categorias import criar_categoria, despesas_do_mes, entradas_do_mes
+from app.dominio.categorias import (
+    consumo_do_mes, criar_categoria, despesas_do_mes, entradas_do_mes)
 from app.dominio.contas_pagar import abrir_painel
 from app.dominio.lancamentos import Filtros, listar
 from app.dominio.painel import SEM_CATEGORIA, gastos_por_categoria, resumo_inicio
@@ -93,20 +94,44 @@ def test_painel_exclui_pagamento_casado_e_mostra_fatura_pendente(con: sqlite3.Co
     assert ids["linha"] not in [int(r["id"]) for r in repo_painel.saidas_pendentes_proximas(con, 50)]
     assert repo_painel.despesas_detalhadas(con, "2026-10-01", "2026-11-01") == []
     r = resumo_inicio(con, date(2026, 10, 27), 2026, 10, 3)
-    assert r.saidas_centavos == 0 and r.saldo_total_centavos == 70000
+    assert r.saidas_centavos == 30000 and r.saldo_total_centavos == 70000  # caixa: a fatura
     assert entradas_do_mes(con, 2026, 10) == 0
 
 
 # --- Regra 3: categoria / gasto do mês pelos itens -------------------------------------------
 
-def test_gasto_do_mes_soma_itens_pela_data_da_compra(con: sqlite3.Connection) -> None:
+def test_caixa_do_mes_conta_fatura_uma_vez_e_sem_itens(con: sqlite3.Connection) -> None:
+    ids = _setup(con)
+    lid = _pagto(con, ids["cc"], "2026-10-04")
+    # sem casar: o pagamento conta uma vez; a linha pendente da fatura não
+    assert (despesas_do_mes(con, 2026, 9), despesas_do_mes(con, 2026, 10)) == (0, 30000)
+    pag.confirmar_pagamento(con, ids["fatura"], lid)
+    # casado: a linha da fatura conta uma vez, na data do pagamento; o pagamento sai
+    assert (despesas_do_mes(con, 2026, 9), despesas_do_mes(con, 2026, 10)) == (0, 30000)
+    assert entradas_do_mes(con, 2026, 10) == 0
+
+
+def test_caixa_usa_data_do_pagamento_e_ignora_outras_linhas_do_cartao(
+        con: sqlite3.Connection) -> None:
+    ids = _setup(con)
+    repo_lanc.inserir_manual(con, conta_id=ids["cartao"], data="2026-09-30", descricao="X",
+                             valor_centavos=-700, tipo="saida", categoria_id=None,
+                             compensado=True, observacao=None)
+    lid = _pagto(con, ids["cc"], "2026-10-03")
+    con.execute("UPDATE lancamentos SET data_compensacao = '2026-09-30' WHERE id = ?", (lid,))
+    con.commit()
+    pag.confirmar_pagamento(con, ids["fatura"], lid)
+    assert repo_lanc.obter(con, ids["linha"])["data_compensacao"] == "2026-09-30"
+    assert (despesas_do_mes(con, 2026, 9), despesas_do_mes(con, 2026, 10)) == (30000, 0)
+
+
+def test_consumo_do_mes_soma_itens_pela_data_da_compra(con: sqlite3.Connection) -> None:
     ids = _setup(con)
     lid = _pagto(con, ids["cc"])
-    assert despesas_do_mes(con, 2026, 9) == 30000  # 200 + 150 - 50
-    assert despesas_do_mes(con, 2026, 10) == 30000  # pagamento sem casar ainda conta
+    assert consumo_do_mes(con, 2026, 9) == 30000  # 200 + 150 - 50
+    assert consumo_do_mes(con, 2026, 10) == 30000  # pagamento sem casar ainda aparece
     pag.confirmar_pagamento(con, ids["fatura"], lid)
-    assert despesas_do_mes(con, 2026, 10) == 0
-    assert despesas_do_mes(con, 2026, 9) == 30000
+    assert (consumo_do_mes(con, 2026, 9), consumo_do_mes(con, 2026, 10)) == (30000, 0)
 
 
 def test_categorias_usam_itens_e_sem_categoria(con: sqlite3.Connection) -> None:
@@ -114,7 +139,7 @@ def test_categorias_usam_itens_e_sem_categoria(con: sqlite3.Connection) -> None:
     g = gastos_por_categoria(con, 2026, 9)
     totais = {c.nome: c.total_centavos for c in g}
     assert totais == {"Loja Inventada": 20000, SEM_CATEGORIA: 10000}
-    assert sum(c.total_centavos for c in g) == despesas_do_mes(con, 2026, 9)
+    assert sum(c.total_centavos for c in g) == consumo_do_mes(con, 2026, 9)
     assert ids["cat"] in [c.id for c in g]
 
 
@@ -128,6 +153,18 @@ def test_projecao_abate_fatura_pendente_e_previstas(con: sqlite3.Connection) -> 
     assert [p.saldo_final_centavos for p in pontos] == [70000, 50000, 30000]
     r = resumo_inicio(con, date(2026, 10, 1), 2026, 10, 3)
     assert r.saldo_total_centavos == 100000  # conta-cartão fora do saldo
+
+
+def test_projecao_com_pagamento_nao_casado_abate_duas_vezes(con: sqlite3.Connection) -> None:
+    """Esperado até casar: o pagamento já baixou o saldo e a fatura pendente ainda é abatida
+    no vencimento (a tela pede para casar)."""
+    ids = _setup(con)
+    lid = _pagto(con, ids["cc"])
+    hoje = date(2026, 10, 27)
+    pontos = projetar(con, hoje, 3)
+    assert [p.saldo_final_centavos for p in pontos] == [40000, 40000, 40000]
+    pag.confirmar_pagamento(con, ids["fatura"], lid)
+    assert [p.saldo_final_centavos for p in projetar(con, hoje, 3)] == [70000, 70000, 70000]
 
 
 # --- Regra 5: contas a pagar -----------------------------------------------------------------

@@ -105,3 +105,15 @@ def test_pagamento_de_outra_fatura_rejeitado(con: sqlite3.Connection) -> None:
     with pytest.raises(pag.PagamentoInvalido, match="não encontrad"):
         pag.confirmar_pagamento(con, r2.fatura_id, saida + 99)
     assert repo_faturas.obter(con, r2.fatura_id)["pagamento_lancamento_id"] is None
+
+
+def test_confirmar_recusa_linha_da_fatura_ausente(con: sqlite3.Connection) -> None:
+    cc, _, fid = _setup(con)
+    lid = _pagto(con, cc, "2026-10-10")
+    linha = int(repo_faturas.obter(con, fid)["lancamento_id"])
+    con.execute("UPDATE lancamentos SET tipo = 'saida' WHERE id = ?", (linha,))
+    con.commit()
+    with pytest.raises(pag.PagamentoInvalido, match="Lançamento da fatura"):
+        pag.confirmar_pagamento(con, fid, lid)
+    assert repo_faturas.obter(con, fid)["pagamento_lancamento_id"] is None
+    assert repo_lanc.obter(con, linha)["compensado"] == 0
