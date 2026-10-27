@@ -64,14 +64,14 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Histórico de importações</h2><p class="subtitulo">Importações anteriores; desfazer remove os lançamentos criados por ela.</p></div></div>
   {% if historico %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
-    <thead><tr><th>Arquivo</th><th class="sec">Conta</th><th class="sec">Período</th><th class="valor">Novos</th><th class="valor sec">Ignorados</th><th>Situação</th><th></th></tr></thead>
+    <thead><tr><th>Arquivo</th><th class="sec">Conta</th><th class="sec">Período</th><th class="valor sec">Novos</th><th class="valor sec">Ignorados</th><th>Situação</th><th></th></tr></thead>
     <tbody>
     {% for i in historico %}
       <tr>
-        <td class="quebra">{{ i.arquivo_nome }}<span class="mob-info">{{ i.conta_nome or "—" }}<br>{% if i.periodo_inicio %}{{ i.periodo_inicio | data_br }} a {{ i.periodo_fim | data_br }}{% else %}—{% endif %} · {{ i.total_ignorados if i.total_ignorados is not none else 0 }} ignorados</span></td>
+        <td class="quebra">{{ i.arquivo_nome }}<span class="mob-info">{{ i.conta_nome or "—" }}<br>{% if i.periodo_inicio %}{{ i.periodo_inicio | data_br }} a {{ i.periodo_fim | data_br }}{% else %}—{% endif %} · {{ i.total_novos if i.total_novos is not none else 0 }} novos · {{ i.total_ignorados if i.total_ignorados is not none else 0 }} ignorados</span></td>
         <td class="conta sec">{{ i.conta_nome or "—" }}</td>
         <td class="data-linha sec">{% if i.periodo_inicio %}{{ i.periodo_inicio | data_br }} a {{ i.periodo_fim | data_br }}{% else %}—{% endif %}</td>
-        <td class="valor">{{ i.total_novos if i.total_novos is not none else 0 }}</td>
+        <td class="valor sec">{{ i.total_novos if i.total_novos is not none else 0 }}</td>
         <td class="valor sec">{{ i.total_ignorados if i.total_ignorados is not none else 0 }}</td>
         <td>{% if i.desfeita %}<span class="selo neutro">{{ icone("undo", 12) }}&nbsp;Desfeita</span>{% else %}<span class="selo entrada">{{ icone("check", 12) }}&nbsp;Ativa</span>{% endif %}</td>
         <td>{% if not i.desfeita and i.id in desfaziveis %}

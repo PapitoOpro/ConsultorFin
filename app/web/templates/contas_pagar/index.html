@@ -48,7 +48,7 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("arrow-left-right", 18) }}Possíveis correspondências no extrato</h2>
     {% if correspondencias %}<p class="subtitulo">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>{% endif %}</div></div>
   {% if correspondencias %}
-  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
     <thead><tr><th class="sec">Conta</th><th>Item</th><th class="valor">Valor</th><th class="sec">Linha do extrato</th><th class="valor sec">Valor</th><th><span class="sr-only">Confirmar</span></th></tr></thead>
     <tbody>
     {% for conta_nome, p in correspondencias %}
@@ -78,7 +78,7 @@
 <section id="parcelamentos" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("layers", 18) }}Parcelamentos <span class="selo neutro">{{ parcelamentos | length }}</span></h2></div></div>
   {% if parcelamentos %}
-  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
     <thead><tr><th>Descrição</th><th>Progresso</th><th class="sec">Próximo vencimento</th><th class="valor sec">Total / restante</th><th>Ações</th></tr></thead>
     <tbody>
     {% for g in parcelamentos %}
@@ -137,7 +137,7 @@
 <section id="recorrentes" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("repeat", 18) }}Contas fixas e receitas recorrentes <span class="selo neutro">{{ recorrentes | length }}</span></h2></div></div>
   {% if recorrentes %}
-  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
     <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Dia</th><th class="sec">Conta</th><th class="valor">Valor estimado</th><th class="valor sec">Último valor real</th><th class="sec">Situação</th><th>Ações</th></tr></thead>
     <tbody>
     {% for r in recorrentes %}
@@ -191,7 +191,7 @@
 <section id="contas" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("wallet", 18) }}Contas e cartões <span class="selo neutro">{{ contas | length }}</span></h2></div></div>
   {% if contas %}
-  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
     <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
     <tbody>
     {% for c in contas %}

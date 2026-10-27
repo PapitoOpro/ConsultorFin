@@ -624,6 +624,10 @@ td.quebra { min-width: 150px; }
 @media (max-width: 720px) {
   .tabela-rolavel table.tabela-curta { min-width: 0; }
   .detalhe .tabela-rolavel td { padding-left: 8px; padding-right: 8px; }
+  .detalhe details.sub { margin-left: 8px; }
+  .detalhe details.sub table { margin-left: 0; width: 100%; font-size: 12px; }
+  .detalhe .tabela-rolavel td:nth-child(1) { white-space: nowrap; }
+  .detalhe .tabela-rolavel td:nth-child(2) { overflow-wrap: anywhere; }
 }
 @media (max-width: 480px) {
   th.sec, td.sec, td.saldo { display: none; }
@@ -637,6 +641,16 @@ td.quebra { min-width: 150px; }
   td.categoria { min-width: 150px; }
   .progresso { min-width: 100px; }
   .tabela-rolavel table.tabela-curta td.acoes { min-width: 0; }
+  .tabela-rolavel table.tabela-curta td.desc { min-width: 80px; }
+  .tabela-rolavel table.tabela-curta td.valor { font-size: 12.5px; }
+  .tabela-curta details.linha-acoes > summary { padding: 4px 6px; font-size: 12px; gap: 2px; }
+  .tabela-curta .linha-acoes-painel { min-width: 200px; max-width: 240px; }
+  .tabela-curta button { padding: 5px 8px; font-size: 12px; }
+  .tabela-curta td.valor .secundario { display: block; font-size: 11px; text-align: right; }
+  .tabela-curta td.categoria .busca { min-width: 0; width: 112px; }
+  .tabela-rolavel table.tabela-larga td.desc { min-width: 150px; }
+  .tabela-curta td.categoria { min-width: 0; }
+  .tabela-curta .selo { font-size: 10px; padding: 0 6px; }
 }
 
 /* foco bem visível em caixas e opções (o anel de 35% sozinho tem pouco contraste) */
