@@ -1,0 +1,84 @@
+@@pagina
+1
+Platinum
+TITULAR TESTE Resumo da fatura em R$
+RUA TESTE, 100
+BLOCO 1 AP 10 BAIRRO TESTE Total da fatura anterior 100,00
+00000-000 CIDADE UM SP Pagamento efetuado em 06/01/2027 -100,00
+S Saldo financiado 0,00
+L Lançamentos atuais 139,58
+Postagem: 02/02/2027
+Vencimento: 10/02/2027 = Total desta fatura 139,58
+Emissão: 02/02/2027
+Previsão próx. Fechamento: 02/03/2027
+Titular TITULAR TESTE
+Cartão 4000.XXXX.XXXX.0001
+O total da sua fatura é: Com vencimento em: Limite total de crédito:
+R$ 139,58 10/02/2027 R$ 1.000,00
+Pagamento mínimo: Entrada + Parcelas fixas:
+R$ 30,00 R$ 10,00 + 11x R$ 12,00
+Banco Itaú S.A. 341-7 00000000000000000000000000000000000000000000 recibo do pagador
+Nome do Beneficiário/CPF/CNPJ BENEFICIARIO TESTE - 00.000.000/0001-00 Vencimento 10/02/2027
+@@pagina
+Caso você pague um valor entre o mínimo e o total de sua fatura, o saldo restante será cobrado na próxima fatura.
+acesse seu contrato e a aba “Serviços” no site Itaú Cartões.
+@@esq
+Caso você pague um valor entre o mínimo e o total de sua
+pagamento do valor total é sempre a melhor opção porque
+acesse seu contrato e a aba “Serviços” no site Itaú Cartões.
+Previsão para o próximo fechamento: 02/03/2027.
+Pagamentos efetuados
+DATA VALOR EM R$
+06/01 PAGAMENTO -100,00
+P Total dos pagamentos -100,00
+Lançamentos: compras e saques
+TITULAR TESTE
+DATA ESTABELECIMENTO VALOR EM R$
+05/01 LOJA TESTE UM 19,90
+outros CIDADE UM
+12/01 POSTO TESTE 50,00
+transporte CIDADE UM
+20/12 LOJA PARCELADA 03/10 30,00
+vestuário CIDADE UM
+22/01 PADARIA TESTE 12,34
+restaurante CIDADE UM
+22/01 PADARIA TESTE 12,34
+restaurante CIDADE UM
+25/01 LOJA ESTORNO -5,00
+acessoriosCIDADE UM
+Lançamentos no cartão 119,58
+Lançamentos: produtos e serviços
+DATA PRODUTOS/SERVIÇOS VALOR EM R$
+15/11 PgConta TESTE 07/12 20,00
+Principal (R$ 12,00) + Juros (R$ 8,00)
+Lançamentos produtos e serviços 20,00
+L Total dos lançamentos atuais 139,58
+Compras parceladas - próximas faturas
+DATA ESTABELECIMENTO VALOR EM R$
+15/11 PgConta TESTE 08/12 20,00
+20/12 LOJA PARCELADA 04/10 30,00
+Próxima fatura 50,00
+Demais faturas 100,00
+Total para próximas faturas 150,00
+0800 000 0000
+@@dir
+a fatura, o saldo restante será cobrado na próxima fatura.
+não há cobranças de juros.
+Limites de crédito Valor em R$
+Limite total de crédito 1.000,00
+Limite disponível 800,00
+Limite total utilizado 200,00
+Esses são os seus limites na data de fechamento dessa fatura.
+.
+Encargos cobrados nesta fatura
+Juros do rotativo 15,00 % 0,00
+Juros de mora 1,00 % am 0,00
+Multa por atraso 2,00 % 0,00
+IOF de financiamento (0,38 % + 0,00820 % a.d.) 0,00
+@@pagina
+1
+Novo teto de juros do cartão de crédito
+Valor em R$
+Credito Rotativo / Atraso
+Valor original da dívida 0,00
+Juros máximos do contrato 15,00 % am 400,00 % aa

@@ -1,0 +1,1 @@
+"""Scripts locais do ConsultorFin."""

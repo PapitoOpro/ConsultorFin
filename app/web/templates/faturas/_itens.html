@@ -1,0 +1,32 @@
+{% from "_macros.html" import opcoes_categoria %}
+{% from "_icones.html" import icone %}
+{% set fid = fatura.id %}
+<p id="itens-fatura-{{ fid }}-status" hx-swap-oob="innerHTML">{{ itens | length }} {{ "item carregado" if itens | length == 1 else "itens carregados" }}.</p>
+<form id="lote-fatura-{{ fid }}" method="post" action="/faturas/{{ fid }}/itens/categoria-lote" class="barra-lote fatura-lote">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <div class="campo"><label for="lf-cat-{{ fid }}">Categorizar itens marcados em</label>
+    <select id="lf-cat-{{ fid }}" data-busca name="categoria_id" required>
+      {{ opcoes_categoria(categorias, none, true) }}</select></div>
+  <button type="submit" class="secundario">{{ icone("tag", 16) }}Aplicar aos itens marcados</button>
+</form>
+<div class="tabela-rolavel tabela-itens-fatura" tabindex="0" role="region" aria-label="Itens da fatura"><table class="tabela-curta">
+  <thead><tr>
+    <th class="col-marcar"><span class="sr-only">Marcar</span></th><th class="sec">Data da compra</th><th>Descrição</th><th class="sec">Parcela</th><th class="sec">Portador</th><th>Categoria</th><th class="valor">Valor</th>
+  </tr></thead>
+  <tbody>
+  {% for it in itens %}
+    <tr class="item-fatura" id="item-fatura-{{ it.id }}">
+      <td class="col-marcar"><input type="checkbox" form="lote-fatura-{{ fid }}" name="ids" value="{{ it.id }}" aria-label="Selecionar item {{ loop.index }}"></td>
+      <td class="data-linha sec">{{ it.data | data_br }}</td>
+      <td class="desc">{{ it.descricao }}{% if it.valor_centavos > 0 %}<span class="selo entrada">crédito</span>{% elif it.tipo == "encargo" %}<span class="selo neutro">encargo</span>{% endif %}
+        <span class="mob-info">{{ it.data | data_br }}{% if it.parcela_atual %} · {{ it.parcela_atual }}/{{ it.parcela_total }}{% endif %}{% if it.final_cartao %} · final {{ it.final_cartao }}{% endif %}</span></td>
+      <td class="sec">{% if it.parcela_atual %}{{ it.parcela_atual }}/{{ it.parcela_total }}{% else %}—{% endif %}</td>
+      <td class="sec">{% if it.final_cartao %}final {{ it.final_cartao }}{% else %}—{% endif %}</td>
+      <td class="categoria">{% with item = it %}{% include "faturas/_item_categoria.html" %}{% endwith %}</td>
+      <td class="valor {{ 'entrada' if it.valor_centavos > 0 else 'saida' }}">{{ it.valor_centavos | brl }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="secundario">Fatura sem itens.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>

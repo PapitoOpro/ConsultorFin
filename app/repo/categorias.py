@@ -143,6 +143,15 @@ def remover(con: sqlite3.Connection, categoria_id: int) -> bool:
     return cur.rowcount > 0
 
 
+def id_por_nome(con: sqlite3.Connection, nome: str) -> int | None:
+    """Categoria cujo nome casa (sem caixa, acento e espaços extras); raízes primeiro."""
+    row = con.execute(
+        "SELECT id FROM categorias WHERE nome_chave = ? ORDER BY pai_id IS NOT NULL, id LIMIT 1",
+        (chave_nome(nome),),
+    ).fetchone()
+    return None if row is None else int(row["id"])
+
+
 def inserir_regra(con: sqlite3.Connection, padrao: str, categoria_id: int, prioridade: int) -> int:
     cur = con.execute(
         "INSERT INTO regras_categoria (padrao, categoria_id, prioridade) VALUES (?,?,?)",
@@ -163,7 +172,8 @@ def listar_regras_ordenadas(con: sqlite3.Connection) -> list[tuple[str, int]]:
 def lancamentos_sem_categoria(
     con: sqlite3.Connection, importacao_id: int | None
 ) -> list[tuple[int, str]]:
-    sql = "SELECT id, descricao FROM lancamentos WHERE categoria_id IS NULL"
+    # A linha da fatura nunca tem categoria (quem tem são os itens).
+    sql = "SELECT id, descricao FROM lancamentos WHERE categoria_id IS NULL AND tipo <> 'fatura'"
     params: tuple[int, ...] = ()
     if importacao_id is not None:
         sql += " AND importacao_id = ?"
@@ -180,13 +190,28 @@ def definir_categoria_do_lancamento(
 def total_compensado_do_mes(
     con: sqlite3.Connection, tipos: tuple[str, ...], inicio_iso: str, fim_iso: str
 ) -> int:
-    """Soma (com sinal) dos compensados de contas não-cartão com data_compensacao em [inicio, fim)."""
+    """Soma (com sinal) dos compensados com data_compensacao em [inicio, fim): contas não-cartão
+    e, nas contas-cartão, só a linha da fatura ('fatura' em `tipos`; conta na data do pagamento).
+    Pagamento de fatura casado com uma fatura fica fora (a linha da fatura é que conta)."""
     marcas = ",".join("?" for _ in tipos)
     row = con.execute(
         "SELECT COALESCE(SUM(l.valor_centavos), 0) AS s FROM lancamentos l"
         " JOIN contas c ON c.id = l.conta_id"
-        f" WHERE l.compensado = 1 AND c.tipo != 'cartao' AND l.tipo IN ({marcas})"
-        " AND l.data_compensacao >= ? AND l.data_compensacao < ?",
+        " WHERE l.compensado = 1 AND (c.tipo != 'cartao' OR l.tipo = 'fatura')"
+        f" AND l.tipo IN ({marcas})"
+        " AND l.data_compensacao >= ? AND l.data_compensacao < ?"
+        " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)",
         (*tipos, inicio_iso, fim_iso),
+    ).fetchone()
+    return int(row["s"])
+
+
+def total_itens_fatura_do_mes(con: sqlite3.Connection, inicio_iso: str, fim_iso: str) -> int:
+    """Soma (com sinal: compra negativa, crédito positivo) dos itens de fatura com data da
+    compra em [inicio, fim)."""
+    row = con.execute(
+        "SELECT COALESCE(SUM(valor_centavos), 0) AS s FROM fatura_itens"
+        " WHERE data >= ? AND data < ?",
+        (inicio_iso, fim_iso),
     ).fetchone()
     return int(row["s"])

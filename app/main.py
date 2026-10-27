@@ -17,7 +17,7 @@ from app.db import conectar, migrar
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.web.rotas import routers
 from app.web.seguranca import ProtecaoOrigemHost
-from app.web.uploads import ArmazemUploads
+from app.web.uploads import ArmazemFaturas, ArmazemUploads
 
 WEB_DIR: Path = Path(__file__).resolve().parent / "web"
 
@@ -42,6 +42,7 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     app.add_middleware(ProtecaoOrigemHost)
     app.state.templates = templates
     app.state.uploads = ArmazemUploads()
+    app.state.faturas = ArmazemFaturas()
     app.state.hoje_fn = date.today  # relógio injetável (testes)
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
     for r in routers:

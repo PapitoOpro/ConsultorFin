@@ -53,8 +53,8 @@ pytest
 
 ## Limitações conhecidas da v0.1
 - Itaú CSV e OFX (conta corrente) têm detecção automática; outros formatos via mapeamento manual.
-- OFC, PDF e faturas de cartão (inclusive OFX de cartão) não são suportados: o app recusa com uma mensagem.
-- Pagamento de fatura conta como despesa até a v0.2.
+- OFC e OFX de cartão de crédito não são suportados: o app recusa com uma mensagem. Faturas de cartão entram em PDF (Itaú, Porto e Mercado Pago), só pelo painel; PDF escaneado (imagem) não é lido.
+- Pagamento de fatura casado com uma fatura importada não conta como despesa (as compras contam pelos itens da fatura). Sem casar, continua contando como despesa.
 - Os links "Ver no extrato" do Início são aproximados.
 - Linhas idênticas no mesmo dia em arquivos que cortam o dia ao meio podem ser chaveadas de forma diferente (exporte dias inteiros).
 - Só a importação mais recente de cada conta pode ser desfeita.

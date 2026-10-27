@@ -7,6 +7,8 @@ description: Importa um extrato bancário (OFX, CSV ou Excel) com simulação, c
 
 Escritas: só com o "sim" explícito do usuário. Nunca peça nem aceite senha ou acesso de banco; só o arquivo.
 
+**Fatura de cartão em PDF: só pelo painel.** O consultor recusa `.pdf`. A senha do PDF nunca pode passar pelo Claude: se o usuário trouxer uma fatura em PDF, não peça nem aceite a senha; use a skill `painel` e oriente: tela Importar, "Importar fatura do cartão (PDF)", escolher o arquivo, digitar a senha lá, conferir a prévia e confirmar. Depois, o consultor pode consultar com `.venv/Scripts/python -m app.consultor faturas` (lista) e `.venv/Scripts/python -m app.consultor faturas ver ID` (itens) e sugerir categorias (skill `categorizar`).
+
 1. Pergunte o caminho do arquivo (.ofx recomendado, ou .csv/.xlsx; até 5 MB) se não foi dado. No Itaú, o melhor é baixar o extrato da conta corrente em OFX. Arquivos OFC e OFX de cartão de crédito são recusados pelo app: mostre a mensagem do `erro` em palavras simples e peça o OFX da conta corrente.
 2. Rode `.venv/Scripts/python -m app.consultor contas`. Se não houver conta, pergunte nome, tipo (corrente, poupanca, cartao, carteira), saldo inicial (sempre com vírgula, ex. 2.148,08, nunca 2148.08) e a data desse saldo (início do extrato ou anterior); confirme e rode `.venv/Scripts/python -m app.consultor criar-conta --nome "Itaú CC" --tipo corrente --saldo-inicial "2.148,08" --data-saldo 2026-07-24`. Com mais de uma conta, pergunte qual usar (`id`).
 3. Simule: `.venv/Scripts/python -m app.consultor importar --arquivo "CAMINHO" --conta N`. Não grava nada. Mostre `total_lidos`, `novos`, `ignorados` (já existentes) e `erros[]` (linha e mensagem).

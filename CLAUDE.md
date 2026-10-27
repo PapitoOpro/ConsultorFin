@@ -16,8 +16,9 @@ Padrão: vale sempre que o usuário perguntar ou pedir algo sobre as próprias f
 - Rode sempre a partir da raiz do repositório, com o Python do ambiente do projeto: `.venv/Scripts/python -m app.consultor <subcomando>` (funciona no Git Bash e no PowerShell; em Linux/macOS use `.venv/bin/python`). A saída é um objeto JSON; os campos `*_centavos` são inteiros, os demais já vêm formatados (`saldo`, `data_br`).
 - Se a saída tiver `erro`, traduza em orientação prática; se tiver `aviso`, explique ao usuário o que significa (ex.: importado, mas a conferência de saldo falhou).
 - Para "últimos lançamentos" use `lancamentos --status compensados` (padrão: últimos 30 dias até hoje; previsões ficam em `vencimentos`/`projecao`; `--ate` mostra o futuro).
-- Consultas (`saldos`, `resumo`, `vencimentos`, `projecao`, `gastos`, `lancamentos`, `contas`, `categorias`) podem ser feitas à vontade.
+- Consultas (`saldos`, `resumo`, `vencimentos`, `projecao`, `gastos`, `lancamentos`, `faturas`, `contas`, `categorias`) podem ser feitas à vontade.
 - Escritas (`importar --confirmar`, `casar`, `categorizar`, `regra`, `pagar`, `criar-conta`) só a pedido explícito do usuário, depois de dizer o que será feito e receber o "sim". `importar` sem `--confirmar` só simula.
+- Faturas de cartão: `faturas [--conta ID]` lista e `faturas ver ID` mostra os itens (somente leitura). Fatura em PDF só se importa pelo painel (tela Importar): a senha do PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`. Em `gastos`, se `consumo` diferir de `saidas`, explique com `nota_totais` (categorias por data da compra; saídas por data do pagamento).
 - `resumo`, `vencimentos` e `projecao` também criam, uma única vez, os lançamentos estimados das contas fixas do período. Mencione isso só se o usuário perguntar.
 - Skills disponíveis: saldo, vencimentos, projecao, gastos, importar, categorizar, painel.
 
@@ -69,7 +70,7 @@ sincronização, mas **a v0.1 é 100% local**.
 |---|---|
 | Armazenamento | SQLite local (arquivo na pasta `data/`) |
 | Linguagem | Python 3.11+ |
-| Leitura de arquivos | pandas e openpyxl (CSV/Excel); OFX/OFC e PDF entram na v0.2 |
+| Leitura de arquivos | pandas e openpyxl (CSV/Excel); OFX; PDF de fatura de cartão (Itaú, Porto, Mercado Pago) só pelo painel; OFC não é suportado |
 | Visual | Estilo "Dark Fintech Premium": fundo escuro, cards arredondados, sombras suaves |
 | Idioma da interface | Português brasileiro |
 | Moeda e datas | R$ 1.234,56 e DD/MM/AAAA na tela; ISO (AAAA-MM-DD) no banco |
@@ -227,7 +228,8 @@ Pontos importantes:
 - `transferencia`: movimento entre contas do próprio usuário (ex.: PIX para o próprio
   nome). **Não conta** como receita nem despesa.
 - `pagamento_fatura`: pagamento de fatura de cartão a partir da conta. **Não conta**
-  como despesa, porque as compras já entram pela fatura (quando a v0.2 existir).
+  como despesa quando está casado com uma fatura importada (as compras entram pelos itens
+  da fatura). Sem casar, continua contando como despesa.
 
 **Extrato do Itaú (CSV), formato observado:**
 - Separador `;`, codificação Latin-1 (ISO-8859-1), finais de linha CRLF.
@@ -302,7 +304,8 @@ Ideias aproveitáveis:
 - Leitura de PDF: primeiro extração direta, OCR só se necessário (v0.2).
 - Identificação de banco pelo texto e de cartão pelos últimos dígitos (v0.2).
 - Tolerância de centavos para reconhecer a mesma compra parcelada (v0.2, projeções).
-- Fatura tratada como um único lançamento no caixa (v0.2).
+- Fatura tratada como um único lançamento no caixa (implementado: a fatura é um lançamento
+  pendente no cartão; seus itens, com categoria, ficam em `fatura_itens`).
 
 Não aproveitar: senha administrativa escrita no código, mensagens de depuração que
 imprimem valores financeiros e dependência de serviço externo para os dados.

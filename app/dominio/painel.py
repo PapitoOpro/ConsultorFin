@@ -81,7 +81,8 @@ class Categoria:
 def gastos_por_categoria(con: Any, ano: int, mes: int) -> list[Categoria]:
     """Despesas do mês agrupadas Categoria > Subcategoria > lançamentos (até 50 por
     subcategoria), maiores primeiro. Subcategorias somam na categoria-pai; lançamento direto
-    na categoria vai para a linha '(sem subcategoria)'. A soma dos totais = despesas_do_mes."""
+    na categoria vai para a linha '(sem subcategoria)'. A soma dos totais = consumo_do_mes
+    (itens de fatura pela data da compra; não é o caixa de `despesas_do_mes`)."""
     ini, fim, _ = _limites(ano, mes)
     raizes: dict[int | None, Categoria] = {}
     for r in painel.despesas_detalhadas(con, ini, fim):

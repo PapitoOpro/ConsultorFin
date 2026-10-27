@@ -5,7 +5,8 @@ import pytest
 
 from pathlib import Path
 
-from app.dominio.categorias import criar_subcategoria, despesas_do_mes, entradas_do_mes
+from app.dominio.categorias import (
+    consumo_do_mes, criar_subcategoria, despesas_do_mes, entradas_do_mes)
 from app.dominio.lancamentos import ErroLancamento, criar_lancamento_manual
 from app.dominio.painel import (
     comparativo_mensal, fluxo_caixa, formatar_variacao, gastos_por_categoria, interpretar_mes,
@@ -43,7 +44,7 @@ def test_gastos_por_categoria_soma_subcategorias_no_pai(con: sqlite3.Connection)
                                 valor_centavos=v, categoria_id=cat, compensado=True)
     g = gastos_por_categoria(con, 2026, 10)
     assert [(x.nome, x.total_centavos) for x in g] == [("Lazer e Entretenimento", 500)]
-    assert g[0].total_centavos == despesas_do_mes(con, 2026, 10)
+    assert g[0].total_centavos == consumo_do_mes(con, 2026, 10)
 
 
 def test_comparativo_mensal_janeiro(con: sqlite3.Connection) -> None:

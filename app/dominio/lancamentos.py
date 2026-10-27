@@ -56,6 +56,9 @@ def criar_lancamento_manual(
 POR_PAGINA = 50
 MAX_LOTE = 500
 TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura")
+TIPO_FATURA = "fatura"  # gerado pela importação de fatura; fora de TIPOS (não editável)
+TIPOS_FILTRO = (*TIPOS, TIPO_FATURA)  # o filtro aceita a fatura; a edição de tipo, não
+MSG_FATURA_SEM_CATEGORIA = "A linha da fatura não tem categoria: categorize os itens dela."
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 MSG_DATA_FUTURA = "A data do pagamento não pode ser no futuro."
@@ -69,7 +72,7 @@ class NaoEncontrado(ErroLancamento):
     """Registro inexistente (a rota responde 404)."""
 
 
-_ROTULOS_FEMININOS = frozenset({"Conta", "Categoria", "Página", "Linha"})
+_ROTULOS_FEMININOS = frozenset({"Conta", "Categoria", "Página", "Linha", "Fatura"})
 
 
 def interpretar_id(texto: str | None, rotulo: str = "Identificador") -> int:
@@ -125,7 +128,7 @@ class Filtros:
         cat = params.get("categoria_id", "").strip()
         tipo = params.get("tipo", "").strip()
         status = params.get("status", "").strip() or "todos"
-        if tipo and tipo not in TIPOS:
+        if tipo and tipo not in TIPOS_FILTRO:
             raise ErroLancamento("Tipo inválido.")
         if status not in STATUS:
             raise ErroLancamento("Status inválido.")
@@ -166,6 +169,10 @@ class LinhaExtrato:
     compensado: bool
     estimado: bool
     observacao: str | None
+    fatura_casada_id: int | None = None  # pagamento_fatura casado: fatura que ele pagou
+    fatura_id: int | None = None  # linha da fatura (tipo 'fatura'): id da fatura
+    fatura_paga: bool = False
+    fatura_qtd_itens: int = 0
 
 
 @dataclass(frozen=True)
@@ -189,9 +196,11 @@ def _criterios(f: Filtros) -> dict[str, Any]:
 
 def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
     """Extrato filtrado, ordenado por data. Totais: só compensados (entradas = tipo entrada;
-    saídas = saida + pagamento_fatura; transferência não conta); pendentes à parte.
+    saídas = saida + fatura + pagamento_fatura não casado; transferência não conta); pendentes
+    à parte.
     Saldo acumulado = saldo inicial da conta + compensados até a linha (independe do filtro).
-    Como no painel, contas de cartão ficam fora dos totais, salvo ao filtrar por uma delas."""
+    Como no painel, contas de cartão ficam fora dos totais (exceto a linha da fatura), salvo
+    ao filtrar por uma delas."""
     criterios = _criterios(filtros)
     t = repo.totais_extrato(con, **criterios, excluir_cartao=filtros.conta_id is None)
     conta = None if filtros.conta_id is None else repo_contas.obter(con, filtros.conta_id)
@@ -208,7 +217,11 @@ def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
         valor_centavos=int(r["valor_centavos"]),
         saldo_acumulado_centavos=None if r["saldo_acumulado"] is None else int(r["saldo_acumulado"]),
         tipo=r["tipo"], origem=r["origem"], compensado=bool(r["compensado"]),
-        estimado=bool(r["estimado"]), observacao=r["observacao"]) for r in rows]
+        estimado=bool(r["estimado"]), observacao=r["observacao"],
+        fatura_casada_id=None if r["fatura_casada_id"] is None else int(r["fatura_casada_id"]),
+        fatura_id=None if r["fatura_id"] is None else int(r["fatura_id"]),
+        fatura_paga=r["fatura_pagamento_id"] is not None,
+        fatura_qtd_itens=int(r["fatura_qtd_itens"] or 0)) for r in rows]
     entradas, saidas = int(t["entradas"]), int(t["saidas"])
     return PaginaLancamentos(
         linhas=linhas, total=total, pagina=pagina, paginas=paginas, entradas_centavos=entradas,
@@ -246,7 +259,8 @@ def _exigir_lancamento(con: Any, lancamento_id: int) -> Any:
 
 
 def alterar_categoria(con: Any, lancamento_id: int, categoria_id: int | None) -> None:
-    _exigir_lancamento(con, lancamento_id)
+    if _exigir_lancamento(con, lancamento_id)["tipo"] == TIPO_FATURA:
+        raise ErroLancamento(MSG_FATURA_SEM_CATEGORIA)
     _exigir_categoria(con, categoria_id)
     with transacao(con):
         repo.atualizar_categoria(con, [lancamento_id], categoria_id)
@@ -261,6 +275,8 @@ def categorizar_em_lote(con: Any, ids: Sequence[int], categoria_id: int) -> int:
     _exigir_categoria(con, categoria_id)
     if repo.contar_existentes(con, unicos) != len(unicos):
         raise NaoEncontrado("Algum lançamento selecionado não foi encontrado.")
+    if repo.contar_faturas(con, unicos):
+        raise ErroLancamento(MSG_FATURA_SEM_CATEGORIA)
     with transacao(con):
         return repo.atualizar_categoria(con, unicos, categoria_id)
 
@@ -268,6 +284,8 @@ def categorizar_em_lote(con: Any, ids: Sequence[int], categoria_id: int) -> int:
 def alterar_tipo(con: Any, lancamento_id: int, tipo: str) -> None:
     """tipo: 'transferencia', 'pagamento_fatura' ou 'auto' (volta a entrada/saída pelo sinal)."""
     row = _exigir_lancamento(con, lancamento_id)
+    if row["tipo"] == TIPO_FATURA:
+        raise ErroLancamento("A linha da fatura não muda de tipo.")
     if tipo == "auto":
         novo = tipo_inicial(int(row["valor_centavos"]))
     elif tipo in ("transferencia", "pagamento_fatura"):

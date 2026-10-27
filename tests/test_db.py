@@ -472,3 +472,33 @@ def test_migracao_7_com_linhas_da_fixture_csv(tmp_path) -> None:
     assert len(set(chaves)) == 18
     assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
     c.close()
+
+
+# --- Migração v8: faturas de cartão -------------------------------------------------------------
+
+def test_migracao_v8_cria_tabelas(con: sqlite3.Connection) -> None:
+    assert {"faturas", "fatura_itens"} <= _tabelas(con)
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) >= 8
+
+
+def test_migracao_v8_a_partir_de_v7_populado(tmp_path) -> None:
+    c = conectar(tmp_path / "v7.db")
+    for numero in range(7):
+        c.execute("BEGIN")
+        MIGRACOES[numero](c)
+        c.execute(f"PRAGMA user_version = {numero + 1}")
+        c.execute("COMMIT")
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('cu', 'C', 'corrente')")
+    c.execute("INSERT INTO importacoes (arquivo_nome, arquivo_hash, conta_id, criado_em)"
+              " VALUES ('a.csv', 'h', 1, '2026-10-23T00:00:00')")
+    c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+              " chave_deduplicacao, origem, importacao_id) VALUES"
+              " ('lu', 1, '2026-10-01', 'X', -100, 'saida', 'k', 'importado', 1)")
+    c.commit()
+    migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert c.execute("SELECT descricao, valor_centavos FROM lancamentos").fetchone()[:] == ("X", -100)
+    assert c.execute("SELECT COUNT(*) FROM contas").fetchone()[0] == 1
+    assert c.execute("SELECT COUNT(*) FROM importacoes").fetchone()[0] == 1
+    assert {"faturas", "fatura_itens"} <= _tabelas(c)
+    c.close()

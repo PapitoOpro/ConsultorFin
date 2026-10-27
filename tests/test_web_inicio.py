@@ -10,7 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import conectar
-from app.dominio.categorias import criar_categoria, criar_subcategoria, despesas_do_mes
+from app.dominio.categorias import (
+    consumo_do_mes, criar_categoria, criar_subcategoria, despesas_do_mes)
 from app.dominio.lancamentos import criar_lancamento_manual
 from app.dominio.painel import formatar_variacao, variacao_percentual
 from app.dominio.parcelas import criar_parcelamento
@@ -300,7 +301,7 @@ def test_horizonte_invalido_400(cliente: TestClient, h: str) -> None:
         assert MSG_HOR in r.text
 
 
-def test_rosca_soma_igual_despesas_do_mes(cliente: TestClient, conta: int, db: Path) -> None:
+def test_rosca_soma_igual_consumo_do_mes(cliente: TestClient, conta: int, db: Path) -> None:
     mercado, lazer = _cat(db, "Alimentação"), _cat(db, "Lazer e Entretenimento")
     con = conectar(db)
     sub = criar_subcategoria(con, mercado, "Feira")
@@ -310,7 +311,7 @@ def test_rosca_soma_igual_despesas_do_mes(cliente: TestClient, conta: int, db: P
     _manual(db, conta, date(2026, 10, 11), "Cinema", -5000, True, lazer)
     d = cliente.get("/inicio/dados.json?mes=2026-10").json()
     con = conectar(db)
-    esperado = despesas_do_mes(con, 2026, 10)
+    esperado = consumo_do_mes(con, 2026, 10)
     con.close()
     assert sum(f["valor_centavos"] for f in d["rosca"]) == esperado
     por_nome = {f["nome"]: f["valor_centavos"] for f in d["rosca"]}
@@ -326,7 +327,7 @@ def test_rosca_top_n_com_outros(cliente: TestClient, conta: int, db: Path) -> No
     d = cliente.get("/inicio/dados.json?mes=2026-10").json()
     assert len(d["rosca"]) == 6 and d["rosca"][-1]["nome"] == "Outros"
     con = conectar(db)
-    assert sum(f["valor_centavos"] for f in d["rosca"]) == despesas_do_mes(con, 2026, 10)
+    assert sum(f["valor_centavos"] for f in d["rosca"]) == consumo_do_mes(con, 2026, 10)
     con.close()
 
 

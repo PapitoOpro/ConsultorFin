@@ -24,6 +24,9 @@ log = logging.getLogger(__name__)
 
 LIMITE_BYTES = 5 * 1024 * 1024
 EXTENSOES = {".csv", ".xlsx", ".ofx", ".ofc"}
+MSG_PDF = ("Faturas de cartão em PDF são importadas pelo painel web (tela Importar), porque a "
+           "senha do PDF não pode passar pelo Claude. Abra o painel, escolha o PDF e digite a "
+           "senha lá; depois use o comando faturas para consultar.")
 MSG_FORMATO = ("Formato do arquivo não reconhecido. Use o painel web (Importar) para mapear as "
                "colunas manualmente.")
 MSG_ILEGIVEL = "Não foi possível ler o arquivo. Verifique se é um arquivo OFX, CSV ou uma planilha Excel válida."
@@ -32,6 +35,8 @@ MSG_PADRAO_LONGO = "O padrão da regra pode ter no máximo 100 caracteres."
 
 def _ler_arquivo(caminho: str) -> tuple[str, bytes]:
     arq = Path(caminho)
+    if arq.suffix.lower() == ".pdf":
+        raise ErroLancamento(MSG_PDF)
     if arq.suffix.lower() not in EXTENSOES:
         raise ErroLancamento("Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx.")
     if not arq.is_file():

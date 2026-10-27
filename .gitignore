@@ -9,3 +9,6 @@ data/
 *.db
 .env
 .superpowers/
+Faturas Testes/
+*.pdf
+scripts/_saida/

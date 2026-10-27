@@ -294,20 +294,30 @@ def listar_extrato(
     compensado: bool | None, limite: int, deslocamento: int, decrescente: bool = False,
 ) -> list[sqlite3.Row]:
     """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
-    (saldo inicial + compensados até a linha; NULL nos pendentes)."""
+    (saldo inicial + compensados até a linha; NULL nos pendentes). fatura_casada_id: fatura
+    paga por esta linha (pagamento_fatura casado), senão NULL. fatura_id/fatura_pagamento_id/
+    fatura_qtd_itens: só na linha da fatura (tipo 'fatura')."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
                            compensado=compensado)
     return con.execute(
         _ACUMULADO
-        + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado"
+        + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado,"
+        " (SELECT f.id FROM faturas f WHERE f.pagamento_lancamento_id = l.id) AS fatura_casada_id,"
+        " fl.id AS fatura_id, fl.pagamento_lancamento_id AS fatura_pagamento_id,"
+        " (SELECT COUNT(*) FROM fatura_itens i WHERE i.fatura_id = fl.id) AS fatura_qtd_itens"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
         " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
         " LEFT JOIN acumulado ac ON ac.id = l.id"
+        " LEFT JOIN faturas fl ON fl.lancamento_id = l.id"
         + where + (" ORDER BY l.data DESC, l.id DESC" if decrescente else " ORDER BY l.data, l.id")
         + " LIMIT ? OFFSET ?",
         (*params, limite, deslocamento),
     ).fetchall()
+
+
+# pagamento_fatura casado com uma fatura (a linha da fatura é que conta como saída).
+_CASADO = "EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
 
 
 def totais_extrato(
@@ -315,19 +325,22 @@ def totais_extrato(
     categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
     compensado: bool | None, excluir_cartao: bool = False,
 ) -> sqlite3.Row:
-    """Contagem e somas do filtro. Entradas/saídas: só compensados (pagamento_fatura conta como
-    saída; transferência fora). Pendentes: soma dos não compensados, exceto transferências.
-    excluir_cartao: somas sem contas de tipo 'cartao' (a contagem inclui todas as linhas)."""
+    """Contagem e somas do filtro. Entradas/saídas: só compensados (linha da fatura e
+    pagamento_fatura sem casamento contam como saída; o pagamento casado com uma fatura não,
+    pois a fatura já conta; transferência fora). Pendentes: soma dos não compensados, exceto
+    transferências. excluir_cartao: somas sem as linhas de contas 'cartao', exceto a linha da
+    fatura (a contagem inclui todas as linhas)."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
                            compensado=compensado)
-    cartao = " AND c.tipo <> 'cartao'" if excluir_cartao else ""
+    cartao = " AND (c.tipo <> 'cartao' OR l.tipo = 'fatura')" if excluir_cartao else ""
     return con.execute(
         "SELECT COUNT(*) AS total,"
         " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo = 'entrada'" + cartao
         + "   THEN l.valor_centavos END), 0) AS entradas,"
-        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo IN ('saida', 'pagamento_fatura')"
-        + cartao + "   THEN l.valor_centavos END), 0) AS saidas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1"
+        "   AND l.tipo IN ('saida', 'pagamento_fatura', 'fatura')" + cartao
+        + f"   AND NOT {_CASADO} THEN l.valor_centavos END), 0) AS saidas,"
         " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'" + cartao
         + "   THEN l.valor_centavos END), 0) AS pendentes"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id" + where,
@@ -348,6 +361,15 @@ def atualizar_categoria(
 
 def atualizar_tipo(con: sqlite3.Connection, lancamento_id: int, tipo: str) -> None:
     con.execute("UPDATE lancamentos SET tipo = ? WHERE id = ?", (tipo, lancamento_id))
+
+
+def contar_faturas(con: sqlite3.Connection, ids: list[int]) -> int:
+    """Quantos dos ids são linhas de fatura (tipo 'fatura')."""
+    marcas = ",".join("?" for _ in ids)
+    row = con.execute(
+        f"SELECT COUNT(*) AS n FROM lancamentos WHERE tipo = 'fatura' AND id IN ({marcas})", ids
+    ).fetchone()
+    return int(row["n"])
 
 
 def contar_existentes(con: sqlite3.Connection, ids: list[int]) -> int:
@@ -376,4 +398,106 @@ def entradas_pendentes_ate(con: sqlite3.Connection, fim_exclusivo_iso: str) -> l
         "SELECT * FROM lancamentos WHERE compensado = 0 AND valor_centavos > 0 AND data < ?"
         " ORDER BY data, id",
         (fim_exclusivo_iso,),
+    ).fetchall()
+
+
+# --- Fatura de cartão ------------------------------------------------------------------------
+
+def inserir_fatura(con: sqlite3.Connection, *, conta_id: int, data: str, descricao: str,
+                   valor_centavos: int) -> int:
+    """Linha única da fatura: tipo/origem 'fatura', pendente, sem categoria. Chave fatura:<uuid>."""
+    novo = str(uuid.uuid4())
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, compensado) VALUES (?,?,?,?,?,'fatura',?,'fatura',0)",
+        (novo, conta_id, data, descricao, valor_centavos, f"fatura:{novo}"),
+    )
+    return int(cur.lastrowid)
+
+
+def atualizar_fatura(con: sqlite3.Connection, lancamento_id: int, *, data: str,
+                     valor_centavos: int) -> None:
+    con.execute("UPDATE lancamentos SET data = ?, valor_centavos = ? WHERE id = ?",
+                (data, valor_centavos, lancamento_id))
+
+
+def inserir_prevista(con: sqlite3.Connection, *, conta_id: int, data: str, descricao: str,
+                     valor_centavos: int, tipo: str, categoria_id: int | None,
+                     grupo_parcela_uuid: str, parcela_atual: int, parcela_total: int) -> int:
+    """Parcela futura prevista pela fatura: pendente, estimada, origem 'fatura_prevista'."""
+    novo = str(uuid.uuid4())
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " categoria_id, chave_deduplicacao, origem, compensado, estimado, grupo_parcela_uuid,"
+        " parcela_atual, parcela_total) VALUES (?,?,?,?,?,?,?,?,'fatura_prevista',0,1,?,?,?)",
+        (novo, conta_id, data, descricao, valor_centavos, tipo, categoria_id,
+         f"fatura_prevista:{novo}", grupo_parcela_uuid, parcela_atual, parcela_total),
+    )
+    return int(cur.lastrowid)
+
+
+def previstas_pendentes_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'fatura_prevista'"
+        " AND compensado = 0 ORDER BY data, id",
+        (conta_id,),
+    ).fetchall()
+
+
+def parcela_existe_no_grupo(con: sqlite3.Connection, grupo_uuid: str, parcela: int,
+                            excluir_fatura_id: int | None = None) -> bool:
+    """A parcela já existe no grupo: como lançamento (prevista/real) ou como item de fatura
+    (exceto os da fatura `excluir_fatura_id`)."""
+    return con.execute(
+        "SELECT 1 FROM lancamentos WHERE grupo_parcela_uuid = :g AND parcela_atual = :p"
+        " UNION ALL SELECT 1 FROM fatura_itens WHERE grupo_parcela_uuid = :g"
+        " AND parcela_atual = :p AND fatura_id <> COALESCE(:f, -1) LIMIT 1",
+        {"g": grupo_uuid, "p": parcela, "f": excluir_fatura_id},
+    ).fetchone() is not None
+
+
+def excluir_previstas_dos_grupos(con: sqlite3.Connection, grupos: list[str]) -> int:
+    """Apaga as previstas pendentes dos grupos (as reais e as pagas ficam)."""
+    if not grupos:
+        return 0
+    marcas = ",".join("?" * len(grupos))
+    cur = con.execute(
+        "DELETE FROM lancamentos WHERE origem = 'fatura_prevista' AND compensado = 0"
+        f" AND grupo_parcela_uuid IN ({marcas})",  # noqa: S608
+        grupos,
+    )
+    return cur.rowcount
+
+
+def pagamentos_fatura_livres(con: sqlite3.Connection, valor_centavos: int, data_min: str,
+                             data_max: str) -> list[sqlite3.Row]:
+    """Pagamentos de fatura compensados de contas não-cartão, com o valor exato, data em
+    [data_min, data_max] e ainda não casados com nenhuma fatura."""
+    return con.execute(
+        "SELECT l.* FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+        " WHERE l.tipo = 'pagamento_fatura' AND l.compensado = 1 AND c.tipo <> 'cartao'"
+        " AND l.valor_centavos = ? AND l.data >= ? AND l.data <= ?"
+        " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
+        " ORDER BY l.data, l.id",
+        (valor_centavos, data_min, data_max),
+    ).fetchall()
+
+
+def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,
+                               data_compensacao: str | None) -> int:
+    """Linha da fatura paga (data) ou de volta a pendente (None); devolve linhas alteradas."""
+    return con.execute(
+        "UPDATE lancamentos SET compensado = ?, data_compensacao = ? WHERE id = ?"
+        " AND tipo = 'fatura'",
+        (int(data_compensacao is not None), data_compensacao, lancamento_id),
+    ).rowcount
+
+
+def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Previstas pendentes cuja data já foi coberta por uma fatura importada da mesma conta
+    (vencimento >= data da prevista) sem que um item a tenha baixado."""
+    return con.execute(
+        "SELECT l.* FROM lancamentos l WHERE l.origem = 'fatura_prevista' AND l.compensado = 0"
+        " AND EXISTS (SELECT 1 FROM faturas f WHERE f.conta_id = l.conta_id"
+        "   AND f.data_vencimento >= l.data) ORDER BY l.data, l.id"
     ).fetchall()

@@ -11,14 +11,17 @@ def criar_conta(
     final_numero: str | None = None,
     saldo_inicial_centavos: int = 0,
     data_saldo_inicial: str | None = None,
+    commit: bool = True,
 ) -> int:
+    """commit=False: não confirma (a transação é do chamador)."""
     cur = con.execute(
         "INSERT INTO contas (uuid, nome, instituicao, tipo, final_numero,"
         " saldo_inicial_centavos, data_saldo_inicial) VALUES (?,?,?,?,?,?,?)",
         (str(uuid.uuid4()), nome, instituicao, tipo, final_numero,
          saldo_inicial_centavos, data_saldo_inicial),
     )
-    con.commit()
+    if commit:
+        con.commit()
     return int(cur.lastrowid)
 
 
