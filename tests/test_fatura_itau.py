@@ -194,3 +194,8 @@ def test_sinal_final_nao_usado_em_valor_positivo() -> None:
     esq = "Lançamentos: compras e saques\n05/01 LOJA X 4,00-\noutros CIDADE\nTotal dos lançamentos atuais -4,00"
     f = ParserItau().ler([PaginaTexto(1, texto, esq, "")])
     assert f.itens[0].tipo == "credito" and f.itens[0].valor_centavos == 400
+
+
+def test_itau_nao_reconhece_porto_nem_mercadopago() -> None:
+    for nome in ("porto", "mercadopago"):
+        assert not ParserItau().reconhece(paginas_de_fixture(nome))

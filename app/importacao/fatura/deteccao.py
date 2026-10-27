@@ -3,6 +3,7 @@
 from typing import Protocol
 
 from app.importacao.fatura.itau import ParserItau
+from app.importacao.fatura.mercadopago import ParserMercadoPago
 from app.importacao.fatura.modelo import EmissorNaoSuportado, FaturaLida
 from app.importacao.fatura.porto import ParserPorto
 from app.importacao.fatura.texto import PaginaTexto
@@ -20,6 +21,7 @@ class ParserFatura(Protocol):
 PARSERS: list[ParserFatura] = [
     ParserItau(),
     ParserPorto(),
+    ParserMercadoPago(),
 ]
 
 
@@ -27,4 +29,4 @@ def detectar(paginas: list[PaginaTexto]) -> ParserFatura:
     for parser in PARSERS:
         if parser.reconhece(paginas):
             return parser
-    raise EmissorNaoSuportado("Emissor da fatura não reconhecido (suportados: Itaú, Porto).")
+    raise EmissorNaoSuportado("Emissor da fatura não reconhecido (suportados: Itaú, Porto, Mercado Pago).")

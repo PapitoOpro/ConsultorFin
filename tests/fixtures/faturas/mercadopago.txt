@@ -1,0 +1,50 @@
+@@pagina
+Titular Ficticio
+Emitida em: 08/02/2027
+Essa é sua fatura de janeiro
+Total a pagar Vence em Limite total Saque total
+R$ 1.426,96 15/02/2027 R$ 5.000,00 R$ 100,00
+Parcelamento de fatura Pagamento mínimo
+Resumo da fatura
+Consumos de 09/01 a 08/02 R$ 1.429,96 Juros do mês anterior R$ 0,00
+Total da fatura de dezembro R$ 500,00
+Total R$ 1.426,96
+Pague sua fatura pelo app Mercado Pago
+@@pagina
+Titular Ficticio
+Vencimento: 15/02/2027
+Detalhes de consumo
+Movimentações na fatura
+Data Movimentações Valor em R$
+20/01 Pagamento da fatura de dezembro/2026 R$ 500,00
+22/01 Crédito concedido R$ 30,00
+05/02 Juros do rotativo R$ 12,00
+05/02 Juros de mora R$ 3,00
+05/02 Multa por atraso R$ 10,00
+05/02 IOF do rotativo R$ 2,00
+Cartão Visa [************0000]
+Data Movimentações Valor em R$
+10/12 LOJA ALFA Parcela 3 de 10 R$ 85,50
+12/01 LOJA BETA R$ 40,00
+@@pagina
+Titular Ficticio
+Vencimento: 15/02/2027
+Cartão Visa [************0000]
+Data Movimentações Valor em R$
+20/01 LOJA BETA R$ 40,00
+02/02 PADARIA GAMA R$ 1.234,56
+03/02 STREAMING DELTA R$ 29,90
+Total R$ 1.429,96
+@@pagina
+Titular Ficticio
+Vencimento: 15/02/2027
+Parcele a fatura do seu Cartão de Crédito Mercado Pago
+Total: R$ 1.500,00
+@@pagina
+Titular Ficticio
+Vencimento: 15/02/2027
+Datas importantes Pagamento total
+Melhor dia de compra 01/02/2027
+Fechamento da fatura 08/02/2027
+Próximo fechamento 08/03/2027
+Limite utilizado R$ 1.000,00

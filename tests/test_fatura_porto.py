@@ -72,3 +72,8 @@ def test_credito_negativo_nao_pagamento() -> None:
     f = ParserPorto().ler([PaginaTexto(1, txt, "", "")])
     cred = [i for i in f.itens if i.tipo == "credito"]
     assert len(cred) == 1 and cred[0].valor_centavos == 500
+
+
+def test_porto_nao_reconhece_outros_emissores() -> None:
+    for nome in ("itau_visa", "itau_mastercard", "itau_passai", "mercadopago"):
+        assert not ParserPorto().reconhece(paginas_de_fixture(nome))
