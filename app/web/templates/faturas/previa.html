@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "_macros.html" import alerta, etapas, opcoes_categoria %}
+{% from "_icones.html" import icone %}
+{% block titulo %}Prévia da fatura{% endblock %}
+{% block mensagens %}
+  {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
+{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Prévia da fatura do cartão</h1><p class="subtitulo">Confira os itens e as categorias. Nada é gravado até você confirmar.</p></div>
+{% endblock %}
+{% block conteudo %}
+{% set bloqueada = previa.situacao == "identica" %}
+{{ etapas(2 if bloqueada else 3) }}
+<div class="arquivo-info">
+  <span>{{ icone("file-text", 18) }}</span>
+  <span>Arquivo: <strong>{{ nome }}</strong></span>
+  <span>{{ f.emissor }}{% if f.bandeira %} · {{ f.bandeira }}{% endif %}{% if f.produto %} · {{ f.produto }}{% endif %} · final {{ f.final_cartao }}</span>
+</div>
+
+<div class="grade-kpi">
+  <div class="kpi kpi-compacto"><span class="rotulo">{{ icone("calendar-clock", 16) }}Vencimento</span><span class="numero">{{ f.data_vencimento | data_br }}</span>{% if f.data_fechamento %}<span class="secundario">Fechamento {{ f.data_fechamento | data_br }}</span>{% endif %}</div>
+  <div class="kpi kpi-compacto saida"><span class="rotulo">{{ icone("receipt", 16) }}Total impresso</span><span class="numero">{{ f.total_impresso_centavos | brl }}</span></div>
+  <div class="kpi kpi-compacto"><span class="rotulo">{{ icone("layers", 16) }}Itens</span><span class="numero">{{ f.itens | length }}</span>{% if previa.previstas_a_criar or previa.previstas_a_baixar %}<span class="secundario">{{ previa.previstas_a_criar }} parcelas futuras a prever · {{ previa.previstas_a_baixar }} previstas a baixar</span>{% endif %}</div>
+  <div class="kpi kpi-compacto"><span class="rotulo">{{ icone("credit-card", 16) }}Conta-cartão</span><span class="numero quebra">{% if conta %}{{ conta.nome }}{% else %}Nova{% endif %}</span></div>
+</div>
+
+{% set c = conferencia %}
+<section class="painel secao {{ 'secao-ok' if c.confere else 'secao-risco' }}" aria-label="Conferência dos totais">
+  <div class="painel-cabecalho"><div class="painel-titulo">
+    <h2>{{ icone("check-circle" if c.confere else "alert-triangle", 18) }}Conferência
+      {% if c.confere %}<span class="selo entrada">{{ icone("check", 12) }}&nbsp;Confere</span>{% else %}<span class="selo saida">{{ icone("alert-triangle", 12) }}&nbsp;Divergente</span>{% endif %}</h2>
+    <p class="subtitulo">Itens − créditos + encargos{% if c.ajustes %} + ajustes do resumo{% endif %} comparado ao total impresso na fatura.</p>
+  </div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Conferência dos totais"><table class="tabela-curta">
+    <tbody>
+      <tr><td>Itens (compras e serviços)</td><td class="valor">{{ c.itens | brl }}</td></tr>
+      <tr><td>− Créditos e estornos</td><td class="valor entrada">{{ c.creditos | brl }}</td></tr>
+      <tr><td>+ Encargos</td><td class="valor">{{ c.encargos | brl }}</td></tr>
+      {% if c.ajustes %}<tr><td>+ Ajustes do resumo</td><td class="valor">{{ c.ajustes | brl }}</td></tr>{% endif %}
+      <tr><th scope="row">= Calculado</th><td class="valor"><strong>{{ c.calculado | brl }}</strong></td></tr>
+      <tr><th scope="row">Total impresso</th><td class="valor"><strong>{{ c.impresso | brl }}</strong></td></tr>
+      {% if not c.confere %}<tr><th scope="row">Diferença</th><td class="valor saida"><strong>{{ c.diferenca | brl }}</strong></td></tr>{% endif %}
+    </tbody>
+  </table></div>
+  {% if f.avisos %}
+  <div class="mb-0">
+    {% for a in f.avisos %}{% call alerta() %}{{ a }}{% endcall %}{% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{% if bloqueada %}
+  {% call alerta() %}Esta fatura já foi importada. Nada a fazer.{% endcall %}
+{% elif previa.situacao == "substitui" %}
+  {% call alerta() %}Já existe uma fatura deste cartão com vencimento neste mês, com conteúdo diferente. Para importar, marque a opção de substituir abaixo; as categorias já escolhidas nos itens iguais são mantidas.{% endcall %}
+{% endif %}
+
+{% if not bloqueada %}<form method="post" action="/faturas/confirmar" data-carregando>
+<input type="hidden" name="token" value="{{ token }}">
+<section class="painel" aria-label="Conta-cartão">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Conta-cartão</h2></div></div>
+  {% if conta %}
+  <p class="mb-0">{{ icone("credit-card", 16) }} A fatura será lançada em <strong>{{ conta.nome }}</strong> <span class="secundario">(detectada pelo final {{ f.final_cartao }})</span>.</p>
+  {% else %}
+  <p class="campo-ajuda mb-2">{{ icone("info", 14) }} Nenhuma conta-cartão com final {{ f.final_cartao }}. Ela será criada com o nome <strong>{{ nome_sugerido }}</strong>.</p>
+  <label><input type="checkbox" name="criar_conta" value="1" required> Criar conta-cartão “{{ nome_sugerido }}”</label>
+  {% endif %}
+  {% if previa.situacao == "substitui" %}
+  <p class="mb-0"><label><input type="checkbox" name="substituir" value="1" required> Substituir a fatura existente deste mês</label></p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="painel" aria-label="Itens da fatura">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Itens da fatura</h2><p class="subtitulo">{% if bloqueada %}Itens lidos do arquivo.{% else %}Categoria sugerida pelas regras e pela categoria do banco; altere o que quiser.{% endif %}</p></div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
+    <thead><tr><th class="sec">Data</th><th>Descrição</th><th class="valor">Valor</th><th>Categoria</th></tr></thead>
+    <tbody>
+    {% for item, cat in linhas %}
+      <tr>
+        <td class="data-linha sec">{{ item.data | data_br }}</td>
+        <td class="quebra">{{ item.descricao }}{% if item.parcela_atual %} <span class="selo neutro">{{ item.parcela_atual }}/{{ item.parcela_total }}</span>{% endif %}{% if item.tipo != "compra" %} <span class="selo {{ 'entrada' if item.tipo == 'credito' else 'neutro' }}">{{ tipos.get(item.tipo, item.tipo) }}</span>{% endif %}<span class="mob-info">{{ item.data | data_br }}{% if item.final_cartao and item.final_cartao != f.final_cartao %} · final {{ item.final_cartao }}{% endif %}</span></td>
+        <td class="valor {{ 'saida' if item.valor_centavos < 0 else 'entrada' }}">{{ item.valor_centavos | brl }}</td>
+        <td class="categoria">{% if bloqueada %}{{ rotulos.get(cat, "—") }}{% else %}<select id="cat-{{ loop.index }}" name="categoria" data-busca aria-label="Categoria do item {{ loop.index }}"><option value="">Sem categoria</option>{{ opcoes_categoria(categorias, cat, mostrar_tipo=true) }}</select>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+{% if bloqueada %}
+<p><a href="/importar" class="botao secundario">{{ icone("chevron-left", 16) }}Voltar para Importar</a></p>
+{% else %}
+<section class="painel" aria-label="Confirmar importação da fatura">
+  <div class="acoes-form">
+    <button type="submit">{{ icone("check", 16) }}Confirmar importação<span class="spinner" aria-hidden="true"></span></button>
+    <a href="/importar" class="botao secundario">Cancelar</a>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Importando, aguarde…</p>
+  </div>
+</section>
+</form>
+{% endif %}
+{% endblock %}

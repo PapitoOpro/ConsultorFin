@@ -54,6 +54,31 @@
   })();
 </script>
 
+<form method="post" action="/faturas/previa" enctype="multipart/form-data" class="painel" id="fatura" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar fatura do cartão (PDF)</h2><p class="subtitulo">Fatura em PDF do Itaú, Porto ou Mercado Pago. A senha, se o PDF tiver, só é usada para abrir o arquivo e não é guardada.</p></div></div>
+  {% if fatura.erro %}{% call alerta("erro") %}{{ fatura.erro }}{% endcall %}{% endif %}
+  <div class="grade-form">
+    {% if fatura.token %}
+    <input type="hidden" name="token" value="{{ fatura.token }}">
+    <div class="campo arquivo-info"><span>{{ icone("file-text", 18) }}</span><span>Arquivo: <strong>{{ fatura.nome }}</strong></span></div>
+    {% else %}
+    <div class="campo">
+      <label for="fatura-arquivo">Arquivo da fatura (.pdf, até 5 MB)</label>
+      <input id="fatura-arquivo" name="arquivo" type="file" accept=".pdf,application/pdf" required>
+    </div>
+    {% endif %}
+    <div class="campo">
+      <label for="fatura-senha">Senha do PDF{% if not fatura.pedir_senha %} (se tiver){% endif %}</label>
+      <input id="fatura-senha" name="senha" type="password" autocomplete="off" spellcheck="false"{% if fatura.pedir_senha %} required autofocus{% endif %}>
+    </div>
+  </div>
+  <div class="acoes-form">
+    <button type="submit">{{ icone("search", 16) }}Ver prévia da fatura<span class="spinner" aria-hidden="true"></span></button>
+    {% if fatura.token %}<a href="/importar" class="botao secundario">Escolher outro arquivo</a>{% endif %}
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo a fatura, aguarde…</p>
+  </div>
+</form>
+
 {% set token = none %}{% set sugestao = none %}
 <div class="grade-forms">
 {% include "importar/_form_conta.html" %}

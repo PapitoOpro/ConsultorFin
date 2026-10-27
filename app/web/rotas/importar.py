@@ -47,11 +47,12 @@ def _render(request: Request, nome: str, ctx: dict[str, Any], status: int = 200)
 
 
 def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: str | None = None,
-                    status: int = 200) -> HTMLResponse:
+                    status: int = 200, fatura: dict[str, Any] | None = None) -> HTMLResponse:
+    """`fatura`: estado do formulário de fatura em PDF (erro, envio guardado, pedir senha)."""
     return _render(request, "index.html", {
         "contas": contas.listar(con), "historico": importacoes.listar_com_conta(con),
         "desfaziveis": importacoes.ids_ultimas_ativas(con),
-        "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso}, status)
+        "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso, "fatura": fatura or {}}, status)
 
 
 def _ler_upload(arquivo: UploadFile) -> tuple[str, bytes]:
@@ -160,7 +161,10 @@ def pagina(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
 def previa(request: Request, con: Any = Depends(get_con),
            arquivo: UploadFile | None = File(None), token: str = Form(""),
            conta_id: str = Form(""), mapa_data: str = Form(""), mapa_descricao: str = Form(""),
-           mapa_valor: str = Form("")) -> HTMLResponse:
+           mapa_valor: str = Form("")) -> Response:
+    if arquivo is not None and Path(arquivo.filename or "").suffix.lower() == ".pdf":
+        from app.web.rotas.faturas import previa_de_upload  # import local: evita ciclo
+        return previa_de_upload(request, con, arquivo, "", "")
     try:
         if arquivo is not None and arquivo.filename:
             nome, conteudo = _ler_upload(arquivo)
