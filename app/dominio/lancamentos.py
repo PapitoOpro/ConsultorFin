@@ -10,7 +10,7 @@ from app.db import transacao
 from app.dominio.categorias import aplicar_regras, criar_regra
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
 from app.dominio.normalizacao import hash_chave_legada, hash_chave_v2, normalizar_descricao
-from app.dominio.parcelas import MSG_FATURA_PAGAR, marcar_pago
+from app.dominio.parcelas import MSG_FATURA_PAGAR, TIPO_FATURA, marcar_pago
 from app.dominio.recorrentes import confirmar_recorrente
 from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
@@ -56,7 +56,6 @@ def criar_lancamento_manual(
 POR_PAGINA = 50
 MAX_LOTE = 500
 TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura")
-TIPO_FATURA = "fatura"  # gerado pela importação de fatura; fora de TIPOS (não editável)
 TIPOS_FILTRO = (*TIPOS, TIPO_FATURA)  # o filtro aceita a fatura; a edição de tipo, não
 MSG_FATURA_SEM_CATEGORIA = "A linha da fatura não tem categoria: categorize os itens dela."
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}

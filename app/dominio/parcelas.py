@@ -9,7 +9,7 @@ from app.repo import lancamentos as repo
 
 MSG_TOTAL_MENOR_QUE_PARCELAS = "O valor total deve ser de pelo menos R$ 0,01 por parcela."
 MSG_FATURA_PAGAR = "Fatura de cartão: case o pagamento do banco com a fatura, em Lançamentos."
-TIPO_FATURA = "fatura"
+TIPO_FATURA = "fatura"  # gerado pela importação de fatura; fora de TIPOS (não editável)
 
 
 def dividir_em_parcelas(total_centavos: int, n: int) -> list[int]:

@@ -16,7 +16,7 @@
           {% if l.tipo == 'fatura' %}
           <p class="acao-titulo">Pagamento</p>
           <p class="secundario">Fatura de cartão: case o pagamento do banco com a fatura, em Lançamentos.</p>
-          <a class="botao secundario" href="/lancamentos?tipo=fatura">{{ icone("check", 16) }}Casar pagamento</a>
+          <a class="botao secundario" href="/lancamentos?tipo=fatura&amp;de={{ l.data[:7] }}-01&amp;ate={{ l.data | fim_do_mes }}">{{ icone("check", 16) }}Casar pagamento</a>
           {% else %}
           <form method="post" action="/contas-a-pagar/{{ l.id }}/pagar">
             <input type="hidden" name="horizonte" value="{{ horizonte }}">

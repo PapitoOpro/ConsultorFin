@@ -137,7 +137,10 @@ def test_web_contas_a_pagar_sem_botao_pagar_na_fatura(cliente: TestClient, db_we
     html = cliente.get("/contas-a-pagar").text
     assert f'id="lancamento-{lid}"' in html
     assert f'action="/contas-a-pagar/{lid}/pagar"' not in html
-    assert 'href="/lancamentos?tipo=fatura"' in html and "Casar pagamento" in html
+    link = "/lancamentos?tipo=fatura&amp;de=2026-10-01&amp;ate=2026-10-31"
+    assert f'href="{link}"' in html and "Casar pagamento" in html
+    destino = cliente.get(link.replace("&amp;", "&")).text  # mês do vencimento (10/10)
+    assert f'id="lancamento-{lid}"' in destino
 
 
 def test_web_contas_a_pagar_recusa_pagar_fatura(cliente: TestClient, db_web: Path) -> None:
