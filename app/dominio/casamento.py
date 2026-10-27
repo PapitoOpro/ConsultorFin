@@ -10,6 +10,7 @@ from functools import lru_cache
 from typing import Any
 
 from app.db import transacao
+from app.dominio.parcelas import MSG_FATURA_PAGAR, TIPO_FATURA
 from app.repo import lancamentos, recorrentes
 
 JANELA_DIAS = 10
@@ -197,6 +198,8 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
         pend = lancamentos.obter(con, pendente_id)
         if pend is None:
             raise ValueError(f"Lançamento pendente {pendente_id} não encontrado.")
+        if pend["tipo"] == TIPO_FATURA:
+            raise ValueError(MSG_FATURA_PAGAR)
         linha = lancamentos.obter(con, lancamento_id)
         if linha is None:
             raise ValueError(f"Linha importada {lancamento_id} não encontrada.")

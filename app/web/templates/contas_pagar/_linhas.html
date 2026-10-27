@@ -13,6 +13,11 @@
       <td class="acoes">
         <details class="linha-acoes"><summary title="Ações do vencimento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
          <div class="linha-acoes-painel">
+          {% if l.tipo == 'fatura' %}
+          <p class="acao-titulo">Pagamento</p>
+          <p class="secundario">Fatura de cartão: case o pagamento do banco com a fatura, em Lançamentos.</p>
+          <a class="botao secundario" href="/lancamentos?tipo=fatura">{{ icone("check", 16) }}Casar pagamento</a>
+          {% else %}
           <form method="post" action="/contas-a-pagar/{{ l.id }}/pagar">
             <input type="hidden" name="horizonte" value="{{ horizonte }}">
             <p class="acao-titulo">Pagamento</p>
@@ -20,6 +25,7 @@
             <input type="date" name="data" value="{{ hoje }}" aria-label="Data do pagamento" required>
             <button type="submit">{{ icone("check", 16) }}{{ 'Confirmar valor e pagar' if l.recorrente_id else 'Marcar como pago' }}</button>
           </form>
+          {% endif %}
           {% if l.recorrente_id %}
           <form method="post" action="/contas-a-pagar/{{ l.id }}/pular">
             <input type="hidden" name="horizonte" value="{{ horizonte }}">

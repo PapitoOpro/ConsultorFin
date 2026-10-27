@@ -10,7 +10,7 @@ from app.db import transacao
 from app.dominio.categorias import aplicar_regras, criar_regra
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
 from app.dominio.normalizacao import hash_chave_legada, hash_chave_v2, normalizar_descricao
-from app.dominio.parcelas import marcar_pago
+from app.dominio.parcelas import MSG_FATURA_PAGAR, marcar_pago
 from app.dominio.recorrentes import confirmar_recorrente
 from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
@@ -312,6 +312,8 @@ def excluir_manual(con: Any, lancamento_id: int) -> None:
 def pagar_pendente(con: Any, lancamento_id: int, valor_real_centavos: int | None,
                    data_pagamento: date, *, hoje: date) -> None:
     row = _exigir_lancamento(con, lancamento_id)
+    if row["tipo"] == TIPO_FATURA:
+        raise ErroLancamento(MSG_FATURA_PAGAR)
     if row["compensado"]:
         raise ErroLancamento("Este lançamento já está compensado; não é possível pagar de novo.")
     if data_pagamento > hoje:

@@ -10,7 +10,9 @@ from app.dominio.lancamentos import (
     MSG_DATA_FUTURA, ErroLancamento, NaoEncontrado, interpretar_data, interpretar_id,
 )
 from app.dominio.parcelas import (
+    MSG_FATURA_PAGAR,
     MSG_TOTAL_MENOR_QUE_PARCELAS,
+    TIPO_FATURA,
     criar_parcelamento,
     editar_grupo_parcelas,
     excluir_grupo_parcelas,
@@ -147,6 +149,8 @@ def pagar(con: Any, lancamento_id: str, valor: str, data: str, hoje: date) -> st
     row = repo_lanc.obter(con, lid)
     if row is None:
         raise NaoEncontrado("Lançamento não encontrado.")
+    if row["tipo"] == TIPO_FATURA:
+        raise ErroLancamento(MSG_FATURA_PAGAR)
     if row["compensado"]:
         raise ErroLancamento("Este lançamento já está pago. Nada foi alterado.")
     dia = date.fromisoformat(interpretar_data(data))

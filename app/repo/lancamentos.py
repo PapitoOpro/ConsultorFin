@@ -137,9 +137,10 @@ def atualizar_parcela_total_do_grupo(
 
 
 def candidatos_casamento_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
-    """Pendentes e "pagos à mão" (compensados, não importados e sem importação) da conta."""
+    """Pendentes e "pagos à mão" (compensados, não importados e sem importação) da conta;
+    nunca a linha da fatura (ela só é paga casando o pagamento do banco)."""
     return con.execute(
-        "SELECT * FROM lancamentos WHERE conta_id = ? AND (compensado = 0"
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND tipo <> 'fatura' AND (compensado = 0"
         " OR (compensado = 1 AND origem <> 'importado' AND importacao_id IS NULL)) ORDER BY id",
         (conta_id,),
     ).fetchall()
