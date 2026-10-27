@@ -343,16 +343,26 @@ def _migracao_8(con: sqlite3.Connection) -> None:
         " final_cartao TEXT)"
     )
     con.execute("CREATE INDEX idx_fatura_itens_fatura ON fatura_itens(fatura_id)")
-    # Uma linha de fatura e um pagamento do banco pertencem a no máximo uma fatura.
-    con.execute("CREATE UNIQUE INDEX ux_faturas_lancamento ON faturas(lancamento_id)"
+
+
+def _migracao_9(con: sqlite3.Connection) -> None:
+    """Índices únicos parciais: uma linha de fatura e um pagamento do banco pertencem a no
+    máximo uma fatura. Duplicata existente (possível na v8) aborta antes de criar."""
+    for coluna in ("lancamento_id", "pagamento_lancamento_id"):
+        repetido = con.execute(
+            f"SELECT 1 FROM faturas WHERE {coluna} IS NOT NULL"  # noqa: S608 - coluna fixa
+            f" GROUP BY {coluna} HAVING COUNT(*) > 1 LIMIT 1").fetchone()
+        if repetido is not None:
+            raise RuntimeError(f"Migração v9: {coluna} repetido em faturas; nada foi alterado.")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_faturas_lancamento ON faturas(lancamento_id)"
                 " WHERE lancamento_id IS NOT NULL")
-    con.execute("CREATE UNIQUE INDEX ux_faturas_pagamento ON faturas(pagamento_lancamento_id)"
-                " WHERE pagamento_lancamento_id IS NOT NULL")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_faturas_pagamento"
+                " ON faturas(pagamento_lancamento_id) WHERE pagamento_lancamento_id IS NOT NULL")
 
 
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
-    _migracao_7, _migracao_8,
+    _migracao_7, _migracao_8, _migracao_9,
 ]
 
 
