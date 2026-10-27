@@ -194,8 +194,73 @@ def test_sinal_final_nao_usado_em_valor_positivo() -> None:
     esq = "Lançamentos: compras e saques\n05/01 LOJA X 4,00-\noutros CIDADE\nTotal dos lançamentos atuais -4,00"
     f = ParserItau().ler([PaginaTexto(1, texto, esq, "")])
     assert f.itens[0].tipo == "credito" and f.itens[0].valor_centavos == 400
+    assert f.conferencia().confere
 
 
 def test_itau_nao_reconhece_porto_nem_mercadopago() -> None:
     for nome in ("porto", "mercadopago"):
         assert not ParserItau().reconhece(paginas_de_fixture(nome))
+
+
+def _sintetica(esq: str, total: str = "10,00", direita: str = "") -> FaturaLida:
+    texto = "\n".join([
+        "Banco Itaú S.A. Itaú Cartões Vencimento: 10/02/2027",
+        "Cartão 4000.XXXX.XXXX.0001",
+        f"Total desta fatura {total}",
+    ])
+    return ParserItau().ler([PaginaTexto(1, texto, esq, direita)])
+
+
+def test_fim_so_no_inicio_da_linha() -> None:
+    esq = "\n".join([
+        "Lançamentos: compras e saques",
+        "05/01 LOJA COMPRAS PARCELADAS 6,00",
+        "outros CIDADE",
+        "06/01 LOJA DOIS 4,00",
+        "outros CIDADE",
+        "L Total dos lançamentos atuais 10,00",
+        "Compras parceladas - próximas faturas",
+        "07/01 LOJA FUTURA 02/03 9,00",
+    ])
+    f = _sintetica(esq)
+    assert [i.descricao for i in f.itens] == ["LOJA COMPRAS PARCELADAS", "LOJA DOIS"]
+    assert f.conferencia().confere
+
+
+def test_sem_lancamentos_gera_aviso() -> None:
+    f = _sintetica("Texto sem seção de lançamentos")
+    assert f.itens == []
+    assert f.avisos == ["Nenhum lançamento lido na fatura: confira o arquivo."]
+
+
+def test_iof_zerado_nao_vira_item() -> None:
+    esq = "\n".join([
+        "Lançamentos internacionais",
+        "05/01 LOJA INTL 10,00",
+        "Repasse de IOF em R$ 0,00",
+        "Total lançamentos inter. em R$ 10,00",
+        "L Total dos lançamentos atuais 10,00",
+    ])
+    f = _sintetica(esq)
+    assert _tipos(f) == ["internacional"]
+    assert f.conferencia().confere
+
+
+def test_cartao_adicional_tem_final_proprio() -> None:
+    esq = "\n".join([
+        "Lançamentos: compras e saques",
+        "TITULAR TESTE",
+        "05/01 LOJA TITULAR 6,00",
+        "outros CIDADE",
+        "Lançamentos no cartão (final 0001) 6,00",
+        "ADICIONAL TESTE (final 0009)",
+        "06/01 LOJA ADICIONAL 4,00",
+        "outros CIDADE",
+        "Lançamentos no cartão (final 0009) 4,00",
+        "L Total dos lançamentos atuais 10,00",
+    ])
+    f = _sintetica(esq)
+    assert [(i.descricao, i.final_cartao) for i in f.itens] == [
+        ("LOJA TITULAR", "0001"), ("LOJA ADICIONAL", "0009")]
+    assert f.final_cartao == "0001"
+    assert f.conferencia().confere
