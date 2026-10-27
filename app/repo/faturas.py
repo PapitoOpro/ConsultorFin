@@ -107,3 +107,19 @@ def marcar_pagamento(con: sqlite3.Connection, fatura_id: int,
                      lancamento_id: int | None) -> None:
     con.execute("UPDATE faturas SET pagamento_lancamento_id = ? WHERE id = ?",
                 (lancamento_id, fatura_id))
+
+
+def contar_itens(con: sqlite3.Connection, ids: list[int]) -> int:
+    if not ids:
+        return 0
+    marcas = ",".join("?" * len(ids))
+    row = con.execute(
+        f"SELECT COUNT(*) AS n FROM fatura_itens WHERE id IN ({marcas})", ids  # noqa: S608
+    ).fetchone()
+    return int(row["n"])
+
+
+def atualizar_vencimento(con: sqlite3.Connection, fatura_id: int, data_vencimento: str,
+                         data_fechamento: str | None) -> None:
+    con.execute("UPDATE faturas SET data_vencimento = ?, data_fechamento = ? WHERE id = ?",
+                (data_vencimento, data_fechamento, fatura_id))

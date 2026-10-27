@@ -81,3 +81,60 @@ def test_lancamento_pagamento_totais_listar(con: sqlite3.Connection) -> None:
         1, 2, 3, "h2", "b.pdf")
     assert len(repo.listar(con)) == 1 and len(repo.listar(con, conta)) == 1
     assert repo.listar(con, conta + 1) == []
+
+
+def test_lancamento_da_fatura_e_previstas(con: sqlite3.Connection) -> None:
+    from app.repo import lancamentos as repo_l
+
+    conta = _conta(con)
+    lid = repo_l.inserir_fatura(con, conta_id=conta, data="2026-10-10", descricao="Fatura X",
+                                valor_centavos=-900)
+    r = repo_l.obter(con, lid)
+    assert (r["tipo"], r["origem"], r["compensado"], r["data_compensacao"], r["categoria_id"]) == (
+        "fatura", "fatura", 0, None, None)
+    assert str(r["chave_deduplicacao"]).startswith("fatura:")
+    repo_l.atualizar_fatura(con, lid, data="2026-10-11", valor_centavos=-1000)
+    assert (repo_l.obter(con, lid)["data"], repo_l.obter(con, lid)["valor_centavos"]) == (
+        "2026-10-11", -1000)
+    p = repo_l.inserir_prevista(con, conta_id=conta, data="2026-11-10", descricao="TV",
+                                valor_centavos=-500, tipo="saida", categoria_id=None,
+                                grupo_parcela_uuid="g1", parcela_atual=2, parcela_total=3)
+    prev = repo_l.obter(con, p)
+    assert (prev["origem"], prev["estimado"], prev["compensado"]) == ("fatura_prevista", 1, 0)
+    assert [int(x["id"]) for x in repo_l.previstas_pendentes_da_conta(con, conta)] == [p]
+    assert repo_l.previstas_pendentes_da_conta(con, conta + 1) == []
+    assert repo_l.parcela_existe_no_grupo(con, "g1", 2)
+    assert not repo_l.parcela_existe_no_grupo(con, "g1", 3)
+    assert repo_l.previstas_orfas(con) == []
+    _fatura(con, conta, "2026-11")  # vencimento 2026-11-10 >= data da prevista
+    assert [int(x["id"]) for x in repo_l.previstas_orfas(con)] == [p]
+    assert repo_l.excluir_previstas_dos_grupos(con, []) == 0
+    assert repo_l.excluir_previstas_dos_grupos(con, ["g1"]) == 1
+
+
+def test_contar_itens_e_vencimento(con: sqlite3.Connection) -> None:
+    conta = _conta(con)
+    fid = _fatura(con, conta)
+    a = _item(con, fid, 1)
+    assert repo.contar_itens(con, [a, a + 99]) == 1
+    assert repo.contar_itens(con, []) == 0
+    repo.atualizar_vencimento(con, fid, "2026-10-12", None)
+    f = repo.obter(con, fid)
+    assert (f["data_vencimento"], f["data_fechamento"]) == ("2026-10-12", None)
+
+
+def test_categoria_por_nome_e_regras_ignoram_fatura(con: sqlite3.Connection) -> None:
+    from app.dominio.categorias import aplicar_regras, criar_categoria, criar_regra
+    from app.repo import categorias as repo_c
+    from app.repo import lancamentos as repo_l
+
+    cat = criar_categoria(con, "Ótica Inventada")
+    assert repo_c.id_por_nome(con, "  otica   INVENTADA ") == cat
+    assert repo_c.id_por_nome(con, "nada disso") is None
+    conta = _conta(con)
+    lid = repo_l.inserir_fatura(con, conta_id=conta, data="2026-10-10",
+                                descricao="Fatura Otica", valor_centavos=-1)
+    con.commit()
+    criar_regra(con, "OTICA", cat)
+    assert aplicar_regras(con) == 0
+    assert repo_l.obter(con, lid)["categoria_id"] is None

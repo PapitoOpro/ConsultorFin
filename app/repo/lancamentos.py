@@ -377,3 +377,76 @@ def entradas_pendentes_ate(con: sqlite3.Connection, fim_exclusivo_iso: str) -> l
         " ORDER BY data, id",
         (fim_exclusivo_iso,),
     ).fetchall()
+
+
+# --- Fatura de cartão ------------------------------------------------------------------------
+
+def inserir_fatura(con: sqlite3.Connection, *, conta_id: int, data: str, descricao: str,
+                   valor_centavos: int) -> int:
+    """Linha única da fatura: tipo/origem 'fatura', pendente, sem categoria. Chave fatura:<uuid>."""
+    novo = str(uuid.uuid4())
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, compensado) VALUES (?,?,?,?,?,'fatura',?,'fatura',0)",
+        (novo, conta_id, data, descricao, valor_centavos, f"fatura:{novo}"),
+    )
+    return int(cur.lastrowid)
+
+
+def atualizar_fatura(con: sqlite3.Connection, lancamento_id: int, *, data: str,
+                     valor_centavos: int) -> None:
+    con.execute("UPDATE lancamentos SET data = ?, valor_centavos = ? WHERE id = ?",
+                (data, valor_centavos, lancamento_id))
+
+
+def inserir_prevista(con: sqlite3.Connection, *, conta_id: int, data: str, descricao: str,
+                     valor_centavos: int, tipo: str, categoria_id: int | None,
+                     grupo_parcela_uuid: str, parcela_atual: int, parcela_total: int) -> int:
+    """Parcela futura prevista pela fatura: pendente, estimada, origem 'fatura_prevista'."""
+    novo = str(uuid.uuid4())
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " categoria_id, chave_deduplicacao, origem, compensado, estimado, grupo_parcela_uuid,"
+        " parcela_atual, parcela_total) VALUES (?,?,?,?,?,?,?,?,'fatura_prevista',0,1,?,?,?)",
+        (novo, conta_id, data, descricao, valor_centavos, tipo, categoria_id,
+         f"fatura_prevista:{novo}", grupo_parcela_uuid, parcela_atual, parcela_total),
+    )
+    return int(cur.lastrowid)
+
+
+def previstas_pendentes_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'fatura_prevista'"
+        " AND compensado = 0 ORDER BY data, id",
+        (conta_id,),
+    ).fetchall()
+
+
+def parcela_existe_no_grupo(con: sqlite3.Connection, grupo_uuid: str, parcela: int) -> bool:
+    return con.execute(
+        "SELECT 1 FROM lancamentos WHERE grupo_parcela_uuid = ? AND parcela_atual = ? LIMIT 1",
+        (grupo_uuid, parcela),
+    ).fetchone() is not None
+
+
+def excluir_previstas_dos_grupos(con: sqlite3.Connection, grupos: list[str]) -> int:
+    """Apaga as previstas pendentes dos grupos (as reais e as pagas ficam)."""
+    if not grupos:
+        return 0
+    marcas = ",".join("?" * len(grupos))
+    cur = con.execute(
+        "DELETE FROM lancamentos WHERE origem = 'fatura_prevista' AND compensado = 0"
+        f" AND grupo_parcela_uuid IN ({marcas})",  # noqa: S608
+        grupos,
+    )
+    return cur.rowcount
+
+
+def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Previstas pendentes cuja data já foi coberta por uma fatura importada da mesma conta
+    (vencimento >= data da prevista) sem que um item a tenha baixado."""
+    return con.execute(
+        "SELECT l.* FROM lancamentos l WHERE l.origem = 'fatura_prevista' AND l.compensado = 0"
+        " AND EXISTS (SELECT 1 FROM faturas f WHERE f.conta_id = l.conta_id"
+        "   AND f.data_vencimento >= l.data) ORDER BY l.data, l.id"
+    ).fetchall()

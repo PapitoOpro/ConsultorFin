@@ -143,6 +143,15 @@ def remover(con: sqlite3.Connection, categoria_id: int) -> bool:
     return cur.rowcount > 0
 
 
+def id_por_nome(con: sqlite3.Connection, nome: str) -> int | None:
+    """Categoria cujo nome casa (sem caixa, acento e espaços extras); raízes primeiro."""
+    row = con.execute(
+        "SELECT id FROM categorias WHERE nome_chave = ? ORDER BY pai_id IS NOT NULL, id LIMIT 1",
+        (chave_nome(nome),),
+    ).fetchone()
+    return None if row is None else int(row["id"])
+
+
 def inserir_regra(con: sqlite3.Connection, padrao: str, categoria_id: int, prioridade: int) -> int:
     cur = con.execute(
         "INSERT INTO regras_categoria (padrao, categoria_id, prioridade) VALUES (?,?,?)",
@@ -163,7 +172,8 @@ def listar_regras_ordenadas(con: sqlite3.Connection) -> list[tuple[str, int]]:
 def lancamentos_sem_categoria(
     con: sqlite3.Connection, importacao_id: int | None
 ) -> list[tuple[int, str]]:
-    sql = "SELECT id, descricao FROM lancamentos WHERE categoria_id IS NULL"
+    # A linha da fatura nunca tem categoria (quem tem são os itens).
+    sql = "SELECT id, descricao FROM lancamentos WHERE categoria_id IS NULL AND tipo <> 'fatura'"
     params: tuple[int, ...] = ()
     if importacao_id is not None:
         sql += " AND importacao_id = ?"
