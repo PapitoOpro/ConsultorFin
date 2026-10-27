@@ -1,63 +1,78 @@
 {% extends "base.html" %}
+{% from "_macros.html" import alerta, etapas %}
+{% from "_icones.html" import icone %}
 {% block titulo %}Importação concluída{% endblock %}
-{% block conteudo %}
-<p class="secundario">Arquivo: {{ nome }}</p>
-<div class="bloco">
-  <h2>Resultado</h2>
-  <p>{{ resumo.novos }} novos · {{ resumo.ignorados }} ignorados (já existiam) · {{ resumo.erros | length }} com erro</p>
-  {% for e in resumo.erros %}<div class="alerta">{{ e.mensagem }}</div>{% endfor %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Importação concluída</h1><p class="subtitulo">Resumo do que foi gravado e conferência do saldo.</p></div>
+<div class="cabecalho-acoes">
+  <a href="/lancamentos" class="botao secundario">{{ icone("receipt", 16) }}Ver lançamentos</a>
 </div>
+{% endblock %}
+{% block conteudo %}
+{{ etapas(4) }}
+<div class="arquivo-info"><span>{{ icone("file-text", 18) }}</span><span>Arquivo: <strong>{{ nome }}</strong></span></div>
+<section class="painel" aria-label="Resultado">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Resultado</h2></div></div>
+  <p class="resumo-selos">
+    <span class="selo entrada">{{ icone("check", 12) }}&nbsp;{{ resumo.novos }} novos</span>
+    <span class="selo neutro">{{ resumo.ignorados }} ignorados (já existiam)</span>
+    <span class="selo {{ 'saida' if resumo.erros | length else 'neutro' }}">{% if resumo.erros | length %}{{ icone("alert-triangle", 12) }}&nbsp;{% endif %}{{ resumo.erros | length }} com erro</span>
+  </p>
+  {% for e in resumo.erros %}{% call alerta("erro") %}{{ e.mensagem }}{% endcall %}{% endfor %}
+</section>
 
-<div class="bloco">
-  <h2>Conciliação de saldo</h2>
+<section class="painel" aria-label="Conciliação de saldo">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Conciliação de saldo</h2></div></div>
   {% if falha_conferencia %}
-    <div class="alerta">A importação foi concluída, mas não foi possível conferir o saldo nem procurar correspondências agora. Os lançamentos já estão gravados; confira em Lançamentos e em Contas a pagar.</div>
+    <div class="resultado-card aviso"><span class="resultado-icone">{{ icone("alert-triangle", 20) }}</span><div class="resultado-corpo"><p>A importação foi concluída, mas não foi possível conferir o saldo nem procurar correspondências agora. Os lançamentos já estão gravados; confira em Lançamentos e em Contas a pagar.</p></div></div>
   {% elif estimativa_circular %}
-    <p class="secundario">Saldo inicial estimado a partir deste arquivo; a conferência só passa a ter sentido nas próximas importações.</p>
+    <div class="resultado-card info"><span class="resultado-icone">{{ icone("info", 20) }}</span><div class="resultado-corpo"><p>Saldo inicial estimado a partir deste arquivo; a conferência só passa a ter sentido nas próximas importações.</p></div></div>
   {% elif informado %}
     {% if informado.diferenca_centavos == 0 %}
-    <p class="entrada">{{ texto_informado }}</p>
+    <div class="resultado-card sucesso"><span class="resultado-icone">{{ icone("check-circle", 20) }}</span><div class="resultado-corpo"><p class="entrada">{{ texto_informado }}</p></div></div>
     {% else %}
-    <div class="bloco">{{ texto_informado }}</div>
+    <div class="resultado-card aviso"><span class="resultado-icone">{{ icone("alert-triangle", 20) }}</span><div class="resultado-corpo"><p>{{ texto_informado }}</p></div></div>
     {% endif %}
   {% elif not tem_saldos %}
-    <p class="secundario">Este arquivo não traz saldos para conciliar.</p>
+    <div class="resultado-card info"><span class="resultado-icone">{{ icone("info", 20) }}</span><div class="resultado-corpo"><p>Este arquivo não traz saldos para conciliar.</p></div></div>
   {% elif conciliacao.ok %}
-    <p class="entrada">Saldo confere com o banco</p>
+    <div class="resultado-card sucesso"><span class="resultado-icone">{{ icone("check-circle", 20) }}</span><div class="resultado-corpo"><p class="entrada">Saldo confere com o banco</p></div></div>
   {% elif conciliacao.dias_comparados == 0 %}
-    <div class="alerta">Não foi possível conferir o saldo: nenhum saldo do extrato é posterior à data do saldo inicial da conta{% if data_saldo_inicial %} ({{ data_saldo_inicial | data_br }}){% endif %}.</div>
+    {% call alerta() %}Não foi possível conferir o saldo: nenhum saldo do extrato é posterior à data do saldo inicial da conta{% if data_saldo_inicial %} ({{ data_saldo_inicial | data_br }}){% endif %}.{% endcall %}
   {% else %}
-    <div class="alerta">
+    {% call alerta() %}
       <strong>Saldo não confere com o banco.</strong>
       Primeira divergência em {{ conciliacao.primeira_divergencia | data_br }}:
       Esperado <span class="valor">{{ conciliacao.esperado_centavos | brl }}</span>,
       Calculado <span class="valor">{{ conciliacao.calculado_centavos | brl }}</span>.
-    </div>
+    {% endcall %}
   {% endif %}
-</div>
+</section>
 
 {% if propostas %}
-<div class="bloco">
-  <h2>Propostas de casamento</h2>
-  <p class="secundario">Lançamentos pendentes que parecem corresponder a linhas do extrato. Nada é confirmado automaticamente.</p>
+<section class="painel secao secao-info" aria-label="Propostas de casamento">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("arrow-left-right", 18) }}Propostas de casamento</h2>
+    <p class="subtitulo">Lançamentos pendentes que parecem corresponder a linhas do extrato. Nada é confirmado automaticamente.</p></div></div>
   {% for p in propostas %}
-  <div class="bloco proposta">
-    <div class="grade">
+  <div class="proposta">
+    <div class="par">
       <div><div class="rotulo">Pendente</div>{{ p.pendente_descricao }}<br>
         <span class="secundario">{{ p.pendente_data | data_br }}</span> <span class="valor">{{ p.pendente_valor | brl }}</span></div>
+      <span class="seta" aria-hidden="true">{{ icone("arrow-right", 18) }}</span>
       <div><div class="rotulo">Extrato</div>{{ p.linha_descricao }}<br>
         <span class="secundario">{{ p.linha_data | data_br }}</span> <span class="valor">{{ p.linha_valor | brl }}</span></div>
     </div>
-    <form hx-post="/importar/casamento/confirmar" hx-target="closest .proposta" hx-swap="outerHTML"
+    <form hx-post="/importar/casamento/confirmar" hx-target="closest .proposta" hx-swap="outerHTML" hx-indicator="this"
           method="post" action="/importar/casamento/confirmar">
       <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
       <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
-      <button type="submit">Confirmar</button>
+      <button type="submit">{{ icone("check", 16) }}Confirmar</button>
+      <span class="spinner" aria-hidden="true"></span>
     </form>
   </div>
   {% endfor %}
-</div>
+</section>
 {% endif %}
 
-<a href="/importar" class="botao secundario">Voltar</a>
+<div><a href="/importar" class="botao secundario">{{ icone("chevron-left", 16) }}Voltar</a></div>
 {% endblock %}

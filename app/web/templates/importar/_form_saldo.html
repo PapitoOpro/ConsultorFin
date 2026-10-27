@@ -1,12 +1,13 @@
-<form method="post" action="/importar/conta/saldo" class="bloco">
-  <h2>Ajustar saldo inicial da conta</h2>
+{% from "_icones.html" import icone %}
+<form method="post" action="/importar/conta/saldo" class="painel">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Ajustar saldo inicial da conta</h2><p class="subtitulo">Corrija o saldo de partida para que o saldo calculado bata com o do banco.</p></div></div>
   {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
   {% if mapa %}
   <input type="hidden" name="mapa_data" value="{{ mapa.data }}">
   <input type="hidden" name="mapa_descricao" value="{{ mapa.descricao }}">
   <input type="hidden" name="mapa_valor" value="{{ mapa.valor }}">
   {% endif %}
-  <div class="grade">
+  <div class="grade-form">
     <div class="campo"><label for="ajuste_conta">Conta</label>
       <select id="ajuste_conta" name="conta_id">{% for c in contas %}<option value="{{ c.id }}"{% if c.id == conta_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}</select></div>
     <div class="campo"><label for="ajuste_saldo">Saldo inicial</label>
@@ -17,5 +18,5 @@
              value="{% if sugestao %}{{ sugestao[0] }}{% endif %}"></div>
   </div>
   {% include "importar/_sugestao_saldo.html" %}
-  <button type="submit">Ajustar saldo inicial</button>
+  <button type="submit">{{ icone("check", 16) }}Ajustar saldo inicial</button>
 </form>

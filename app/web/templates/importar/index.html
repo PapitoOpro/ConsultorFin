@@ -1,18 +1,23 @@
 {% extends "base.html" %}
-{% from "_macros.html" import estado_vazio %}
+{% from "_macros.html" import estado_vazio, alerta, etapas %}
+{% from "_icones.html" import icone %}
 {% block titulo %}Importar{% endblock %}
 {% block mensagens %}
-  {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
-  {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
+  {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
+  {% if aviso %}{% call alerta("info") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% block cabecalho_pagina %}
 <div class="cabecalho-titulo"><h1>Importar extrato</h1><p class="subtitulo">Envie um arquivo OFX, CSV ou Excel para lançar as movimentações.</p></div>
 {% endblock %}
 {% block conteudo %}
-<form method="post" action="/importar/previa" enctype="multipart/form-data" class="bloco">
+{{ etapas(1) }}
+<form method="post" action="/importar/previa" enctype="multipart/form-data" class="painel" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Enviar arquivo</h2><p class="subtitulo">Nada é gravado agora: você confere uma prévia antes de confirmar.</p></div></div>
   <label id="area" class="dropzone" for="arquivo">
+    <span class="dropzone-icone">{{ icone("upload", 24) }}</span>
     <strong>Arraste o extrato aqui</strong> ou clique para escolher
     <span class="secundario">OFX, CSV ou Excel (.ofx, .csv, .xlsx), até 5 MB</span>
+    <span class="arquivo-escolhido" id="arquivo-nome" aria-live="polite"></span>
   </label>
   <input id="arquivo" name="arquivo" type="file" accept=".ofx,.csv,.xlsx" required>
   <div class="campo">
@@ -22,11 +27,20 @@
       {% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
     </select>
   </div>
-  <button type="submit">Ver prévia</button>
+  <div class="acoes-form">
+    <button type="submit">{{ icone("search", 16) }}Ver prévia<span class="spinner" aria-hidden="true"></span></button>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo o arquivo, aguarde…</p>
+  </div>
 </form>
 <script>
   (function () {
     var area = document.getElementById("area"), input = document.getElementById("arquivo");
+    var nome = document.getElementById("arquivo-nome");
+    function mostrar() {
+      var f = input.files && input.files.length ? input.files[0].name : "";
+      nome.textContent = f ? "Arquivo selecionado: " + f : "";
+      area.classList.toggle("com-arquivo", !!f);
+    }
     ["dragenter", "dragover"].forEach(function (ev) {
       area.addEventListener(ev, function (e) { e.preventDefault(); area.classList.add("ativa"); });
     });
@@ -34,31 +48,34 @@
       area.addEventListener(ev, function (e) { e.preventDefault(); area.classList.remove("ativa"); });
     });
     area.addEventListener("drop", function (e) {
-      if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; }
+      if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; mostrar(); }
     });
+    input.addEventListener("change", mostrar);
   })();
 </script>
 
 {% set token = none %}{% set sugestao = none %}
+<div class="grade-forms">
 {% include "importar/_form_conta.html" %}
 {% if contas %}{% include "importar/_form_saldo.html" %}{% endif %}
+</div>
 
-<div class="bloco">
-  <h2>Histórico de importações</h2>
+<section class="painel" aria-label="Histórico de importações">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Histórico de importações</h2><p class="subtitulo">Importações anteriores; desfazer remove os lançamentos criados por ela.</p></div></div>
   {% if historico %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr><th>Arquivo</th><th>Conta</th><th>Período</th><th class="valor">Novos</th><th class="valor">Ignorados</th><th>Situação</th><th></th></tr></thead>
     <tbody>
     {% for i in historico %}
       <tr>
-        <td>{{ i.arquivo_nome }}</td>
-        <td>{{ i.conta_nome or "—" }}</td>
-        <td>{% if i.periodo_inicio %}{{ i.periodo_inicio | data_br }} a {{ i.periodo_fim | data_br }}{% else %}—{% endif %}</td>
+        <td class="quebra">{{ i.arquivo_nome }}</td>
+        <td class="conta">{{ i.conta_nome or "—" }}</td>
+        <td class="data-linha">{% if i.periodo_inicio %}{{ i.periodo_inicio | data_br }} a {{ i.periodo_fim | data_br }}{% else %}—{% endif %}</td>
         <td class="valor">{{ i.total_novos if i.total_novos is not none else 0 }}</td>
         <td class="valor">{{ i.total_ignorados if i.total_ignorados is not none else 0 }}</td>
-        <td>{{ "Desfeita" if i.desfeita else "Ativa" }}</td>
+        <td>{% if i.desfeita %}<span class="selo neutro">{{ icone("undo", 12) }}&nbsp;Desfeita</span>{% else %}<span class="selo entrada">{{ icone("check", 12) }}&nbsp;Ativa</span>{% endif %}</td>
         <td>{% if not i.desfeita and i.id in desfaziveis %}
-          <form method="post" action="/importar/{{ i.id }}/desfazer" onsubmit="return confirm('Desfazer esta importação? Os lançamentos importados por ela serão removidos e os casamentos, desfeitos.')"><button type="submit" class="secundario">Desfazer</button></form>
+          <form method="post" action="/importar/{{ i.id }}/desfazer" onsubmit="return confirm('Desfazer esta importação? Os lançamentos importados por ela serão removidos e os casamentos, desfeitos.')"><button type="submit" class="perigo">{{ icone("undo", 16) }}Desfazer</button></form>
         {% endif %}</td>
       </tr>
     {% endfor %}
@@ -67,5 +84,5 @@
   {% else %}
   {{ estado_vazio("Nenhuma importação ainda.", "upload") }}
   {% endif %}
-</div>
+</section>
 {% endblock %}

@@ -1,77 +1,96 @@
 {% extends "base.html" %}
+{% from "_macros.html" import alerta, etapas %}
+{% from "_icones.html" import icone %}
 {% block titulo %}Prévia da importação{% endblock %}
 {% block mensagens %}
-  {% if aviso %}<div class="bloco">{{ aviso }}</div>{% endif %}
+  {% if aviso %}{% call alerta("info") %}{{ aviso }}{% endcall %}{% endif %}
+{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Prévia da importação</h1><p class="subtitulo">Confira o que será importado. Nada é gravado até você confirmar.</p></div>
 {% endblock %}
 {% block conteudo %}
-<p class="secundario">Arquivo: {{ nome }}</p>
-{% if leitura and leitura.formato == "ofx" %}
-<p class="secundario">Formato: OFX{% if leitura.periodo %} · Período: {{ leitura.periodo[0] | data_br }} a {{ leitura.periodo[1] | data_br }}{% endif %}</p>
-{% endif %}
+{% set pode_confirmar = conta_id is not none and resumo and not ja_importado and leitura.linhas %}
+{{ etapas(3 if pode_confirmar else 2) }}
+<div class="arquivo-info">
+  <span>{{ icone("file-text", 18) }}</span>
+  <span>Arquivo: <strong>{{ nome }}</strong></span>
+  {% if leitura and leitura.formato == "ofx" %}
+  <span>Formato: OFX{% if leitura.periodo %} · Período: {{ leitura.periodo[0] | data_br }} a {{ leitura.periodo[1] | data_br }}{% endif %}</span>
+  {% endif %}
+</div>
 
 {% if not contas %}
-  <div class="alerta">Cadastre uma conta para continuar.</div>
+  {% call alerta() %}Cadastre uma conta para continuar.{% endcall %}
   {% include "importar/_form_conta.html" %}
 {% else %}
-<form method="post" action="/importar/previa" class="bloco">
+<form method="post" action="/importar/previa" class="painel">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Conta de destino</h2></div></div>
   <input type="hidden" name="token" value="{{ token }}">
   {% if mapa %}
   <input type="hidden" name="mapa_data" value="{{ mapa.data }}">
   <input type="hidden" name="mapa_descricao" value="{{ mapa.descricao }}">
   <input type="hidden" name="mapa_valor" value="{{ mapa.valor }}">
   {% endif %}
-  <div class="campo">
-    <label for="conta_id">Conta de destino</label>
-    <select id="conta_id" name="conta_id">
-      {% if conta_id is none %}<option value="" selected>Escolha a conta de destino</option>{% endif %}
-      {% for c in contas %}<option value="{{ c.id }}"{% if c.id == conta_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
-    </select>
-    {% if detectada %}<span class="secundario">Conta detectada pelo arquivo. Confirme ou altere.</span>{% endif %}
+  <div class="grade-form">
+    <div class="campo">
+      <label for="conta_id">Conta de destino</label>
+      <select id="conta_id" name="conta_id">
+        {% if conta_id is none %}<option value="" selected>Escolha a conta de destino</option>{% endif %}
+        {% for c in contas %}<option value="{{ c.id }}"{% if c.id == conta_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select>
+      {% if detectada %}<p class="campo-ajuda">{{ icone("info", 14) }} Conta detectada pelo arquivo. Confirme ou altere.</p>{% endif %}
+    </div>
+    <div class="campo"><button type="submit" class="secundario">{{ icone("check", 16) }}Atualizar conta</button></div>
   </div>
-  <button type="submit" class="secundario">Atualizar conta</button>
 </form>
 {% endif %}
 
-{% if ja_importado %}<div class="alerta">{{ ja_importado }}</div>{% endif %}
+{% if ja_importado %}{% call alerta() %}{{ ja_importado }}{% endcall %}{% endif %}
 {% if bloqueio %}
-  <div class="alerta">{{ bloqueio }}</div>
+  {% call alerta() %}{{ bloqueio }}{% endcall %}
   {% include "importar/_form_saldo.html" %}
 {% endif %}
 
 {% if resumo %}
-<div class="bloco">
-  <h2>Resumo</h2>
-  <p>{{ resumo.novos }} novos · {{ resumo.ignorados }} já existentes (ignorados) · {{ resumo.erros | length }} com erro</p>
-  <p class="secundario">{{ resumo.total_lidos }} linhas lidas. Nada foi gravado ainda.</p>
-</div>
+<section class="painel" aria-label="Resumo da prévia">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Resumo</h2><p class="subtitulo">{{ resumo.total_lidos }} linhas lidas. Nada foi gravado ainda.</p></div></div>
+  <p class="resumo-selos">
+    <span class="selo entrada">{{ icone("check", 12) }}&nbsp;{{ resumo.novos }} novos</span>
+    <span class="selo neutro">{{ resumo.ignorados }} já existentes (ignorados)</span>
+    <span class="selo {{ 'saida' if resumo.erros | length else 'neutro' }}">{% if resumo.erros | length %}{{ icone("alert-triangle", 12) }}&nbsp;{% endif %}{{ resumo.erros | length }} com erro</span>
+  </p>
+</section>
 {% elif contas and conta_id is none %}
-<div class="alerta">Escolha a conta de destino para ver o resumo.</div>
+{% call alerta() %}Escolha a conta de destino para ver o resumo.{% endcall %}
 {% endif %}
 
 {% if leitura.erros %}
-<div class="bloco">
-  <h2>Erros de leitura</h2>
-  {% for e in leitura.erros %}<div class="alerta">{{ e.mensagem }}</div>{% endfor %}
-</div>
+<section class="painel secao secao-risco" aria-label="Erros de leitura">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("alert-triangle", 18) }}Erros de leitura</h2><p class="subtitulo">Estas linhas não puderam ser lidas e serão ignoradas.</p></div></div>
+  {% for e in leitura.erros %}{% call alerta("erro") %}{{ e.mensagem }}{% endcall %}{% endfor %}
+</section>
 {% endif %}
 
-<div class="bloco">
-  <h2>Primeiras linhas</h2>
+<section class="painel" aria-label="Primeiras linhas">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Primeiras linhas</h2></div></div>
   {% if amostra %}
-  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
     <thead><tr><th>Data</th><th>Descrição</th><th class="valor">Valor</th></tr></thead>
     <tbody>
     {% for l in amostra %}
-      <tr><td>{{ l.data | data_br }}</td><td>{{ l.descricao }}</td>
+      <tr><td class="data-linha">{{ l.data | data_br }}</td><td class="quebra">{{ l.descricao }}</td>
           <td class="valor {{ 'saida' if l.valor_centavos < 0 else 'entrada' }}">{{ l.valor_centavos | brl }}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
-  {% else %}<p class="secundario">Nenhuma linha válida encontrada.</p>{% endif %}
-</div>
+  {% else %}
+  <div class="vazio vazio-compacto"><span class="vazio-icone">{{ icone("inbox", 20) }}</span><p>Nenhuma linha válida encontrada.</p></div>
+  {% endif %}
+</section>
 
-{% if conta_id is not none and resumo and not ja_importado and leitura.linhas %}
-<form method="post" action="/importar/confirmar" class="bloco">
+{% if pode_confirmar %}
+<form method="post" action="/importar/confirmar" class="painel" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Confirmar importação</h2><p class="subtitulo">Os lançamentos novos serão gravados na conta escolhida.</p></div></div>
   <input type="hidden" name="token" value="{{ token }}">
   <input type="hidden" name="conta_id" value="{{ conta_id }}">
   {% if mapa %}
@@ -79,9 +98,12 @@
   <input type="hidden" name="mapa_descricao" value="{{ mapa.descricao }}">
   <input type="hidden" name="mapa_valor" value="{{ mapa.valor }}">
   {% endif %}
-  {% if leitura.erros %}<p class="secundario">As linhas com erro serão ignoradas.</p>{% endif %}
-  <button type="submit">Confirmar importação</button>
-  <a href="/importar" class="botao secundario">Cancelar</a>
+  {% if leitura.erros %}<p class="campo-ajuda mb-3">{{ icone("info", 14) }} As linhas com erro serão ignoradas.</p>{% endif %}
+  <div class="acoes-form">
+    <button type="submit">{{ icone("check", 16) }}Confirmar importação<span class="spinner" aria-hidden="true"></span></button>
+    <a href="/importar" class="botao secundario">Cancelar</a>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Importando, aguarde…</p>
+  </div>
 </form>
 {% endif %}
 

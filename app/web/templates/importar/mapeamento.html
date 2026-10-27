@@ -1,17 +1,28 @@
 {% extends "base.html" %}
+{% from "_macros.html" import etapas %}
+{% from "_icones.html" import icone %}
 {% block titulo %}Mapeamento de colunas{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Mapeamento de colunas</h1><p class="subtitulo">Indique quais colunas do arquivo trazem data, descrição e valor.</p></div>
+{% endblock %}
 {% block conteudo %}
-<p class="secundario">Arquivo: {{ nome }}. Formato não reconhecido automaticamente: indique as colunas.
-  Valores no padrão brasileiro (1.234,56) e datas DD/MM/AAAA.</p>
-<div class="bloco">
+{{ etapas(1) }}
+<div class="arquivo-info">
+  <span>{{ icone("file-text", 18) }}</span>
+  <span>Arquivo: <strong>{{ nome }}</strong>. Formato não reconhecido automaticamente: indique as colunas.
+  Valores no padrão brasileiro (1.234,56) e datas DD/MM/AAAA.</span>
+</div>
+<section class="painel" aria-label="Amostra do arquivo">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Amostra do arquivo</h2></div></div>
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
     <thead><tr>{% for c in colunas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
     <tbody>{% for linha in amostra %}<tr>{% for v in linha %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody>
   </table></div>
-</div>
-<form method="post" action="/importar/previa" class="bloco">
+</section>
+<form method="post" action="/importar/previa" class="painel" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Colunas</h2></div></div>
   <input type="hidden" name="token" value="{{ token }}">
-  <div class="grade">
+  <div class="grade-form">
     {% for campo, rotulo in [("mapa_data", "Coluna da data"), ("mapa_descricao", "Coluna da descrição"), ("mapa_valor", "Coluna do valor")] %}
     <div class="campo"><label for="{{ campo }}">{{ rotulo }}</label>
       <select id="{{ campo }}" name="{{ campo }}" required>
@@ -24,6 +35,9 @@
         {% for c in contas %}<option value="{{ c.id }}"{% if c.id | string == conta_id | string %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
       </select></div>
   </div>
-  <button type="submit">Ver prévia</button>
+  <div class="acoes-form">
+    <button type="submit">{{ icone("search", 16) }}Ver prévia<span class="spinner" aria-hidden="true"></span></button>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo o arquivo, aguarde…</p>
+  </div>
 </form>
 {% endblock %}

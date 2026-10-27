@@ -604,3 +604,12 @@ td.desc .selo { margin-left: 6px; }
 td.conta { min-width: 130px; max-width: 200px; overflow-wrap: anywhere; }
 .tabela-larga td.acoes { vertical-align: top; }
 .radios > .rotulo-campo { flex-basis: 100%; }
+.resumo-selos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.resumo-selos .selo { margin: 0; padding: 2px 12px; font-size: 13px; }
+td.quebra { overflow-wrap: anywhere; max-width: 320px; }
+.dropzone { font-size: 14px; }
+.dropzone .dropzone-icone { display: grid; margin: 0 auto 12px; }
+td.quebra { min-width: 150px; }
+.arquivo-info > span:nth-child(2) { flex: 1 1 12ch; min-width: 0; }
+.tabela-rolavel table.tabela-curta { min-width: 0; }
+.tabela-curta td, .tabela-curta th { padding-left: 8px; padding-right: 8px; }
