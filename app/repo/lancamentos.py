@@ -294,13 +294,15 @@ def listar_extrato(
     compensado: bool | None, limite: int, deslocamento: int, decrescente: bool = False,
 ) -> list[sqlite3.Row]:
     """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
-    (saldo inicial + compensados até a linha; NULL nos pendentes)."""
+    (saldo inicial + compensados até a linha; NULL nos pendentes). fatura_casada_id: fatura
+    paga por esta linha (pagamento_fatura casado), senão NULL."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
                            compensado=compensado)
     return con.execute(
         _ACUMULADO
-        + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado"
+        + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado,"
+        " (SELECT f.id FROM faturas f WHERE f.pagamento_lancamento_id = l.id) AS fatura_casada_id"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
         " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
         " LEFT JOIN acumulado ac ON ac.id = l.id"
@@ -310,24 +312,31 @@ def listar_extrato(
     ).fetchall()
 
 
+# pagamento_fatura casado com uma fatura (a linha da fatura é que conta como saída).
+_CASADO = "EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
+
+
 def totais_extrato(
     con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
     categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
     compensado: bool | None, excluir_cartao: bool = False,
 ) -> sqlite3.Row:
-    """Contagem e somas do filtro. Entradas/saídas: só compensados (pagamento_fatura conta como
-    saída; transferência fora). Pendentes: soma dos não compensados, exceto transferências.
-    excluir_cartao: somas sem contas de tipo 'cartao' (a contagem inclui todas as linhas)."""
+    """Contagem e somas do filtro. Entradas/saídas: só compensados (linha da fatura e
+    pagamento_fatura sem casamento contam como saída; o pagamento casado com uma fatura não,
+    pois a fatura já conta; transferência fora). Pendentes: soma dos não compensados, exceto
+    transferências. excluir_cartao: somas sem as linhas de contas 'cartao', exceto a linha da
+    fatura (a contagem inclui todas as linhas)."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
                            compensado=compensado)
-    cartao = " AND c.tipo <> 'cartao'" if excluir_cartao else ""
+    cartao = " AND (c.tipo <> 'cartao' OR l.tipo = 'fatura')" if excluir_cartao else ""
     return con.execute(
         "SELECT COUNT(*) AS total,"
         " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo = 'entrada'" + cartao
         + "   THEN l.valor_centavos END), 0) AS entradas,"
-        " COALESCE(SUM(CASE WHEN l.compensado = 1 AND l.tipo IN ('saida', 'pagamento_fatura')"
-        + cartao + "   THEN l.valor_centavos END), 0) AS saidas,"
+        " COALESCE(SUM(CASE WHEN l.compensado = 1"
+        "   AND l.tipo IN ('saida', 'pagamento_fatura', 'fatura')" + cartao
+        + f"   AND NOT {_CASADO} THEN l.valor_centavos END), 0) AS saidas,"
         " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'" + cartao
         + "   THEN l.valor_centavos END), 0) AS pendentes"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id" + where,
