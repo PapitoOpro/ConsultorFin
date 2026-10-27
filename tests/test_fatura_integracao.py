@@ -16,12 +16,15 @@ from app.dominio import faturas as dom
 from app.dominio import faturas_pagamento as pag
 from app.dominio import lancamentos as dom_lanc
 from app.dominio.casamento import confirmar_casamento
-from app.dominio.categorias import despesas_do_mes
+from app.dominio.categorias import (
+    ErroCategoria, criar_categoria, criar_subcategoria, despesas_do_mes, remover_categoria,
+)
 from app.dominio.parcelas import marcar_pago
 from app.importacao.base import LinhaImportada, ResultadoLeitura
 from app.importacao.fatura.modelo import FaturaLida, ItemFatura
 from app.importacao.servico import desfazer_importacao, importar
 from app.main import create_app
+from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
 from app.repo import faturas as repo_faturas
 from app.repo import lancamentos as repo_lanc
@@ -229,3 +232,58 @@ def test_casamento_nao_apaga_linha_que_paga_fatura(con: sqlite3.Connection) -> N
     with pytest.raises(ValueError, match="pagamento de uma fatura"):
         confirmar_casamento(con, pend, lid)
     assert _situacao_fatura(con, r.fatura_id) == (lid, 1, "2026-10-09")
+
+
+# --- 3. categorias usadas por itens de fatura ------------------------------------------------
+
+def _duas_subcategorias(con: sqlite3.Connection) -> tuple[int, int]:
+    pai = criar_categoria(con, "Pai Teste", "saida")
+    return criar_subcategoria(con, pai, "Sub A"), criar_subcategoria(con, pai, "Sub B")
+
+
+def _cat_dos_itens(con: sqlite3.Connection) -> list[Any]:
+    return [r[0] for r in con.execute("SELECT categoria_id FROM fatura_itens ORDER BY id")]
+
+
+def test_uso_conta_itens_de_fatura(con: sqlite3.Connection) -> None:
+    a, _ = _duas_subcategorias(con)
+    _setup(con, [a])
+    assert repo_categorias.uso(con, a)["itens_fatura"] == 1
+
+
+def test_remover_categoria_de_item_sem_escolha_recusado(con: sqlite3.Connection) -> None:
+    a, _ = _duas_subcategorias(con)
+    _setup(con, [a])
+    with pytest.raises(ErroCategoria, match="1 item"):
+        remover_categoria(con, a)
+    assert _cat_dos_itens(con) == [a]
+
+
+def test_remover_categoria_de_item_substituir_por(con: sqlite3.Connection) -> None:
+    a, b = _duas_subcategorias(con)
+    _setup(con, [a])
+    assert remover_categoria(con, a, substituir_por=b)["itens_fatura"] == 1
+    assert _cat_dos_itens(con) == [b]
+
+
+def test_remover_categoria_de_item_deixar_sem(con: sqlite3.Connection) -> None:
+    a, _ = _duas_subcategorias(con)
+    _setup(con, [a])
+    assert remover_categoria(con, a, deixar_sem=True)["itens_fatura"] == 1
+    assert _cat_dos_itens(con) == [None]
+
+
+def test_web_excluir_categoria_de_item_mostra_contagem(cliente: TestClient, db_web: Path) -> None:
+    c = conectar(db_web)
+    try:
+        a, _ = _duas_subcategorias(c)
+        c.execute("UPDATE fatura_itens SET categoria_id = ?", (a,))
+        c.commit()
+    finally:
+        c.close()
+    html = cliente.get("/categorias?aba=saida").text
+    assert "1 item de fatura" in html
+    r = cliente.post(f"/categorias/{a}/excluir", data={"aba": "saida"})
+    assert r.status_code == 200 and "1 item de fatura" in r.text
+    r = cliente.post(f"/categorias/{a}/excluir", data={"aba": "saida", "acao": "sem"})
+    assert r.status_code == 200 and "Categoria excluída." in r.text

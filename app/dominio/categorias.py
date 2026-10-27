@@ -184,15 +184,16 @@ def mover_subcategoria(con: Any, categoria_id: int, novo_pai_id: int) -> None:
 
 
 def _descrever_uso(u: dict[str, int]) -> str:
-    return (f"{u['lancamentos']} lançamento(s), {u['recorrentes']} conta(s) fixa(s) e "
-            f"{u['regras']} regra(s) automática(s)")
+    return (f"{u['lancamentos']} lançamento(s), {u['recorrentes']} conta(s) fixa(s), "
+            f"{u['regras']} regra(s) automática(s) e {u['itens_fatura']} item(ns) de fatura")
 
 
 def remover_categoria(con: Any, categoria_id: int, substituir_por: int | None = None,
                       deixar_sem: bool = False) -> dict[str, int]:
     """Remove a categoria. Em uso, exige substituir_por (mesmo tipo) ou deixar_sem.
 
-    Retorna quantos lançamentos, recorrentes e regras foram reapontados/zerados/apagados."""
+    Retorna quantos lançamentos, recorrentes, regras e itens de fatura foram
+    reapontados/zerados/apagados."""
     if substituir_por is not None and deixar_sem:
         raise ErroCategoria("Escolha só uma opção: substituir por outra categoria ou deixar sem categoria.")
     with _escrita(con):
