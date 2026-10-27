@@ -1,6 +1,7 @@
 {% from "_macros.html" import opcoes_categoria %}
 {% from "_icones.html" import icone %}
 {% set fid = fatura.id %}
+<p id="itens-fatura-{{ fid }}-status" hx-swap-oob="innerHTML">{{ itens | length }} {{ "item carregado" if itens | length == 1 else "itens carregados" }}.</p>
 <form id="lote-fatura-{{ fid }}" method="post" action="/faturas/{{ fid }}/itens/categoria-lote" class="barra-lote fatura-lote">
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <div class="campo"><label for="lf-cat-{{ fid }}">Categorizar itens marcados em</label>

@@ -16,11 +16,13 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.dominio.faturas import (
-    FaturaDiferenteExistente, FaturaJaImportada, PreviaFatura, RegistroNaoEncontrado,
+    ErroFatura, FaturaDiferenteExistente, FaturaJaImportada, PreviaFatura, RegistroNaoEncontrado,
     alterar_categoria_item, categorizar_itens_da_fatura, detalhe, importar_fatura, nome_cartao,
     preparar_previa,
 )
-from app.dominio.faturas_pagamento import confirmar_pagamento, desfazer_pagamento, propor_pagamentos
+from app.dominio.faturas_pagamento import (
+    PagamentoInvalido, confirmar_pagamento, desfazer_pagamento, propor_pagamentos,
+)
 from app.dominio.lancamentos import (
     ErroLancamento, NaoEncontrado, interpretar_id, opcoes_categorias,
 )
@@ -224,6 +226,10 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
 
 # --- Fatura em Lançamentos: itens, categoria por item e casamento do pagamento -------------
 
+# Erros de regra com mensagem própria para o usuário; qualquer outro vira mensagem genérica.
+ERROS_DOMINIO = (ErroFatura, PagamentoInvalido, ErroLancamento)
+
+
 def _erro_web(exc: ValueError) -> ErroLancamento:
     """Erro de regra do domínio de faturas -> erro da tela (inexistente = 404)."""
     if isinstance(exc, ErroLancamento):
@@ -241,7 +247,7 @@ def _fragmento(request: Request, nome: str, ctx: dict[str, Any], evento: str,
     """Parcial HTMX; erro -> texto curto em português (a página mostra na área de mensagens)."""
     try:
         ctx.update(montar())
-    except ValueError as exc:
+    except ERROS_DOMINIO as exc:
         erro = _erro_web(exc)
         return _texto(str(erro), 404 if isinstance(erro, NaoEncontrado) else 400)
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
@@ -290,7 +296,7 @@ def categoria_lote(fatura_id: str, request: Request, con: Any = Depends(get_con)
             raise ErroLancamento("Selecione ao menos um item.")
         try:
             n = categorizar_itens_da_fatura(con, alvo, lista, cat)
-        except ValueError as exc:
+        except ERROS_DOMINIO as exc:
             raise _erro_web(exc) from None
         return f"{n} item categorizado." if n == 1 else f"{n} itens categorizados."
     return executar(request, con, voltar, acao, aberta=fid)
@@ -314,7 +320,7 @@ def pagamento_confirmar(fatura_id: str, request: Request, con: Any = Depends(get
         lid = interpretar_id(lancamento_id)
         try:
             confirmar_pagamento(con, fid, lid)
-        except ValueError as exc:
+        except ERROS_DOMINIO as exc:
             raise _erro_web(exc) from None
         log.info("event=fatura_pagamento_casado")
         return "Pagamento casado: fatura paga."
@@ -327,7 +333,7 @@ def pagamento_desfazer(fatura_id: str, request: Request, con: Any = Depends(get_
     def acao() -> str:
         try:
             desfazer_pagamento(con, interpretar_id(fatura_id, "Fatura"))
-        except ValueError as exc:
+        except ERROS_DOMINIO as exc:
             raise _erro_web(exc) from None
         log.info("event=fatura_pagamento_desfeito")
         return "Pagamento desfeito: a fatura voltou a pendente."

@@ -131,13 +131,18 @@
         </td>
       </tr>
       <tr class="fatura-itens" id="itens-fatura-{{ fid }}"{% if not expandida %} hidden{% endif %}>
-        <td colspan="10"><div class="fatura-itens-corpo" id="itens-fatura-{{ fid }}-corpo"{% if expandida %} hx-get="/faturas/{{ fid }}/itens?voltar={{ voltar | urlencode }}" hx-trigger="load"{% endif %} aria-live="polite"><p class="secundario">Carregando itens…</p></div></td>
+        <td colspan="10"><div class="fatura-itens-corpo" id="itens-fatura-{{ fid }}-corpo"{% if expandida %} hx-get="/faturas/{{ fid }}/itens?voltar={{ voltar | urlencode }}" hx-trigger="load"{% endif %}><p class="secundario">Carregando itens…</p></div>
+          <p class="sr-only" role="status" id="itens-fatura-{{ fid }}-status"></p></td>
       </tr>
     {% else %}
       <tr class="linha{{ ' linha-prevista' if l.origem == 'fatura_prevista' }}" id="lancamento-{{ l.id }}">
         <td class="col-marcar"><input type="checkbox" form="lote" name="ids" value="{{ l.id }}" aria-label="Selecionar lançamento {{ l.id }}"></td>
         <td class="data-linha sec">{{ l.data | data_br }}</td>
-        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.origem == 'fatura_prevista' %}<span class="selo info" title="Parcela futura prevista pela fatura (valor estimado)">prevista</span>{% elif l.estimado %}<span class="selo">estimado</span>{% endif %}{% if l.tipo == 'pagamento_fatura' %}{% if l.fatura_casada_id is none %}<span class="selo neutro" title="Conta como despesa até ser casado com uma fatura importada">sem fatura importada</span>{% else %}<span class="selo roxo">fatura casada</span>{% endif %}{% endif %}
+        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.origem == 'fatura_prevista' %}<span class="selo info" title="Parcela futura prevista pela fatura (valor estimado)">prevista</span>{% elif l.estimado %}<span class="selo">estimado</span>{% endif %}{% if l.tipo == 'pagamento_fatura' %}{% if l.fatura_casada_id is not none %}<span class="selo roxo">fatura casada</span>{% elif casaveis.get(l.id) %}{% set fc = casaveis[l.id] %}<span class="aviso-pagamento">{{ icone("alert-triangle", 12) }}não casado — conta como despesa até casar</span>
+          <form method="post" action="/faturas/{{ fc.fatura_id }}/pagamento/confirmar" class="casar-inline">
+            <input type="hidden" name="voltar" value="{{ voltar }}"><input type="hidden" name="lancamento_id" value="{{ l.id }}">
+            <button type="submit" class="secundario">{{ icone("check", 14) }}Casar com a fatura venc. {{ fc.data_vencimento | data_br }}</button>
+          </form>{% else %}<span class="aviso-pagamento">{{ icone("info", 12) }}sem fatura importada — conta como despesa</span>{% endif %}{% endif %}
           <span class="mob-info" aria-hidden="false">{{ l.data | data_br }} · {{ l.conta_nome }} · {{ tipos[l.tipo] }}<br><strong class="mob-valor {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</strong></span></td>
         <td class="conta sec">{{ l.conta_nome }}</td>
         <td class="categoria">{% include "lancamentos/_categoria.html" %}</td>

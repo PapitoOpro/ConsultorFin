@@ -673,6 +673,11 @@ tr.fatura-itens > td { padding: 8px 8px 16px 24px; border-left: 3px solid var(--
 .tabela-itens-fatura table { font-size: 13px; }
 .linha-prevista td { opacity: .78; }
 .linha-prevista td.desc { font-style: italic; }
+.aviso-pagamento { display: flex; align-items: flex-start; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--alerta); white-space: normal; overflow-wrap: anywhere; }
+.aviso-pagamento .icone { flex: none; margin-top: 2px; }
+.casar-inline { margin-top: 6px; }
+.casar-inline button { padding: 3px 10px; font-size: 12px; min-height: 0; }
+.proposta-pagamento .quebra { overflow-wrap: anywhere; }
 .proposta-pagamento { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 @media (max-width: 480px) {
   tr.fatura-itens > td { padding: 6px 4px 12px 8px; }

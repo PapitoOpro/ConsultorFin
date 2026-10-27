@@ -24,7 +24,11 @@ TOLERANCIA_PERCENTUAL = 2  # %
 SIMILARIDADE_MINIMA = 0.8
 
 
-class RegistroNaoEncontrado(ValueError):
+class ErroFatura(ValueError):
+    """Regra de fatura/itens violada (mensagem em português, própria para o usuário)."""
+
+
+class RegistroNaoEncontrado(ErroFatura):
     """Fatura ou item inexistente (mensagem em português; a web responde 404)."""
 
 
@@ -348,7 +352,7 @@ def alterar_categoria_item(con: Any, item_id: int, categoria_id: int | None) -> 
     if repo.obter_item(con, item_id) is None:
         raise RegistroNaoEncontrado("Item da fatura não encontrado.")
     if categoria_id is not None and not repo_categorias.existe(con, categoria_id):
-        raise ValueError("Categoria não encontrada.")
+        raise ErroFatura("Categoria não encontrada.")
     with _escrita(con):
         repo.atualizar_categoria_item(con, [item_id], categoria_id)
 
@@ -356,13 +360,13 @@ def alterar_categoria_item(con: Any, item_id: int, categoria_id: int | None) -> 
 def categorizar_itens_em_lote(con: Any, ids: Sequence[int], categoria_id: int) -> int:
     unicos = sorted(set(ids))
     if not unicos:
-        raise ValueError("Selecione ao menos um item.")
+        raise ErroFatura("Selecione ao menos um item.")
     if len(unicos) > MAX_LOTE:
-        raise ValueError(f"Selecione no máximo {MAX_LOTE} itens por vez.")
+        raise ErroFatura(f"Selecione no máximo {MAX_LOTE} itens por vez.")
     if not repo_categorias.existe(con, categoria_id):
-        raise ValueError("Categoria não encontrada.")
+        raise ErroFatura("Categoria não encontrada.")
     if repo.contar_itens(con, unicos) != len(unicos):
-        raise ValueError("Algum item selecionado não foi encontrado.")
+        raise ErroFatura("Algum item selecionado não foi encontrado.")
     with _escrita(con):
         return repo.atualizar_categoria_item(con, unicos, categoria_id)
 

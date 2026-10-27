@@ -4,7 +4,7 @@
 <form method="post" action="/faturas/{{ fatura_id }}/pagamento/confirmar" class="proposta-pagamento">
   <input type="hidden" name="voltar" value="{{ voltar }}">
   <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
-  <span>{{ p.data | data_br }} · <strong class="valor">{{ (p.valor_centavos | abs) | brl }}</strong></span>
+  <span>{{ p.data | data_br }} · <strong class="valor">{{ (p.valor_centavos | abs) | brl }}</strong>{% if p.descricao %}<br><span class="secundario quebra">{{ p.descricao }}</span>{% endif %}</span>
   <button type="submit" class="secundario">{{ icone("check", 16) }}Confirmar</button>
 </form>
 {% else %}

@@ -19,6 +19,9 @@ from app.repo import lancamentos as repo_lanc
 TUDO = {"de": "2000-01-01", "ate": "2100-01-01"}
 VOLTAR = "de=2000-01-01&ate=2100-01-01"
 XSS = "<script>alert(1)</script> LOJA"
+IMG = '<img src=x onerror="alert(2)"> PAGTO'
+SEM_FATURA = "sem fatura importada — conta como despesa"
+NAO_CASADO = "não casado — conta como despesa até casar"
 
 
 @dataclass
@@ -151,10 +154,46 @@ def test_fragmento_itens_ids_invalidos(cliente: TestClient, cen: Cenario) -> Non
     assert cliente.get("/faturas/１２/itens").status_code == 400  # dígitos não ASCII
 
 
-def test_html_escapado_nos_itens(cliente: TestClient, cen: Cenario) -> None:
+def test_html_escapado_nos_itens(cliente: TestClient, db: Path, cen: Cenario) -> None:
+    con = conectar(db)
+    con.execute("UPDATE fatura_itens SET descricao = ? WHERE id = ?", (IMG, cen.itens[0]))
+    con.commit()
+    con.close()
     r = cliente.get(f"/faturas/{cen.fatura_id}/itens")
-    assert "<script>alert(1)" not in r.text
+    assert "<script>alert(1)" not in r.text and "<img" not in r.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt; LOJA" in r.text
+    assert "&lt;img src=x onerror=&#34;alert(2)&#34;&gt; PAGTO" in r.text
+
+
+def test_fragmento_itens_anuncia_contagem_sem_ler_a_tabela(cliente: TestClient,
+                                                           cen: Cenario) -> None:
+    pagina = _get(cliente).text
+    assert f'<p class="sr-only" role="status" id="itens-fatura-{cen.fatura_id}-status"></p>' in pagina
+    corpo = re.search(rf'id="itens-fatura-{cen.fatura_id}-corpo"[^>]*>', pagina)
+    assert corpo and "aria-live" not in corpo.group(0)
+    r = cliente.get(f"/faturas/{cen.fatura_id}/itens")
+    assert (f'<p id="itens-fatura-{cen.fatura_id}-status" hx-swap-oob="innerHTML">'
+            "4 itens carregados.</p>") in r.text
+
+
+def test_valueerror_inesperado_vira_mensagem_generica(
+        cliente: TestClient, cen: Cenario, monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture) -> None:
+    import app.web.rotas.faturas as rotas
+
+    def falha(*_: Any, **__: Any) -> Any:
+        raise ValueError("detalhe interno 0xSEGREDO")
+    monkeypatch.setattr(rotas, "alterar_categoria_item", falha)
+    monkeypatch.setattr(rotas, "detalhe", falha)
+    monkeypatch.setattr(rotas, "confirmar_pagamento", falha)
+    r = cliente.post(f"/faturas/itens/{cen.itens[0]}/categoria", data={"categoria_id": ""})
+    assert r.status_code == 500 and r.text == rotas.MSG_INESPERADO
+    r = cliente.get(f"/faturas/{cen.fatura_id}/itens")
+    assert r.status_code == 500 and r.text == rotas.MSG_INESPERADO
+    r = cliente.post(f"/faturas/{cen.fatura_id}/pagamento/confirmar",
+                     data={"lancamento_id": str(cen.pagamento), "voltar": VOLTAR})
+    assert r.status_code == 500 and rotas.MSG_INESPERADO in r.text
+    assert "SEGREDO" not in r.text and "SEGREDO" not in caplog.text
 
 
 def test_alterar_categoria_item_persiste_e_nao_altera_total(cliente: TestClient, db: Path,
@@ -213,10 +252,25 @@ def test_lote_itens_erros(cliente: TestClient, db: Path, cen: Cenario) -> None:
     assert _sql(db, "SELECT COUNT(*) FROM fatura_itens WHERE categoria_id IS NOT NULL") == [(0,)]
 
 
-def test_aviso_pagamento_sem_fatura(cliente: TestClient, cen: Cenario) -> None:
-    r = _get(cliente)
-    assert "sem fatura importada" in _linha(r.text, cen.pagamento_solto)
-    assert "sem fatura importada" in _linha(r.text, cen.pagamento)  # ainda não casado
+def test_aviso_pagamento_sem_fatura_importada(cliente: TestClient, cen: Cenario) -> None:
+    linha = _linha(_get(cliente).text, cen.pagamento_solto)
+    assert SEM_FATURA in linha and NAO_CASADO not in linha
+    assert "/pagamento/confirmar" not in linha
+    assert "title=" not in linha.split('class="desc"', 1)[1].split("</td>", 1)[0]  # texto visível
+
+
+def test_aviso_pagamento_nao_casado_oferece_casar(cliente: TestClient, db: Path,
+                                                  cen: Cenario) -> None:
+    linha = _linha(_get(cliente).text, cen.pagamento)
+    assert NAO_CASADO in linha and SEM_FATURA not in linha
+    assert f'action="/faturas/{cen.fatura_id}/pagamento/confirmar"' in linha
+    assert f'name="lancamento_id" value="{cen.pagamento}"' in linha
+    assert "Casar com a fatura venc. 10/10/2026" in linha
+    r = cliente.post(f"/faturas/{cen.fatura_id}/pagamento/confirmar",
+                     data={"lancamento_id": str(cen.pagamento), "voltar": VOLTAR})
+    linha = _linha(r.text, cen.pagamento)
+    assert "fatura casada" in linha and NAO_CASADO not in linha and SEM_FATURA not in linha
+    assert _sql(db, "SELECT pagamento_lancamento_id FROM faturas") == [(cen.pagamento,)]
 
 
 def test_casar_pagamento_muda_selo_e_nao_conta_duas_vezes(cliente: TestClient, db: Path,
@@ -234,8 +288,8 @@ def test_casar_pagamento_muda_selo_e_nao_conta_duas_vezes(cliente: TestClient, d
     linha = _linha(r.text, cen.fatura_lanc)
     assert "paga" in linha and "a pagar" not in linha
     assert "Desfazer pagamento" in linha and "Casar pagamento" not in linha
-    assert "sem fatura importada" not in _linha(r.text, cen.pagamento)
-    assert "sem fatura importada" in _linha(r.text, cen.pagamento_solto)
+    assert NAO_CASADO not in _linha(r.text, cen.pagamento)
+    assert SEM_FATURA in _linha(r.text, cen.pagamento_solto)
     assert _total(r.text, "saidas") == saidas_antes == "R$ 197,00"  # 155 + 42, sem duplicar
     assert _sql(db, "SELECT pagamento_lancamento_id FROM faturas") == [(cen.pagamento,)]
 
@@ -265,9 +319,16 @@ def test_confirmar_pagamento_erros_amigaveis(cliente: TestClient, db: Path, cen:
     assert _sql(db, "SELECT pagamento_lancamento_id FROM faturas") == [(None,)]
 
 
-def test_fragmento_propostas(cliente: TestClient, cen: Cenario) -> None:
+def test_fragmento_propostas(cliente: TestClient, db: Path, cen: Cenario) -> None:
+    con = conectar(db)
+    con.execute("UPDATE lancamentos SET descricao = ? WHERE id = ?", (IMG, cen.pagamento))
+    con.commit()
+    con.close()
     r = cliente.get(f"/faturas/{cen.fatura_id}/pagamento", params={"voltar": VOLTAR})
     assert r.status_code == 200 and "<html" not in r.text
+    assert "<img" not in r.text and "&lt;img src=x onerror=&#34;alert(2)&#34;&gt; PAGTO" in r.text
+    linha = _linha(_get(cliente).text, cen.fatura_lanc)  # lista "Casar pagamento" da fatura
+    assert "<img" not in linha and "&lt;img src=x" in linha
     assert f'value="{cen.pagamento}"' in r.text and "R$ 155,00" in r.text
     assert f'action="/faturas/{cen.fatura_id}/pagamento/confirmar"' in r.text
     assert cliente.get("/faturas/x/pagamento").status_code == 400

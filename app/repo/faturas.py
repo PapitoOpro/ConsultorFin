@@ -140,3 +140,15 @@ def itens_parcelados_da_conta(con: sqlite3.Connection, conta_id: int,
         " AND i.grupo_parcela_uuid IS NOT NULL ORDER BY i.id",
         (conta_id, excluir_fatura_id),
     ).fetchall()
+
+
+def a_pagar_por_total(con: sqlite3.Connection, total_impresso_centavos: int, venc_min: str,
+                      venc_max: str) -> list[sqlite3.Row]:
+    """Faturas sem pagamento casado com o total impresso e vencimento em [venc_min, venc_max],
+    pelo vencimento."""
+    return con.execute(
+        "SELECT * FROM faturas WHERE pagamento_lancamento_id IS NULL"
+        " AND total_impresso_centavos = ? AND data_vencimento >= ? AND data_vencimento <= ?"
+        " ORDER BY data_vencimento, id",
+        (total_impresso_centavos, venc_min, venc_max),
+    ).fetchall()

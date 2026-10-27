@@ -27,6 +27,14 @@ class PropostaPagamento:
     data: str
     valor_centavos: int
     pontuacao: float
+    descricao: str = ""  # descrição da linha do banco (texto externo: sempre escapar)
+
+
+@dataclass(frozen=True)
+class FaturaCasavel:
+    """Fatura a pagar que propõe casar com um pagamento do banco."""
+    fatura_id: int
+    data_vencimento: str
 
 
 def _fatura(con: Any, fatura_id: int) -> Any:
@@ -55,9 +63,30 @@ def propor_pagamentos(con: Any, fatura_id: int) -> list[PropostaPagamento]:
     ini, fim = _janela(fat)
     rows = repo_lanc.pagamentos_fatura_livres(con, -int(fat["total_impresso_centavos"]), ini, fim)
     props = [PropostaPagamento(fatura_id, int(r["id"]), str(r["data"]), int(r["valor_centavos"]),
-                               round(1 - _dias(fat, str(r["data"])) / (JANELA_DIAS + 1), 3))
+                               round(1 - _dias(fat, str(r["data"])) / (JANELA_DIAS + 1), 3),
+                               str(r["descricao"]))
              for r in rows]
     return sorted(props, key=lambda p: (-p.pontuacao, p.lancamento_id))
+
+
+def fatura_para_pagamento(con: Any, lancamento_id: int) -> FaturaCasavel | None:
+    """Fatura a pagar que proporia casar com este pagamento (mesmas regras de
+    propor_pagamentos: valor exato, vencimento ± 7 dias); None se não houver."""
+    lanc = repo_lanc.obter(con, lancamento_id)
+    if lanc is None or lanc["tipo"] != "pagamento_fatura" or not lanc["compensado"]:
+        return None
+    if repo.por_pagamento(con, lancamento_id) is not None:
+        return None
+    conta = repo_contas.obter(con, int(lanc["conta_id"]))
+    if conta is None or conta["tipo"] == "cartao":
+        return None
+    dia = date.fromisoformat(str(lanc["data"]))
+    delta = timedelta(days=JANELA_DIAS)
+    for fat in repo.a_pagar_por_total(con, -int(lanc["valor_centavos"]),
+                                      (dia - delta).isoformat(), (dia + delta).isoformat()):
+        if fat["lancamento_id"] is not None:
+            return FaturaCasavel(int(fat["id"]), str(fat["data_vencimento"]))
+    return None
 
 
 def _validar(con: Any, fat: Any, lancamento_id: int) -> Any:

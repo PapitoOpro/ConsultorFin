@@ -11,7 +11,9 @@ from fastapi.responses import HTMLResponse, Response
 from app.dominio import lancamentos as dom
 from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, linha_do_extrato_para
 from app.dominio.dinheiro import para_centavos
-from app.dominio.faturas_pagamento import PropostaPagamento, propor_pagamentos
+from app.dominio.faturas_pagamento import (
+    FaturaCasavel, PropostaPagamento, fatura_para_pagamento, propor_pagamentos,
+)
 from app.dominio.lancamentos import ErroLancamento, Filtros, NaoEncontrado
 from app.repo import contas
 from app.web.deps import get_con
@@ -48,12 +50,24 @@ def _propostas(con: Any, pagina: dom.PaginaLancamentos) -> dict[int, list[Propos
             if l.fatura_id is not None and not l.fatura_paga}
 
 
+def _casaveis(con: Any, pagina: dom.PaginaLancamentos) -> dict[int, FaturaCasavel]:
+    """Pagamentos de fatura não casados que já têm uma fatura importada para casar."""
+    saida: dict[int, FaturaCasavel] = {}
+    for l in pagina.linhas:
+        if l.tipo == "pagamento_fatura" and l.fatura_casada_id is None:
+            fat = fatura_para_pagamento(con, l.id)
+            if fat is not None:
+                saida[l.id] = fat
+    return saida
+
+
 def _pagina(request: Request, con: Any, filtros: Filtros, *, aviso: str | None = None,
             erro: str | None = None, status: int = 200, aberta: int | None = None) -> HTMLResponse:
     pagina = dom.listar(con, filtros)
     base = filtros.como_parametros(pagina.pagina)
     ctx = {
-        "propostas": _propostas(con, pagina), "aberta": aberta,
+        "propostas": _propostas(con, pagina), "casaveis": _casaveis(con, pagina),
+        "aberta": aberta,
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
         "categorias": dom.opcoes_categorias(con),
         "categorias_saida": dom.opcoes_categorias(con, "saida"),
