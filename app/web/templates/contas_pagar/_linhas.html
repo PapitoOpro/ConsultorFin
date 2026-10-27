@@ -3,12 +3,12 @@
 {% macro tabela(linhas, horizonte, hoje, vazio) %}
 {% if linhas %}
 <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
-  <thead><tr><th>Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
+  <thead><tr><th class="sec">Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
   <tbody>
   {% for l in linhas %}
     <tr id="lancamento-{{ l.id }}">
-      <td class="data-linha">{{ l.data | data_br }}</td>
-      <td class="desc">{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}</td>
+      <td class="data-linha sec">{{ l.data | data_br }}</td>
+      <td class="desc">{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}<span class="mob-info">Vence em {{ l.data | data_br }}</span></td>
       <td class="valor {{ 'entrada' if l.valor_centavos > 0 else 'saida' }}">{{ l.valor_centavos | brl }}</td>
       <td class="acoes">
         <details class="linha-acoes"><summary title="Ações do vencimento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>

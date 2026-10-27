@@ -253,3 +253,21 @@ def test_estados_vazios_usam_componente(cliente: TestClient) -> None:
 def test_summary_acoes_inline_com_marcador() -> None:
     regra = _regra("details.linha-acoes summary")
     assert "inline-flex" in regra and "list-style: none" in regra
+
+
+def test_foco_visivel_em_caixas_e_radios() -> None:
+    css = _css()
+    assert re.search(
+        r'^input:is\(\[type="checkbox"\], \[type="radio"\]\):focus-visible \{ outline: 2px solid var\(--primaria\); outline-offset: 2px; \}',
+        css, re.M)
+
+
+def test_marca_com_nome_acessivel_igual_ao_texto_visivel() -> None:
+    base = (WEB / "templates" / "base.html").read_text(encoding="utf-8")
+    marca = re.search(r'<a class="marca"[^>]*>', base)
+    assert marca and "aria-label" not in marca.group(0)
+
+
+def test_rotulos_do_eixo_do_fluxo_usam_texto_secundario() -> None:
+    js = (WEB / "static" / "js" / "graficos.js").read_text(encoding="utf-8")
+    assert "C.aux" not in js

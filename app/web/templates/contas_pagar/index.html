@@ -5,7 +5,7 @@
 {% block titulo %}Contas a pagar{% endblock %}
 {% block mensagens %}
   {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
-  {% if aviso %}{% call alerta("info") %}{{ aviso }}{% endcall %}{% endif %}
+  {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% block cabecalho_pagina %}
 <div class="cabecalho-titulo"><h1>Contas a pagar</h1><p class="subtitulo">Vencimentos, parcelas e contas fixas.</p></div>
@@ -49,15 +49,15 @@
     {% if correspondencias %}<p class="subtitulo">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>{% endif %}</div></div>
   {% if correspondencias %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
-    <thead><tr><th>Conta</th><th>Item</th><th class="valor">Valor</th><th>Linha do extrato</th><th class="valor">Valor</th><th></th></tr></thead>
+    <thead><tr><th class="sec">Conta</th><th>Item</th><th class="valor">Valor</th><th class="sec">Linha do extrato</th><th class="valor sec">Valor</th><th><span class="sr-only">Confirmar</span></th></tr></thead>
     <tbody>
     {% for conta_nome, p in correspondencias %}
       <tr>
-        <td class="conta">{{ conta_nome }}</td>
-        <td class="desc">{{ p.pendente_descricao }} <span class="secundario">{{ p.pendente_data | data_br }}</span></td>
+        <td class="conta sec">{{ conta_nome }}</td>
+        <td class="desc">{{ p.pendente_descricao }} <span class="secundario">{{ p.pendente_data | data_br }}</span><span class="mob-info">{{ conta_nome }}<br>Extrato: {{ p.linha_descricao }} · {{ p.linha_data | data_br }} · {{ p.linha_valor | brl }}</span></td>
         <td class="valor">{{ p.pendente_valor | brl }}</td>
-        <td class="desc">{{ p.linha_descricao }} <span class="secundario">{{ p.linha_data | data_br }}</span></td>
-        <td class="valor">{{ p.linha_valor | brl }}</td>
+        <td class="desc sec">{{ p.linha_descricao }} <span class="secundario">{{ p.linha_data | data_br }}</span></td>
+        <td class="valor sec">{{ p.linha_valor | brl }}</td>
         <td>
           <form method="post" action="/contas-a-pagar/casamento/confirmar">
             <input type="hidden" name="horizonte" value="{{ horizonte }}">
@@ -79,15 +79,15 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("layers", 18) }}Parcelamentos <span class="selo neutro">{{ parcelamentos | length }}</span></h2></div></div>
   {% if parcelamentos %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
-    <thead><tr><th>Descrição</th><th>Progresso</th><th>Próximo vencimento</th><th class="valor">Total / restante</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Descrição</th><th>Progresso</th><th class="sec">Próximo vencimento</th><th class="valor sec">Total / restante</th><th>Ações</th></tr></thead>
     <tbody>
     {% for g in parcelamentos %}
       <tr>
-        <td class="desc">{{ g.descricao }}</td>
+        <td class="desc">{{ g.descricao }}<span class="mob-info">Próximo: {% if g.proxima_data %}{{ g.proxima_data | data_br }}{% else %}—{% endif %}<br>Total {{ g.total_centavos | brl }} · restante {{ g.restante_centavos | brl }}</span></td>
         <td><div class="progresso"><span>{{ g.pagas }}/{{ g.n }} pagas · {{ g.pendentes }} pendente{{ "s" if g.pendentes != 1 }}</span>
           <div class="barra-progresso" aria-hidden="true"><span style="width: {{ ((g.pagas * 100) // g.n) if g.n else 0 }}%"></span></div></div></td>
-        <td class="data-linha">{% if g.proxima_data %}{{ g.proxima_data | data_br }}{% else %}—{% endif %}</td>
-        <td class="valor">Total {{ g.total_centavos | brl }} · restante {{ g.restante_centavos | brl }}</td>
+        <td class="data-linha sec">{% if g.proxima_data %}{{ g.proxima_data | data_br }}{% else %}—{% endif %}</td>
+        <td class="valor sec">Total {{ g.total_centavos | brl }} · restante {{ g.restante_centavos | brl }}</td>
         <td class="acoes">
           {% if g.pendentes %}
           <details class="linha-acoes"><summary title="Ações do parcelamento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
@@ -138,17 +138,17 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("repeat", 18) }}Contas fixas e receitas recorrentes <span class="selo neutro">{{ recorrentes | length }}</span></h2></div></div>
   {% if recorrentes %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
-    <thead><tr><th>Nome</th><th>Tipo</th><th>Dia</th><th>Conta</th><th class="valor">Valor estimado</th><th class="valor">Último valor real</th><th>Situação</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Dia</th><th class="sec">Conta</th><th class="valor">Valor estimado</th><th class="valor sec">Último valor real</th><th class="sec">Situação</th><th>Ações</th></tr></thead>
     <tbody>
     {% for r in recorrentes %}
       <tr>
-        <td class="desc">{{ r.nome }}</td>
-        <td><span class="selo {{ 'entrada' if r.tipo == 'entrada' else 'neutro' }}">{{ "Receita" if r.tipo == "entrada" else "Conta fixa" }}</span></td>
-        <td>{{ r.dia }}</td>
-        <td class="conta">{{ r.conta_nome or "—" }}</td>
+        <td class="desc">{{ r.nome }}<span class="mob-info">{{ "Receita" if r.tipo == "entrada" else "Conta fixa" }} · dia {{ r.dia }} · {{ r.conta_nome or "—" }} · {{ "ativa" if r.ativa else "inativa" }}</span></td>
+        <td class="sec"><span class="selo {{ 'entrada' if r.tipo == 'entrada' else 'neutro' }}">{{ "Receita" if r.tipo == "entrada" else "Conta fixa" }}</span></td>
+        <td class="sec">{{ r.dia }}</td>
+        <td class="conta sec">{{ r.conta_nome or "—" }}</td>
         <td class="valor">{{ r.valor_estimado_centavos | brl }}</td>
-        <td class="valor">{% if r.ultimo_real_centavos is none %}—{% else %}{{ r.ultimo_real_centavos | brl }}{% endif %}</td>
-        <td><span class="selo {{ 'entrada' if r.ativa else 'neutro' }}">{{ "ativa" if r.ativa else "inativa" }}</span></td>
+        <td class="valor sec">{% if r.ultimo_real_centavos is none %}—{% else %}{{ r.ultimo_real_centavos | brl }}{% endif %}</td>
+        <td class="sec"><span class="selo {{ 'entrada' if r.ativa else 'neutro' }}">{{ "ativa" if r.ativa else "inativa" }}</span></td>
         <td>
           {% if r.ativa %}
           <form method="post" action="/contas-a-pagar/recorrente/{{ r.id }}/desativar" onsubmit="return confirm('Desativar? Os pendentes futuros serão removidos.')">
@@ -192,13 +192,13 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("wallet", 18) }}Contas e cartões <span class="selo neutro">{{ contas | length }}</span></h2></div></div>
   {% if contas %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
-    <thead><tr><th>Nome</th><th>Tipo</th><th>Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
+    <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
     <tbody>
     {% for c in contas %}
       <tr>
-        <td class="conta">{{ c.nome }}{% if c.final_numero %} <span class="secundario">final {{ c.final_numero }}</span>{% endif %}</td>
-        <td><span class="selo {{ 'roxo' if c.tipo == 'cartao' else 'neutro' }}">{{ tipos_conta.get(c.tipo, c.tipo) }}</span></td>
-        <td>{{ c.instituicao or "—" }}</td>
+        <td class="conta">{{ c.nome }}{% if c.final_numero %} <span class="secundario">final {{ c.final_numero }}</span>{% endif %}<span class="mob-info">{{ tipos_conta.get(c.tipo, c.tipo) }} · {{ c.instituicao or "—" }}</span></td>
+        <td class="sec"><span class="selo {{ 'roxo' if c.tipo == 'cartao' else 'neutro' }}">{{ tipos_conta.get(c.tipo, c.tipo) }}</span></td>
+        <td class="sec">{{ c.instituicao or "—" }}</td>
         <td class="valor">{{ c.saldo_inicial_centavos | brl }}{% if c.data_saldo_inicial %} <span class="secundario">em {{ c.data_saldo_inicial | data_br }}</span>{% endif %}</td>
       </tr>
     {% endfor %}

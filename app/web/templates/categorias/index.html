@@ -4,7 +4,7 @@
 {% block titulo %}Categorias{% endblock %}
 {% block mensagens %}
   {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
-  {% if aviso %}{% call alerta("info") %}{{ aviso }}{% endcall %}{% endif %}
+  {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% macro uso_txt(u) -%}
   {{ u.lancamentos }} lançamento{{ "" if u.lancamentos == 1 else "s" }} · {{ u.recorrentes }} conta{{ "" if u.recorrentes == 1 else "s" }} fixa{{ "" if u.recorrentes == 1 else "s" }}/recorrente{{ "" if u.recorrentes == 1 else "s" }} · {{ u.regras }} regra{{ "" if u.regras == 1 else "s" }}
@@ -93,13 +93,13 @@
     {% if c.filhas %}
     <div class="subcategorias">
     <h3>Subcategorias</h3>
-    <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table>
-      <thead><tr><th>Subcategoria</th><th>Uso</th><th>Ações</th></tr></thead>
+    <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
+      <thead><tr><th>Subcategoria</th><th class="sec">Uso</th><th>Ações</th></tr></thead>
       <tbody>
       {% for f in c.filhas %}
         <tr>
-          <td class="desc">{{ f.nome }}</td>
-          <td class="secundario">{{ uso_txt(f.uso) }}</td>
+          <td class="desc">{{ f.nome }}<span class="mob-info">{{ uso_txt(f.uso) }}</span></td>
+          <td class="secundario sec">{{ uso_txt(f.uso) }}</td>
           <td class="acoes">
             <details class="linha-acoes"><summary title="Ações da subcategoria">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
              <div class="linha-acoes-painel">

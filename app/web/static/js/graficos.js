@@ -58,7 +58,12 @@
       color: paleta,
       tooltip: T.tooltip(C, {
         confine: true,
-        position: function () { return [0, 0]; }  // canto do contêiner: nunca cobre o total central
+        position: function () { return [0, 0]; },  // canto do contêiner: nunca cobre o total central
+        formatter: function (p) {
+          var pct = total > 0 ? Math.round(p.value * 1000 / total) / 10 : 0;
+          return T.esc(p.name) + ": " + T.esc(p.data && p.data.fmt !== undefined ? p.data.fmt : T.moeda(p.value)) +
+            " (" + pct.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%)";
+        }
       }),
       title: {
         text: T.moeda(total), subtext: "total em saídas", left: "center", top: "center",
@@ -118,7 +123,7 @@
       }),
       yAxis: T.eixoValor(C, {
         show: true, min: 0, max: topo < 100000 ? 100000 : undefined,
-        axisLabel: { color: C.aux, fontSize: 10, formatter: compacto },
+        axisLabel: { color: C.sec, fontSize: 10, formatter: compacto },
         splitLine: { lineStyle: { color: C.borda, type: "dashed", opacity: .6 } }
       }),
       series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.primaria),

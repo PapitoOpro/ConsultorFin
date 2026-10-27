@@ -3,7 +3,7 @@
 {% from "_icones.html" import icone %}
 {% block titulo %}Prévia da importação{% endblock %}
 {% block mensagens %}
-  {% if aviso %}{% call alerta("info") %}{{ aviso }}{% endcall %}{% endif %}
+  {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% block cabecalho_pagina %}
 <div class="cabecalho-titulo"><h1>Prévia da importação</h1><p class="subtitulo">Confira o que será importado. Nada é gravado até você confirmar.</p></div>

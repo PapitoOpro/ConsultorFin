@@ -618,3 +618,26 @@ td.quebra { min-width: 150px; }
 @media (max-width: 480px) { .tabela-curta .linha-acoes-painel { min-width: 230px; } .tabela-curta th, .tabela-curta td { padding-left: 6px; padding-right: 6px; } }
 .excluir-fluxo h2 { display: flex; align-items: center; gap: 8px; } .excluir-fluxo h2 .icone { color: var(--alerta); }
 .mais-venc { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0 0; font-size: 13px; font-weight: 500; }
+
+/* tabelas compactas no celular: colunas .sec somem e seu conteúdo vai para .mob-info (mesma informação) */
+.mob-info { display: none; }
+@media (max-width: 720px) {
+  .tabela-rolavel table.tabela-curta { min-width: 0; }
+  .detalhe .tabela-rolavel td { padding-left: 8px; padding-right: 8px; }
+}
+@media (max-width: 480px) {
+  th.sec, td.sec, td.saldo { display: none; }
+  .mob-info { display: block; margin-top: 4px; color: var(--texto-secundario); font-size: 12px; line-height: 1.4; font-weight: 400; }
+  .mob-valor { font-family: var(--fonte-dados); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mob-valor.entrada { color: var(--entrada); }
+  .mob-valor.saida { color: var(--saida); }
+  .tabela-rolavel table.tabela-curta th, .tabela-rolavel table.tabela-curta td { padding-left: 6px; padding-right: 6px; }
+  .tabela-larga.tabela-curta { min-width: 0 !important; }
+  td.desc { min-width: 0; }
+  td.categoria { min-width: 150px; }
+  .progresso { min-width: 100px; }
+  .tabela-rolavel table.tabela-curta td.acoes { min-width: 0; }
+}
+
+/* foco bem visível em caixas e opções (o anel de 35% sozinho tem pouco contraste) */
+input:is([type="checkbox"], [type="radio"]):focus-visible { outline: 2px solid var(--primaria); outline-offset: 2px; }

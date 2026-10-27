@@ -151,3 +151,26 @@ def test_abas_de_categoria_como_controle_segmentado(vazio: TestClient) -> None:
     html = vazio.get("/categorias?aba=entrada").text
     assert "filtro-periodo" in html
     assert re.findall(r'<a [^>]*aria-current="true"[^>]*>Entradas</a>', html)
+
+
+def test_mensagem_de_sucesso_usa_alerta_de_sucesso(cheio: TestClient) -> None:
+    conta = re.search(r'<option value="(\d+)">Itaú', cheio.get("/lancamentos").text)
+    assert conta
+    r = cheio.post("/lancamentos/novo", data={
+        "data": HOJE.isoformat(), "descricao": "Pão", "valor": "5,00", "sinal": "saida",
+        "conta_id": conta.group(1), "voltar": "/lancamentos"})
+    assert r.status_code == 200 and 'class="alerta sucesso"' in r.text
+
+
+def test_dropzone_com_input_oculto_visualmente_e_foco_no_input(vazio: TestClient) -> None:
+    html = vazio.get("/importar").text
+    assert re.search(r'<input id="arquivo" class="sr-only" name="arquivo" type="file"', html)
+    css = (Path(__file__).resolve().parent.parent / "app/web/static/css/tema.css").read_text(encoding="utf-8")
+    assert ".dropzone:has(+ input:focus-visible)" in css
+
+
+def test_celular_colunas_secundarias_viram_texto_junto_da_descricao(cheio: TestClient) -> None:
+    html = cheio.get("/contas-a-pagar").text
+    assert 'class="mob-info">Vence em' in html and '<th class="sec">Vencimento</th>' in html
+    lanc = cheio.get("/lancamentos").text
+    assert 'class="mob-valor' in lanc

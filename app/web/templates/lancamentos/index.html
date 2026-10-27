@@ -4,7 +4,7 @@
 {% block titulo %}Lançamentos{% endblock %}
 {% block mensagens %}
   {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
-  {% if aviso %}{% call alerta("info") %}{{ aviso }}{% endcall %}{% endif %}
+  {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% block cabecalho_pagina %}
 <div class="cabecalho-titulo"><h1>Lançamentos</h1><p class="subtitulo">Extrato consolidado de todas as contas, com filtros.</p></div>
@@ -92,23 +92,24 @@
     <p class="contador-lote" id="contador-lote" aria-live="polite">Nenhuma linha marcada</p>
   </form>
   {% if pagina.linhas %}
-  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-larga">
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-larga tabela-curta">
     <thead><tr>
-      <th class="col-marcar"><input type="checkbox" id="marcar-todas" aria-label="Marcar todas as linhas da página"></th><th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
-      <th class="valor">Valor</th><th class="valor">Saldo</th><th>Tipo</th><th>Origem</th><th class="acoes">Ações</th>
+      <th class="col-marcar"><input type="checkbox" id="marcar-todas" aria-label="Marcar todas as linhas da página"></th><th class="sec">Data</th><th>Descrição</th><th class="sec">Conta</th><th>Categoria</th>
+      <th class="valor sec">Valor</th><th class="valor sec">Saldo</th><th class="sec">Tipo</th><th class="sec">Origem</th><th class="acoes">Ações</th>
     </tr></thead>
     <tbody>
     {% for l in pagina.linhas %}
       <tr class="linha" id="lancamento-{{ l.id }}">
         <td class="col-marcar"><input type="checkbox" form="lote" name="ids" value="{{ l.id }}" aria-label="Selecionar lançamento {{ l.id }}"></td>
-        <td class="data-linha">{{ l.data | data_br }}</td>
-        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}</td>
-        <td class="conta">{{ l.conta_nome }}</td>
+        <td class="data-linha sec">{{ l.data | data_br }}</td>
+        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}
+          <span class="mob-info" aria-hidden="false">{{ l.data | data_br }} · {{ l.conta_nome }} · {{ tipos[l.tipo] }}<br><strong class="mob-valor {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</strong></span></td>
+        <td class="conta sec">{{ l.conta_nome }}</td>
         <td class="categoria">{% include "lancamentos/_categoria.html" %}</td>
-        <td class="valor {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</td>
+        <td class="valor sec {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</td>
         <td class="valor saldo">{% if l.saldo_acumulado_centavos is none %}—{% else %}{{ l.saldo_acumulado_centavos | brl }}{% endif %}</td>
-        <td><span class="selo {{ {'entrada': 'entrada', 'saida': 'saida', 'transferencia': 'info', 'pagamento_fatura': 'roxo'}.get(l.tipo, 'neutro') }}">{{ tipos[l.tipo] }}</span></td>
-        <td><span class="origem {{ l.origem }}">{{ l.origem }}</span></td>
+        <td class="sec"><span class="selo {{ {'entrada': 'entrada', 'saida': 'saida', 'transferencia': 'info', 'pagamento_fatura': 'roxo'}.get(l.tipo, 'neutro') }}">{{ tipos[l.tipo] }}</span></td>
+        <td class="sec"><span class="origem {{ l.origem }}">{{ l.origem }}</span></td>
         <td class="acoes">
           <details class="linha-acoes"><summary title="Ações do lançamento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
            <div class="linha-acoes-painel">
