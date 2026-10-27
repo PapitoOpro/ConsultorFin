@@ -502,3 +502,30 @@ def test_migracao_v8_a_partir_de_v7_populado(tmp_path) -> None:
     assert c.execute("SELECT COUNT(*) FROM importacoes").fetchone()[0] == 1
     assert {"faturas", "fatura_itens"} <= _tabelas(c)
     c.close()
+
+
+def _fatura_crua(c: sqlite3.Connection, competencia: str, lanc: int | None,
+                 pagamento: int | None) -> None:
+    c.execute("INSERT INTO faturas (uuid, conta_id, competencia, data_vencimento,"
+              " total_impresso_centavos, total_calculado_centavos, ajustes_resumo_centavos,"
+              " arquivo_hash, criado_em, lancamento_id, pagamento_lancamento_id)"
+              " VALUES (?, 1, ?, ?, 100, 100, 0, ?, '2026-10-27', ?, ?)",
+              (f"u{competencia}", competencia, f"{competencia}-10", f"h{competencia}", lanc,
+               pagamento))
+
+
+def test_migracao_v8_pagamento_e_lancamento_unicos_por_fatura(con: sqlite3.Connection) -> None:
+    con.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('cu', 'C', 'cartao')")
+    for i in (1, 2):
+        con.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos,"
+                    " tipo, chave_deduplicacao, origem) VALUES"
+                    " (?, 1, '2026-10-01', 'X', -100, 'saida', ?, 'manual')", (f"l{i}", f"k{i}"))
+    _fatura_crua(con, "2026-09", None, None)
+    _fatura_crua(con, "2026-10", None, None)  # várias sem pagamento/linha: permitido
+    _fatura_crua(con, "2026-11", 1, 2)
+    with pytest.raises(sqlite3.IntegrityError):
+        _fatura_crua(con, "2026-12", None, 2)
+    with pytest.raises(sqlite3.IntegrityError):
+        _fatura_crua(con, "2027-01", 1, None)
+    nomes = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
+    assert {"ux_faturas_lancamento", "ux_faturas_pagamento"} <= nomes

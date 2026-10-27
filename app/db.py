@@ -343,6 +343,11 @@ def _migracao_8(con: sqlite3.Connection) -> None:
         " final_cartao TEXT)"
     )
     con.execute("CREATE INDEX idx_fatura_itens_fatura ON fatura_itens(fatura_id)")
+    # Uma linha de fatura e um pagamento do banco pertencem a no máximo uma fatura.
+    con.execute("CREATE UNIQUE INDEX ux_faturas_lancamento ON faturas(lancamento_id)"
+                " WHERE lancamento_id IS NOT NULL")
+    con.execute("CREATE UNIQUE INDEX ux_faturas_pagamento ON faturas(pagamento_lancamento_id)"
+                " WHERE pagamento_lancamento_id IS NOT NULL")
 
 
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
