@@ -236,8 +236,11 @@ def _limites(ano: int, mes: int) -> tuple[str, str]:
 
 
 def despesas_do_mes(con: Any, ano: int, mes: int) -> int:
+    """Saídas e pagamentos de fatura não casados (contas não-cartão, pela compensação) mais
+    os itens de fatura pela data da compra (créditos abatem). A linha da fatura não entra."""
     ini, fim = _limites(ano, mes)
-    return -repo.total_compensado_do_mes(con, ("saida", "pagamento_fatura"), ini, fim)
+    return -(repo.total_compensado_do_mes(con, ("saida", "pagamento_fatura"), ini, fim)
+             + repo.total_itens_fatura_do_mes(con, ini, fim))
 
 
 def entradas_do_mes(con: Any, ano: int, mes: int) -> int:
