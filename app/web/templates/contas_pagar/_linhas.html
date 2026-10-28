@@ -6,11 +6,22 @@
   <thead><tr><th class="sec">Vencimento</th><th>Descrição</th><th class="valor">Valor</th><th>Ações</th></tr></thead>
   <tbody>
   {% for l in linhas %}
+    {% if l.grupo %}
+    <tr id="lancamento-{{ l.id }}">
+      <td class="data-linha sec">{{ l.data | data_br }}</td>
+      <td class="desc"><details><summary>{{ l.descricao }} <span class="selo">estimado</span> <span class="secundario">{{ l.itens | length }} parcela{{ "s" if l.itens | length != 1 }}</span></summary>
+        <ul class="secundario">{% for i in l["itens"] %}<li>{{ i.descricao }} ({{ i.parcela_atual }}/{{ i.parcela_total }}) · {{ i.valor_centavos | brl }}</li>{% endfor %}</ul></details>
+        <span class="mob-info">Vence em {{ l.data | data_br }}</span></td>
+      <td class="valor saida">{{ l.valor_centavos | brl }}</td>
+      <td class="acoes">—</td>
+    </tr>
+    {% else %}
     <tr id="lancamento-{{ l.id }}">
       <td class="data-linha sec">{{ l.data | data_br }}</td>
       <td class="desc">{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if l.estimado %}<span class="selo">estimado</span>{% endif %}<span class="mob-info">Vence em {{ l.data | data_br }}</span></td>
       <td class="valor {{ 'entrada' if l.valor_centavos > 0 else 'saida' }}">{{ l.valor_centavos | brl }}</td>
       <td class="acoes">
+        {% if l.origem == 'fatura_prevista' %}—{% else %}
         <details class="linha-acoes"><summary title="Ações do vencimento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
          <div class="linha-acoes-painel">
           {% if l.tipo == 'fatura' %}
@@ -34,8 +45,10 @@
           {% endif %}
          </div>
         </details>
+        {% endif %}
       </td>
     </tr>
+    {% endif %}
   {% endfor %}
   </tbody>
 </table></div>

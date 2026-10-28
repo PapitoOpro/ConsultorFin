@@ -23,19 +23,19 @@
   {% if painel.vencidas %}
   {% call alerta() %}{{ painel.vencidas | length }} vencida{{ "s" if painel.vencidas | length != 1 }} · total {{ painel.total_vencidas_centavos | brl }}{% endcall %}
   {% endif %}
-  {{ tabela(painel.vencidas, horizonte, hoje, "Nenhuma conta vencida.") }}
+  {{ tabela(agrupar(painel.vencidas), horizonte, hoje, "Nenhuma conta vencida.") }}
 </section>
 
 <section id="a-vencer" class="painel secao secao-atencao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("clock", 18) }}A vencer (7 dias) <span class="selo neutro">{{ painel.a_vencer | length }}</span></h2>
     {% if painel.a_vencer %}<p class="subtitulo">Total {{ painel.total_a_vencer_centavos | brl }}</p>{% endif %}</div></div>
-  {{ tabela(painel.a_vencer, horizonte, hoje, "Nada a vencer nos próximos 7 dias.") }}
+  {{ tabela(agrupar(painel.a_vencer), horizonte, hoje, "Nada a vencer nos próximos 7 dias.") }}
 </section>
 
 <section id="proximos" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("calendar-clock", 18) }}Próximos vencimentos <span class="selo neutro">{{ painel.proximos | length }}</span></h2>
     {% if painel.proximos %}<p class="subtitulo">Total {{ painel.total_proximos_centavos | brl }} · até o fim de {{ horizonte }} meses</p>{% endif %}</div></div>
-  {{ tabela(painel.proximos, horizonte, hoje, "Nenhum vencimento além dos próximos 7 dias no horizonte escolhido.") }}
+  {{ tabela(agrupar(painel.proximos), horizonte, hoje, "Nenhum vencimento além dos próximos 7 dias no horizonte escolhido.") }}
 </section>
 
 <section id="receitas" class="painel secao secao-ok">

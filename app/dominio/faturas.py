@@ -113,8 +113,22 @@ def _situacao(con: Any, conta_id: int | None, fatura: FaturaLida,
     return "identica" if existente["arquivo_hash"] == arquivo_hash else "substitui"
 
 
-def _sugerir_categoria(con: Any, item: ItemFatura) -> int | None:
+def _historico_categorias(con: Any, conta_id: int | None) -> dict[str, int]:
+    """Descrição normalizada -> categoria usada na fatura mais recente da conta."""
+    if conta_id is None:
+        return {}
+    usadas: dict[str, int] = {}
+    for r in repo.categorias_usadas(con, conta_id):
+        usadas.setdefault(normalizar_descricao(str(r["descricao"])), int(r["categoria_id"]))
+    return usadas
+
+
+def _sugerir_categoria(con: Any, item: ItemFatura, historico: dict[str, int]) -> int | None:
+    """Regras do usuário; depois a categoria dada ao mesmo item em fatura anterior; por fim a
+    categoria do banco."""
     cat = categorizar(con, item.descricao)
+    if cat is None:
+        cat = historico.get(normalizar_descricao(item.descricao))
     if cat is None and item.categoria_banco:
         cat = repo_categorias.id_por_nome(con, item.categoria_banco)
     return cat
@@ -207,7 +221,8 @@ def preparar_previa(con: Any, fatura: FaturaLida, arquivo_hash: str) -> PreviaFa
     """Nada é gravado: conta-cartão, situação, categorias sugeridas e efeito nas previstas."""
     conta_id = _conta_do_cartao(con, fatura.final_cartao)
     situacao = _situacao(con, conta_id, fatura, arquivo_hash)
-    sugeridas = [_sugerir_categoria(con, i) for i in fatura.itens]
+    historico = _historico_categorias(con, conta_id)
+    sugeridas = [_sugerir_categoria(con, i, historico) for i in fatura.itens]
     if conta_id is None:
         criar = sum(len(_parcelas_futuras(i)) for i in fatura.itens)
         return PreviaFatura(fatura, arquivo_hash, None, situacao, sugeridas, 0, criar)

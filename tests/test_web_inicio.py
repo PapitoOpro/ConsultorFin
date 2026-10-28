@@ -101,9 +101,7 @@ def test_conta_sem_lancamentos_tambem_mostra_estado_vazio(cliente: TestClient, d
 def test_saldo_itau_em_verde_e_total(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/?mes=2026-10").text
     assert "Importar primeiro extrato" not in html
-    contas_ = _bloco(html, "Saldos")
-    assert re.search(r'class="valor entrada">R\$ 1\.409,14<', contas_)
-    assert contas_.count("R$ 1.409,14") == 1
+    assert 'aria-label="Saldos"' not in html  # card "Contas" removido do Início
     kpis = _bloco(html, "Resumo do mês")
     assert re.search(r'Saldo total</div>\s*<div class="valor numero">R\$ 1\.409,14<', kpis)
     assert "kpi-destaque" in kpis
@@ -116,9 +114,7 @@ def test_cartao_negativo_com_classe_saida_e_fora_do_total(
                        data_saldo_inicial="2026-07-24")
     con.close()
     html = cliente.get("/?mes=2026-10").text
-    tiles = _bloco(html, "Saldos")
-    assert re.search(r'class="valor saida">- R\$ 2\.310,00<', tiles)
-    assert "cartão" in tiles
+    assert 'aria-label="Saldos"' not in html
     assert re.search(r'Saldo total</div>\s*<div class="valor numero">R\$ 1\.409,14<',
                      _bloco(html, "Resumo do mês"))  # cartão fora do total
 

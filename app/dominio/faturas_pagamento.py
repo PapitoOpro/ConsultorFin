@@ -97,7 +97,7 @@ def _validar(con: Any, fat: Any, lancamento_id: int) -> Any:
     lanc = repo_lanc.obter(con, lancamento_id)
     if lanc is None:
         raise PagamentoInvalido("Lançamento não encontrado.")
-    if lanc["tipo"] != "pagamento_fatura" or not lanc["compensado"]:
+    if lanc["tipo"] not in ("pagamento_fatura", "saida") or not lanc["compensado"]:
         raise PagamentoInvalido("O lançamento não é um pagamento de fatura compensado.")
     conta = repo_contas.obter(con, int(lanc["conta_id"]))
     if conta is None or conta["tipo"] == "cartao":
@@ -119,6 +119,8 @@ def confirmar_pagamento(con: Any, fatura_id: int, lancamento_id: int) -> None:
         data = str(lanc["data_compensacao"] or lanc["data"])
         if repo_lanc.definir_compensacao_fatura(con, int(fat["lancamento_id"]), data) != 1:
             raise PagamentoInvalido("Lançamento da fatura não encontrado.")
+        if lanc["tipo"] == "saida":
+            repo_lanc.atualizar_tipo(con, lancamento_id, "pagamento_fatura")
         repo.marcar_pagamento(con, fatura_id, lancamento_id)
 
 
