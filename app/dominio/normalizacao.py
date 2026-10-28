@@ -13,6 +13,12 @@ def normalizar_descricao(texto: str) -> str:
     return _NAO_ALFANUMERICO.sub(" ", sem_marcas).strip()
 
 
+def so_letras(texto: str) -> str:
+    """Só as letras (sem acentos, minúsculas): absorve acento quebrado e datas coladas,
+    que mudam de um formato de extrato (CSV, OFX) para outro."""
+    return re.sub(r"[^a-z]", "", normalizar_descricao(texto))
+
+
 def hash_chave_v2(conta_uuid: str, data: str, descricao_normalizada: str, valor_centavos: int,
                   ocorrencia: int) -> str:
     """Fórmula única da chave v2 (prefixo "v2|" separa o espaço de chaves do da legada)."""
