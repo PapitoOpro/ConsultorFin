@@ -473,11 +473,11 @@ def excluir_previstas_dos_grupos(con: sqlite3.Connection, grupos: list[str]) -> 
 
 def pagamentos_fatura_livres(con: sqlite3.Connection, valor_centavos: int, data_min: str,
                              data_max: str) -> list[sqlite3.Row]:
-    """Pagamentos de fatura compensados de contas não-cartão, com o valor exato, data em
-    [data_min, data_max] e ainda não casados com nenhuma fatura."""
+    """Pagamentos de fatura (ou saídas ainda não classificadas) compensados de contas
+    não-cartão, com o valor exato, data em [data_min, data_max] e ainda não casados."""
     return con.execute(
         "SELECT l.* FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
-        " WHERE l.tipo = 'pagamento_fatura' AND l.compensado = 1 AND c.tipo <> 'cartao'"
+        " WHERE l.tipo IN ('pagamento_fatura', 'saida') AND l.compensado = 1 AND c.tipo <> 'cartao'"
         " AND l.valor_centavos = ? AND l.data >= ? AND l.data <= ?"
         " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
         " ORDER BY l.data, l.id",

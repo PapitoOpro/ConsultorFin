@@ -161,3 +161,13 @@ def descasar_pagamentos_da_importacao(con: sqlite3.Connection, importacao_id: in
         " (SELECT id FROM lancamentos WHERE importacao_id = ?)",
         (importacao_id,),
     ).rowcount
+
+
+def categorias_usadas(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    """Itens já categorizados de faturas da conta, da fatura mais recente para a mais antiga."""
+    return con.execute(
+        "SELECT i.descricao, i.categoria_id FROM fatura_itens i JOIN faturas f ON f.id = i.fatura_id"
+        " WHERE f.conta_id = ? AND i.categoria_id IS NOT NULL"
+        " ORDER BY f.data_vencimento DESC, i.id DESC",
+        (conta_id,),
+    ).fetchall()

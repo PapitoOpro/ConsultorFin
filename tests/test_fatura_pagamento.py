@@ -47,7 +47,7 @@ def test_propor_so_valor_exato_e_janela_7_dias(con: sqlite3.Connection) -> None:
     longe = _pagto(con, cc, "2026-10-03")  # -7 dias: ainda na janela
     _pagto(con, cc, "2026-10-18")  # +8 dias: fora
     _pagto(con, cc, "2026-10-10", valor=-29999)  # valor diferente
-    _pagto(con, cc, "2026-10-10", tipo="saida")  # não é pagamento de fatura
+    _pagto(con, cc, "2026-10-10", tipo="transferencia")  # não é pagamento de fatura
     _pagto(con, cartao, "2026-10-10")  # conta-cartão
     props = pag.propor_pagamentos(con, fid)
     assert [p.lancamento_id for p in props] == [perto, longe]
@@ -97,7 +97,7 @@ def test_pagamento_de_outra_fatura_rejeitado(con: sqlite3.Connection) -> None:
     errado = _pagto(con, cc, "2026-11-10", valor=-1)
     with pytest.raises(pag.PagamentoInvalido, match="valor"):
         pag.confirmar_pagamento(con, r2.fatura_id, errado)
-    saida = _pagto(con, cc, "2026-11-10", tipo="saida")
+    saida = _pagto(con, cc, "2026-11-10", tipo="transferencia")
     with pytest.raises(pag.PagamentoInvalido, match="pagamento de fatura"):
         pag.confirmar_pagamento(con, r2.fatura_id, saida)
     with pytest.raises(pag.PagamentoInvalido, match="não encontrad"):
@@ -117,3 +117,11 @@ def test_confirmar_recusa_linha_da_fatura_ausente(con: sqlite3.Connection) -> No
         pag.confirmar_pagamento(con, fid, lid)
     assert repo_faturas.obter(con, fid)["pagamento_lancamento_id"] is None
     assert repo_lanc.obter(con, linha)["compensado"] == 0
+
+
+def test_saida_do_banco_com_valor_exato_casa_e_vira_pagamento_de_fatura(con: sqlite3.Connection) -> None:
+    cc, _, fid = _setup(con)
+    lid = _pagto(con, cc, "2026-10-09", tipo="saida")
+    assert [p.lancamento_id for p in pag.propor_pagamentos(con, fid)] == [lid]
+    pag.confirmar_pagamento(con, fid, lid)
+    assert repo_lanc.obter(con, lid)["tipo"] == "pagamento_fatura"

@@ -46,17 +46,6 @@
 
 {% if resumo %}
 {% if resumo.vazio %}
-{% if resumo.contas %}
-<section class="painel" aria-label="Saldos">
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Contas</h2></div></div>
-  <ul class="contas-lista">
-    {% for c in resumo.contas %}
-    <li><span>{{ c.nome }}{% if c.tipo == 'cartao' %}<span class="selo neutro">cartão</span>{% endif %}</span>
-      <span class="valor {{ classe(c.saldo_centavos) }}">{{ c.saldo_centavos|brl }}</span></li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
 <section class="painel vazio" aria-label="Sem dados">
   <span class="vazio-icone">{{ icone("inbox", 24) }}</span>
   <p>Nenhum lançamento ainda. Importe o extrato da sua conta para ver o painel.</p>
@@ -113,6 +102,46 @@
   </section>
 </div>
 
+<div class="grade-3">
+  <section class="painel" aria-label="Saldo projetado">
+    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Saldo projetado</h2>
+      <p class="subtitulo">A partir de {{ dados.saldo_projetado[0].rotulo }}</p></div></div>
+    <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês, a partir de {{ dados.saldo_projetado[0].rotulo }}"></div>
+    <div class="sr-only"><table><caption>Saldo projetado por mês</caption>
+      <thead><tr><th>Mês</th><th>Saldo</th></tr></thead>
+      <tbody>{% for p in dados.saldo_projetado %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}{{ ' (negativo)' if p.negativo }}</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+  <section class="painel" aria-label="Parcelas">
+    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Parcelas futuras</h2>
+      <p class="subtitulo">Próximos {{ horizonte }} meses</p></div></div>
+    <div id="graf-parcelas" class="grafico pequeno" role="img" aria-label="Colunas de parcelas por mês"></div>
+    <div class="sr-only"><table><caption>Parcelas por mês</caption>
+      <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
+      <tbody>{% for p in dados.parcelas %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+</div>
+
+<div class="grade-paineis meio">
+  <section class="painel" aria-label="Maiores categorias">
+    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Maiores categorias</h2>
+      <p class="subtitulo">Saídas de {{ ind.mes_rotulo }}</p></div></div>
+    {% if dados.maiores %}<div id="graf-maiores" class="grafico pequeno" role="img" aria-label="Barras das maiores categorias"></div>
+    {% else %}<div class="vazio vazio-compacto"><p>Sem gastos neste mês</p></div>{% endif %}
+    <div class="sr-only"><table><caption>Maiores categorias</caption>
+      <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
+      <tbody>{% for f in dados.maiores %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+  <section class="painel" aria-label="Entradas e saídas">
+    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Entradas × saídas</h2>
+      <p class="subtitulo">{{ dados.comparativo[0].rotulo }} e {{ dados.comparativo[1].rotulo }}</p></div></div>
+    <div id="graf-comparativo" class="grafico pequeno" role="img" aria-label="Entradas e saídas: {{ dados.comparativo[1].rotulo }} comparado a {{ dados.comparativo[0].rotulo }}"></div>
+    <div class="sr-only"><table><caption>Entradas e saídas por mês</caption>
+      <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th></tr></thead>
+      <tbody>{% for p in dados.comparativo %}<tr><td>{{ p.rotulo }}</td><td>{{ p.entradas_fmt }}</td><td>{{ p.saidas_fmt }}</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+</div>
+<p id="msg-graficos" class="secundario" role="status"></p>
+
 <div class="grade-paineis recentes">
   <section class="painel" aria-label="Lançamentos recentes">
     <div class="painel-cabecalho"><div class="painel-titulo"><h2>Lançamentos recentes</h2>
@@ -167,57 +196,6 @@
     {% endif %}
   </section>
 </div>
-
-<div class="grade-3">
-  <section class="painel" aria-label="Saldos">
-    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Contas</h2>
-      <p class="subtitulo">Saldo atual por conta</p></div></div>
-    <ul class="contas-lista">
-      {% for c in resumo.contas %}
-      <li><span>{{ c.nome }}{% if c.tipo == 'cartao' %}<span class="selo neutro">cartão</span>{% endif %}</span>
-        <span class="valor {{ classe(c.saldo_centavos) }}">{{ c.saldo_centavos|brl }}</span></li>
-      {% endfor %}
-    </ul>
-    {% if resumo.contas|selectattr('tipo', 'equalto', 'cartao')|list %}<p class="secundario mt-3">Cartões não entram no saldo total.</p>{% endif %}
-  </section>
-  <section class="painel" aria-label="Saldo projetado">
-    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Saldo projetado</h2>
-      <p class="subtitulo">A partir de {{ dados.saldo_projetado[0].rotulo }}</p></div></div>
-    <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês, a partir de {{ dados.saldo_projetado[0].rotulo }}"></div>
-    <div class="sr-only"><table><caption>Saldo projetado por mês</caption>
-      <thead><tr><th>Mês</th><th>Saldo</th></tr></thead>
-      <tbody>{% for p in dados.saldo_projetado %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}{{ ' (negativo)' if p.negativo }}</td></tr>{% endfor %}</tbody></table></div>
-  </section>
-  <section class="painel" aria-label="Parcelas">
-    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Parcelas futuras</h2>
-      <p class="subtitulo">Próximos {{ horizonte }} meses</p></div></div>
-    <div id="graf-parcelas" class="grafico pequeno" role="img" aria-label="Colunas de parcelas por mês"></div>
-    <div class="sr-only"><table><caption>Parcelas por mês</caption>
-      <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
-      <tbody>{% for p in dados.parcelas %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}</td></tr>{% endfor %}</tbody></table></div>
-  </section>
-</div>
-
-<div class="grade-paineis meio">
-  <section class="painel" aria-label="Maiores categorias">
-    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Maiores categorias</h2>
-      <p class="subtitulo">Saídas de {{ ind.mes_rotulo }}</p></div></div>
-    {% if dados.maiores %}<div id="graf-maiores" class="grafico pequeno" role="img" aria-label="Barras das maiores categorias"></div>
-    {% else %}<div class="vazio vazio-compacto"><p>Sem gastos neste mês</p></div>{% endif %}
-    <div class="sr-only"><table><caption>Maiores categorias</caption>
-      <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
-      <tbody>{% for f in dados.maiores %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table></div>
-  </section>
-  <section class="painel" aria-label="Entradas e saídas">
-    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Entradas × saídas</h2>
-      <p class="subtitulo">{{ dados.comparativo[0].rotulo }} e {{ dados.comparativo[1].rotulo }}</p></div></div>
-    <div id="graf-comparativo" class="grafico pequeno" role="img" aria-label="Entradas e saídas: {{ dados.comparativo[1].rotulo }} comparado a {{ dados.comparativo[0].rotulo }}"></div>
-    <div class="sr-only"><table><caption>Entradas e saídas por mês</caption>
-      <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th></tr></thead>
-      <tbody>{% for p in dados.comparativo %}<tr><td>{{ p.rotulo }}</td><td>{{ p.entradas_fmt }}</td><td>{{ p.saidas_fmt }}</td></tr>{% endfor %}</tbody></table></div>
-  </section>
-</div>
-<p id="msg-graficos" class="secundario" role="status"></p>
 
 <section class="painel detalhe" aria-label="Detalhamento por categoria">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Saídas por categoria</h2>

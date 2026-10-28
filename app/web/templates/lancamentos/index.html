@@ -153,6 +153,7 @@
         <td class="acoes">
           <details class="linha-acoes"><summary title="Ações do lançamento">Ações<span class="resumo-seta">{{ icone("chevron-down", 14) }}</span></summary>
            <div class="linha-acoes-painel">
+            {% if l.origem != 'fatura_prevista' %}
             <form method="post" action="/lancamentos/{{ l.id }}/tipo">
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <p class="acao-titulo">Tipo do lançamento</p>
@@ -163,6 +164,7 @@
               </select>
               <button type="submit" class="secundario">Marcar tipo</button>
             </form>
+            {% endif %}
             <form method="post" action="/lancamentos/{{ l.id }}/regra">
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <p class="acao-titulo">Regra automática</p>
@@ -171,7 +173,7 @@
                 {{ opcoes_categoria(categorias, none, true) }}</select>
               <button type="submit" class="secundario">Criar regra</button>
             </form>
-            {% if not l.compensado %}
+            {% if not l.compensado and l.origem != 'fatura_prevista' %}
             <form method="post" action="/lancamentos/{{ l.id }}/pagar">
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <p class="acao-titulo">Pagamento</p>

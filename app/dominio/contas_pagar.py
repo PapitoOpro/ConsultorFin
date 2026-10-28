@@ -99,6 +99,30 @@ def abrir_painel(con: Any, hoje: date, meses: int) -> Painel:
         receitas=list(repo_lanc.entradas_pendentes_ate(con, fim.isoformat())))
 
 
+def agrupar_por_fatura(con: Any, linhas: list[Any]) -> list[Any]:
+    """Junta as parcelas previstas pela fatura (origem 'fatura_prevista') de mesma conta e
+    vencimento em um item único (dict com `grupo=True`); demais linhas passam como estão.
+    Mantém a ordem por data."""
+    nomes = {int(c["id"]): str(c["nome"]) for c in repo_contas.listar(con)}
+    grupos: dict[tuple[int, str], dict[str, Any]] = {}
+    saida: list[Any] = []
+    for r in linhas:
+        if r["origem"] != "fatura_prevista":
+            saida.append(r)
+            continue
+        chave = (int(r["conta_id"]), str(r["data"]))
+        g = grupos.get(chave)
+        if g is None:
+            g = grupos[chave] = {
+                "grupo": True, "id": f"fatura-{chave[0]}-{chave[1]}", "data": chave[1],
+                "descricao": f"Fatura prevista · {nomes.get(chave[0], 'cartão')}",
+                "valor_centavos": 0, "itens": []}
+            saida.append(g)
+        g["valor_centavos"] += int(r["valor_centavos"])
+        g["itens"].append(r)
+    return sorted(saida, key=lambda x: str(x["data"]))
+
+
 def resumo_parcelamentos(con: Any) -> list[Parcelamento]:
     return [
         Parcelamento(
