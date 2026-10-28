@@ -55,7 +55,7 @@ def criar_lancamento_manual(
 
 POR_PAGINA = 50
 MAX_LOTE = 500
-TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura")
+TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura", "ajuste")
 TIPOS_FILTRO = (*TIPOS, TIPO_FATURA)  # o filtro aceita a fatura; a edição de tipo, não
 MSG_FATURA_SEM_CATEGORIA = "A linha da fatura não tem categoria: categorize os itens dela."
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}
@@ -287,7 +287,7 @@ def alterar_tipo(con: Any, lancamento_id: int, tipo: str) -> None:
         raise ErroLancamento("A linha da fatura não muda de tipo.")
     if tipo == "auto":
         novo = tipo_inicial(int(row["valor_centavos"]))
-    elif tipo in ("transferencia", "pagamento_fatura"):
+    elif tipo in ("transferencia", "pagamento_fatura", "ajuste"):
         novo = tipo
     else:
         raise ErroLancamento("Tipo inválido.")

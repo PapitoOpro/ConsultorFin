@@ -360,7 +360,10 @@ def importar_fatura(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nom
                     categoria_id=categoria, grupo_parcela_uuid=grupo, parcela_atual=k,
                     parcela_total=int(item.parcela_total))
                 criadas += 1
-        return ResumoFatura(fid, lid, len(fatura.itens), criadas, baixadas, conta_id)
+        resumo = ResumoFatura(fid, lid, len(fatura.itens), criadas, baixadas, conta_id)
+    from app.dominio.faturas_pagamento import casar_automaticamente
+    casar_automaticamente(con)
+    return resumo
 
 
 def alterar_categoria_item(con: Any, item_id: int, categoria_id: int | None) -> None:

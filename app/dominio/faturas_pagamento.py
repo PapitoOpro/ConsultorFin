@@ -28,6 +28,7 @@ class PropostaPagamento:
     valor_centavos: int
     pontuacao: float
     descricao: str = ""  # descrição da linha do banco (texto externo: sempre escapar)
+    parcial: bool = False  # pagamento menor que o total (o resto fica financiado)
 
 
 @dataclass(frozen=True)
@@ -54,17 +55,22 @@ def _dias(fat: Any, data_iso: str) -> int:
     return abs((date.fromisoformat(data_iso) - date.fromisoformat(str(fat["data_vencimento"]))).days)
 
 
-def propor_pagamentos(con: Any, fatura_id: int) -> list[PropostaPagamento]:
+def propor_pagamentos(con: Any, fatura_id: int, parciais: bool = True) -> list[PropostaPagamento]:
     """Pagamentos livres com o valor exato do total impresso e data no vencimento ± 7 dias,
-    mais próximos primeiro. Fatura já paga: nenhuma proposta."""
+    mais próximos primeiro; sem nenhum exato, e com `parciais`, os de valor menor (pagamento
+    parcial, a confirmar pelo usuário). Fatura já paga: nenhuma proposta."""
     fat = _fatura(con, fatura_id)
     if fat["pagamento_lancamento_id"] is not None:
         return []
     ini, fim = _janela(fat)
-    rows = repo_lanc.pagamentos_fatura_livres(con, -int(fat["total_impresso_centavos"]), ini, fim)
+    total = -int(fat["total_impresso_centavos"])
+    rows = repo_lanc.pagamentos_fatura_livres(con, total, ini, fim)
+    parcial = False
+    if not rows and parciais:
+        rows, parcial = repo_lanc.pagamentos_fatura_livres(con, total, ini, fim, parcial=True), True
     props = [PropostaPagamento(fatura_id, int(r["id"]), str(r["data"]), int(r["valor_centavos"]),
                                round(1 - _dias(fat, str(r["data"])) / (JANELA_DIAS + 1), 3),
-                               str(r["descricao"]))
+                               str(r["descricao"]), parcial)
              for r in rows]
     return sorted(props, key=lambda p: (-p.pontuacao, p.lancamento_id))
 
@@ -104,8 +110,9 @@ def _validar(con: Any, fat: Any, lancamento_id: int) -> Any:
         raise PagamentoInvalido("O pagamento precisa sair de uma conta bancária.")
     if repo.por_pagamento(con, lancamento_id) is not None:
         raise PagamentoInvalido("Este pagamento já está casado com outra fatura.")
-    if int(lanc["valor_centavos"]) != -int(fat["total_impresso_centavos"]):
-        raise PagamentoInvalido("O valor do pagamento difere do total da fatura.")
+    pago = -int(lanc["valor_centavos"])
+    if not 0 < pago <= int(fat["total_impresso_centavos"]):
+        raise PagamentoInvalido("O valor do pagamento é maior que o total da fatura.")
     if _dias(fat, str(lanc["data"])) > JANELA_DIAS:
         raise PagamentoInvalido(f"O pagamento está a mais de {JANELA_DIAS} dias do vencimento.")
     return lanc
@@ -122,6 +129,37 @@ def confirmar_pagamento(con: Any, fatura_id: int, lancamento_id: int) -> None:
         if lanc["tipo"] == "saida":
             repo_lanc.atualizar_tipo(con, lancamento_id, "pagamento_fatura")
         repo.marcar_pagamento(con, fatura_id, lancamento_id)
+
+
+def casar_automaticamente(con: Any) -> int:
+    """Casa fatura e pagamento do banco quando a ligação é inequívoca: exatamente uma saída livre
+    com o total da fatura no vencimento ± 7 dias e nenhuma outra fatura disputando essa saída.
+    Devolve quantas faturas foram casadas; ambíguas ficam para o usuário (Casar pagamento)."""
+    casadas = 0
+    for fat in repo.a_pagar(con):
+        props = propor_pagamentos(con, int(fat["id"]), parciais=False)
+        if len(props) != 1:
+            continue
+        lanc = repo_lanc.obter(con, props[0].lancamento_id)
+        if lanc is None:
+            continue
+        dia = date.fromisoformat(str(lanc["data"]))
+        delta = timedelta(days=JANELA_DIAS)
+        rivais = [f for f in repo.a_pagar_por_total(
+            con, -int(lanc["valor_centavos"]), (dia - delta).isoformat(), (dia + delta).isoformat())
+            if f["lancamento_id"] is not None]
+        if len(rivais) != 1:
+            continue
+        if repo_lanc.existe_pendente_equivalente(
+                con, int(lanc["conta_id"]), int(lanc["valor_centavos"]),
+                (dia - delta).isoformat(), (dia + delta).isoformat()):
+            continue  # um lançamento pendente do usuário pode ser o dono desta linha
+        try:
+            confirmar_pagamento(con, int(fat["id"]), props[0].lancamento_id)
+        except PagamentoInvalido:
+            continue
+        casadas += 1
+    return casadas
 
 
 def desfazer_pagamento(con: Any, fatura_id: int) -> None:

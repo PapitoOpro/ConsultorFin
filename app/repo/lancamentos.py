@@ -5,6 +5,17 @@ import uuid
 from app.db import sem_acento
 
 
+def contar_parecidos(con: sqlite3.Connection, conta_id: int, data: str, valor_centavos: int,
+                     letras: str, excluir_importacao: int | None = None) -> int:
+    """Lançamentos importados da conta no mesmo dia e valor cuja descrição, só em letras, é `letras`."""
+    from app.dominio.normalizacao import so_letras
+    rows = con.execute(
+        "SELECT descricao FROM lancamentos WHERE conta_id = ? AND data = ? AND valor_centavos = ?"
+        " AND importacao_id IS NOT NULL AND (? IS NULL OR importacao_id <> ?)",
+        (conta_id, data, valor_centavos, excluir_importacao, excluir_importacao)).fetchall()
+    return sum(1 for r in rows if so_letras(str(r["descricao"])) == letras)
+
+
 def chave_existe(con: sqlite3.Connection, chave: str) -> bool:
     row = con.execute(
         "SELECT 1 FROM lancamentos WHERE chave_deduplicacao = ? "
@@ -253,7 +264,10 @@ def _where(
     sem_categoria: bool, tipo: str | None, texto: str | None, compensado: bool | None,
 ) -> tuple[str, list[object]]:
     """WHERE montado só de fragmentos fixos; valores sempre como parâmetros."""
-    partes: list[str] = []
+    # Parcelas previstas pela fatura ficam em Contas a pagar; aqui só as que não vieram na fatura.
+    partes: list[str] = [
+        "(l.origem <> 'fatura_prevista' OR EXISTS (SELECT 1 FROM faturas f"
+        " WHERE f.conta_id = l.conta_id AND f.competencia >= substr(l.data, 1, 7)))"]
     params: list[object] = []
     if de is not None:
         partes.append("l.data >= ?")
@@ -343,7 +357,7 @@ def totais_extrato(
         " COALESCE(SUM(CASE WHEN l.compensado = 1"
         "   AND l.tipo IN ('saida', 'pagamento_fatura', 'fatura')" + cartao
         + f"   AND NOT {_CASADO} THEN l.valor_centavos END), 0) AS saidas,"
-        " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo <> 'transferencia'" + cartao
+        " COALESCE(SUM(CASE WHEN l.compensado = 0 AND l.tipo NOT IN ('transferencia', 'ajuste')" + cartao
         + "   THEN l.valor_centavos END), 0) AS pendentes"
         " FROM lancamentos l JOIN contas c ON c.id = l.conta_id" + where,
         params,
@@ -472,17 +486,29 @@ def excluir_previstas_dos_grupos(con: sqlite3.Connection, grupos: list[str]) -> 
 
 
 def pagamentos_fatura_livres(con: sqlite3.Connection, valor_centavos: int, data_min: str,
-                             data_max: str) -> list[sqlite3.Row]:
+                             data_max: str, parcial: bool = False) -> list[sqlite3.Row]:
     """Pagamentos de fatura (ou saídas ainda não classificadas) compensados de contas
-    não-cartão, com o valor exato, data em [data_min, data_max] e ainda não casados."""
+    não-cartão, com o valor exato, data em [data_min, data_max] e ainda não casados.
+    parcial: aceita também valores menores (em módulo) que o total, ex.: pagamento parcial."""
+    comparacao = "l.valor_centavos >= ? AND l.valor_centavos < 0" if parcial else "l.valor_centavos = ?"
     return con.execute(
         "SELECT l.* FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
         " WHERE l.tipo IN ('pagamento_fatura', 'saida') AND l.compensado = 1 AND c.tipo <> 'cartao'"
-        " AND l.valor_centavos = ? AND l.data >= ? AND l.data <= ?"
+        f" AND {comparacao} AND l.data >= ? AND l.data <= ?"
         " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
         " ORDER BY l.data, l.id",
         (valor_centavos, data_min, data_max),
     ).fetchall()
+
+
+def existe_pendente_equivalente(con: sqlite3.Connection, conta_id: int, valor_centavos: int,
+                                data_min: str, data_max: str) -> bool:
+    """Há lançamento pendente (manual ou recorrente) da conta com o mesmo valor na janela?"""
+    return con.execute(
+        "SELECT 1 FROM lancamentos WHERE conta_id = ? AND compensado = 0 AND valor_centavos = ?"
+        " AND tipo <> 'fatura' AND origem <> 'fatura_prevista' AND data >= ? AND data <= ? LIMIT 1",
+        (conta_id, valor_centavos, data_min, data_max),
+    ).fetchone() is not None
 
 
 def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,

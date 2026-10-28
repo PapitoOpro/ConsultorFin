@@ -31,6 +31,7 @@ def _pagina(request: Request, con: Any, horizonte: int, *, aviso: str | None = N
         "ativo": "contas", "painel": dom.abrir_painel(con, hoje, horizonte),
         "horizonte": horizonte, "horizontes": (3, 6, 12), "hoje": hoje.isoformat(),
         "correspondencias": dom.correspondencias(con),
+        "por_mes": dom.por_mes,
         "agrupar": lambda linhas: dom.agrupar_por_fatura(con, linhas),
         "parcelamentos": dom.resumo_parcelamentos(con), "recorrentes": dom.listar_recorrentes(con),
         "contas": contas.listar(con), "categorias": opcoes_categorias(con),

@@ -319,6 +319,15 @@ details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6
 /* Categorias */
 .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--borda); }
 .abas a { padding: 8px 16px; color: var(--texto-secundario); border-bottom: 2px solid transparent; font-weight: 500; }
+.abas button { background: none; border: 0; border-radius: 0; padding: 8px 16px; color: var(--texto-secundario); border-bottom: 2px solid transparent; font-weight: 500; cursor: pointer; min-height: 0; }
+.abas button:hover { color: var(--texto); }
+.abas button.ativa { color: var(--primaria); border-bottom-color: var(--primaria); }
+.abas { flex-wrap: wrap; margin-bottom: 16px; }
+.resumo-linha { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--texto-secundario); font-size: 13px; margin: 0 0 12px; }
+.resumo-linha .texto-saida { color: var(--saida); font-weight: 600; }
+.faixa-vazia { display: flex; align-items: center; gap: 8px; color: var(--texto-secundario); font-size: 13px; margin: 0 0 12px; padding: 8px 12px; border: 1px dashed var(--borda); border-radius: var(--raio-pequeno); }
+.mes-grupo { border-top: 1px solid var(--borda); }
+.mes-grupo > summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 4px; font-weight: 600; }
 .abas a:hover { color: var(--texto); text-decoration: none; }
 .abas a.ativa { color: var(--primaria); border-bottom-color: var(--primaria); }
 .lista-categorias { display: flex; flex-direction: column; gap: var(--espaco); }

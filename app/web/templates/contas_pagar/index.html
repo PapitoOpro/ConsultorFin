@@ -18,32 +18,57 @@
 </form>
 {% endblock %}
 {% block conteudo %}
-<section id="vencidas" class="painel secao secao-risco">
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("alert-triangle", 18) }}Vencidas <span class="selo {{ 'saida' if painel.vencidas else 'neutro' }}">{{ painel.vencidas | length }}</span></h2></div></div>
-  {% if painel.vencidas %}
-  {% call alerta() %}{{ painel.vencidas | length }} vencida{{ "s" if painel.vencidas | length != 1 }} · total {{ painel.total_vencidas_centavos | brl }}{% endcall %}
-  {% endif %}
-  {{ tabela(agrupar(painel.vencidas), horizonte, hoje, "Nenhuma conta vencida.") }}
-</section>
+<nav class="abas" role="tablist" aria-label="Seções de contas a pagar">
+  <button type="button" role="tab" data-aba="vencimentos">Vencimentos</button>
+  <button type="button" role="tab" data-aba="parcelamentos">Parcelamentos <span class="selo neutro">{{ parcelamentos | length }}</span></button>
+  <button type="button" role="tab" data-aba="fixas">Contas fixas e receitas <span class="selo neutro">{{ recorrentes | length }}</span></button>
+  <button type="button" role="tab" data-aba="contas">Contas e cartões <span class="selo neutro">{{ contas | length }}</span></button>
+</nav>
 
+<div data-painel-aba="vencimentos">
+<p class="resumo-linha">
+  <span class="{{ 'texto-saida' if painel.vencidas }}">{{ painel.vencidas | length }} vencida{{ "s" if painel.vencidas | length != 1 }}{% if painel.vencidas %} · {{ painel.total_vencidas_centavos | brl }}{% endif %}</span>
+  <span>{{ painel.a_vencer | length }} a vencer em 7 dias{% if painel.a_vencer %} · {{ painel.total_a_vencer_centavos | brl }}{% endif %}</span>
+  <span>Próximos {{ horizonte }} meses · {{ painel.total_proximos_centavos | brl }}</span>
+</p>
+
+{% if painel.vencidas %}
+<section id="vencidas" class="painel secao secao-risco">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("alert-triangle", 18) }}Vencidas <span class="selo saida">{{ painel.vencidas | length }}</span></h2></div></div>
+  {{ tabela(agrupar(painel.vencidas), horizonte, hoje, "") }}
+</section>
+{% else %}<p id="vencidas" class="faixa-vazia">{{ icone("check-circle", 14) }}Nenhuma conta vencida.</p>{% endif %}
+
+{% if painel.a_vencer %}
 <section id="a-vencer" class="painel secao secao-atencao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("clock", 18) }}A vencer (7 dias) <span class="selo neutro">{{ painel.a_vencer | length }}</span></h2>
-    {% if painel.a_vencer %}<p class="subtitulo">Total {{ painel.total_a_vencer_centavos | brl }}</p>{% endif %}</div></div>
-  {{ tabela(agrupar(painel.a_vencer), horizonte, hoje, "Nada a vencer nos próximos 7 dias.") }}
+    <p class="subtitulo">Total {{ painel.total_a_vencer_centavos | brl }}</p></div></div>
+  {{ tabela(agrupar(painel.a_vencer), horizonte, hoje, "") }}
 </section>
+{% else %}<p id="a-vencer" class="faixa-vazia">{{ icone("check-circle", 14) }}Nada a vencer nos próximos 7 dias.</p>{% endif %}
 
 <section id="proximos" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("calendar-clock", 18) }}Próximos vencimentos <span class="selo neutro">{{ painel.proximos | length }}</span></h2>
     {% if painel.proximos %}<p class="subtitulo">Total {{ painel.total_proximos_centavos | brl }} · até o fim de {{ horizonte }} meses</p>{% endif %}</div></div>
-  {{ tabela(agrupar(painel.proximos), horizonte, hoje, "Nenhum vencimento além dos próximos 7 dias no horizonte escolhido.") }}
+  {% for m in por_mes(agrupar(painel.proximos)) %}
+  <details class="mes-grupo"{{ " open" if loop.first }}>
+    <summary><span>{{ m.nome }}</span><span class="valor saida">{{ m.total_centavos | brl }}</span></summary>
+    {{ tabela(m.itens, horizonte, hoje, "") }}
+  </details>
+  {% else %}
+  {{ estado_vazio("Nenhum vencimento além dos próximos 7 dias no horizonte escolhido.", "calendar-clock") }}
+  {% endfor %}
 </section>
 
+{% if painel.receitas %}
 <section id="receitas" class="painel secao secao-ok">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("trending-up", 18) }}Receitas previstas <span class="selo neutro">{{ painel.receitas | length }}</span></h2>
     {% if painel.receitas %}<p class="subtitulo">Total {{ painel.total_receitas_centavos | brl }}</p>{% endif %}</div></div>
   {{ tabela(painel.receitas, horizonte, hoje, "Nenhuma receita pendente no horizonte escolhido.") }}
 </section>
+{% endif %}
 
+{% if correspondencias %}
 <section id="correspondencias" class="painel secao secao-info">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("arrow-left-right", 18) }}Possíveis correspondências no extrato</h2>
     {% if correspondencias %}<p class="subtitulo">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p>{% endif %}</div></div>
@@ -74,7 +99,10 @@
   {{ estado_vazio("Nenhuma correspondência pendente com o extrato.", "check-circle") }}
   {% endif %}
 </section>
+{% endif %}
+</div>
 
+<div data-painel-aba="parcelamentos" hidden>
 <section id="parcelamentos" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("layers", 18) }}Parcelamentos <span class="selo neutro">{{ parcelamentos | length }}</span></h2></div></div>
   {% if parcelamentos %}
@@ -134,6 +162,9 @@
   </details>
 </section>
 
+</div>
+
+<div data-painel-aba="fixas" hidden>
 <section id="recorrentes" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("repeat", 18) }}Contas fixas e receitas recorrentes <span class="selo neutro">{{ recorrentes | length }}</span></h2></div></div>
   {% if recorrentes %}
@@ -188,6 +219,9 @@
   </details>
 </section>
 
+</div>
+
+<div data-painel-aba="contas" hidden>
 <section id="contas" class="painel secao">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("wallet", 18) }}Contas e cartões <span class="selo neutro">{{ contas | length }}</span></h2></div></div>
   {% if contas %}
@@ -225,6 +259,30 @@
     </form>
   </details>
 </section>
+</div>
+<script>
+  (function () {
+    var botoes = document.querySelectorAll("[data-aba]");
+    var paineis = document.querySelectorAll("[data-painel-aba]");
+    function ler() { try { return sessionStorage.getItem("aba-contas-pagar"); } catch (e) { return null; } }
+    function gravar(v) { try { sessionStorage.setItem("aba-contas-pagar", v); } catch (e) {} }
+    function mostrar(nome) {
+      var existe = Array.prototype.some.call(paineis, function (p) { return p.getAttribute("data-painel-aba") === nome; });
+      if (!existe) { nome = "vencimentos"; }
+      paineis.forEach(function (p) { p.hidden = p.getAttribute("data-painel-aba") !== nome; });
+      botoes.forEach(function (b) {
+        var ativa = b.getAttribute("data-aba") === nome;
+        b.classList.toggle("ativa", ativa);
+        b.setAttribute("aria-selected", ativa ? "true" : "false");
+      });
+      gravar(nome);
+    }
+    botoes.forEach(function (b) { b.addEventListener("click", function () { mostrar(b.getAttribute("data-aba")); }); });
+    var alvo = location.hash.replace("#", "");
+    var porHash = { vencidas: "vencimentos", "a-vencer": "vencimentos", proximos: "vencimentos", correspondencias: "vencimentos", receitas: "vencimentos", parcelamentos: "parcelamentos", recorrentes: "fixas", contas: "contas" };
+    mostrar(porHash[alvo] || ler() || "vencimentos");
+  })();
+</script>
 <script>
   (function () {
     var tipo = document.getElementById("r-tipo");

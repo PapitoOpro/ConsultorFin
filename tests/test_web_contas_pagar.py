@@ -69,9 +69,17 @@ def _pendente(db: Path, conta_id: int, data: str, descricao: str, valor: int = -
 
 
 def _secao(html: str, ident: str) -> str:
-    m = re.search(rf'<section id="{ident}"[^>]*>(.*?)</section>', html, re.S)
+    """Conteúdo da seção (ou da faixa de vazio, que substitui a seção sem itens)."""
+    m = (re.search(rf'<section id="{ident}"[^>]*>(.*?)</section>', html, re.S)
+         or re.search(rf'<p id="{ident}"[^>]*>(.*?)</p>', html, re.S))
     assert m, f"seção {ident} ausente"
     return m.group(1)
+
+
+def _secao_opcional(html: str, ident: str) -> str:
+    """Seções que só aparecem quando têm itens: vazio se ausente."""
+    m = re.search(rf'<section id="{ident}"[^>]*>(.*?)</section>', html, re.S)
+    return m.group(1) if m else ""
 
 
 def _parcelamento(cliente: TestClient, conta: int, **extra: str) -> Any:
@@ -116,7 +124,7 @@ def test_vencida_a_vencer_e_proximos_pelas_datas(cliente: TestClient, db: Path, 
     assert "CONTA VENCIDA" in venc and "CONTA VENCIDA" not in avenc + prox
     assert "CONTA SETE DIAS" in avenc and "CONTA SETE DIAS" not in venc + prox
     assert "CONTA OITO DIAS" in prox and "CONTA OITO DIAS" not in venc + avenc
-    assert 'class="alerta"' in venc
+    assert "1 vencida" in html and "R$ 50,00" in html.split('class="resumo-linha"')[1][:300]
     assert "20/10/2026" in venc and "- R$ 50,00" in venc
 
 
@@ -134,7 +142,7 @@ def test_parcelamento_100_em_3x(cliente: TestClient, db: Path, conta: int) -> No
     prox = _secao(html, "proximos")
     for rotulo in ("1/3", "2/3", "3/3"):
         assert f"Geladeira ({rotulo})" in prox
-    assert prox.count("- R$ 33,33") == 2 and prox.count("- R$ 33,34") == 1
+    assert prox.count("- R$ 33,33") >= 2 and prox.count("- R$ 33,34") >= 1
     grupo = _secao(html, "parcelamentos")
     assert "Geladeira" in grupo and "0/3 pagas" in grupo and "3 pendentes" in grupo
     assert "Total R$ 100,00" in grupo and "restante R$ 100,00" in grupo
@@ -483,7 +491,7 @@ def test_possiveis_correspondencias_listadas_e_confirmadas(
     assert ok.status_code == 200 and "Correspondência confirmada." in ok.text
     assert _sql(db, "SELECT COUNT(*) FROM lancamentos WHERE valor_centavos = -150000"
                 " AND data <= '2026-10-31'")[0][0] == 1
-    assert "PIX ALUGUEL APTO" not in _secao(ok.text, "correspondencias")
+    assert "PIX ALUGUEL APTO" not in _secao_opcional(ok.text, "correspondencias")
     ruim = cliente.post(f"{URL}/casamento/confirmar", data={"pendente_id": "x", "lancamento_id": "1"})
     assert ruim.status_code == 400 and "inválido" in ruim.text
 

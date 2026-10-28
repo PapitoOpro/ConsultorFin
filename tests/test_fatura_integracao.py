@@ -192,15 +192,13 @@ def test_desfazer_importacao_descasa_pagamento_da_fatura(con: sqlite3.Connection
     cc, _, r = _setup(con)
     res = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
     lid = int(repo_lanc.importados_da_importacao(con, res.importacao_id)[0]["id"])
-    pag.confirmar_pagamento(con, r.fatura_id, lid)
+    assert _situacao_fatura(con, r.fatura_id) == (lid, 1, "2026-10-09")  # casou sozinho
     assert despesas_do_mes(con, 2026, 10) == 30000
     desfazer_importacao(con, res.importacao_id)
     assert _situacao_fatura(con, r.fatura_id) == (None, 0, None)
     assert despesas_do_mes(con, 2026, 10) == 0
     res2 = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
     lid2 = int(repo_lanc.importados_da_importacao(con, res2.importacao_id)[0]["id"])
-    assert [p.lancamento_id for p in pag.propor_pagamentos(con, r.fatura_id)] == [lid2]
-    pag.confirmar_pagamento(con, r.fatura_id, lid2)
     assert _situacao_fatura(con, r.fatura_id) == (lid2, 1, "2026-10-09")
     assert despesas_do_mes(con, 2026, 10) == 30000
 
@@ -227,7 +225,7 @@ def test_casamento_nao_apaga_linha_que_paga_fatura(con: sqlite3.Connection) -> N
     cc, _, r = _setup(con)
     res = importar(con, cc, "extrato.csv", b"a", _EXTRATO, HOJE)
     lid = int(repo_lanc.importados_da_importacao(con, res.importacao_id)[0]["id"])
-    pag.confirmar_pagamento(con, r.fatura_id, lid)
+    assert _situacao_fatura(con, r.fatura_id) == (lid, 1, "2026-10-09")  # casou sozinho
     pend = repo_lanc.inserir_manual(con, conta_id=cc, data="2026-10-09", descricao="OUTRA",
                                     valor_centavos=-30000, tipo="saida", categoria_id=None,
                                     compensado=False, observacao=None)
