@@ -51,6 +51,12 @@ def iso_para_br(iso: str) -> str:
     return date.fromisoformat(iso).strftime("%d/%m/%Y")
 
 
+def fim_do_mes_iso(iso: str) -> str:
+    """'AAAA-MM-DD' -> último dia do mesmo mês, em ISO."""
+    d = date.fromisoformat(iso[:10])
+    return d.replace(day=calendar.monthrange(d.year, d.month)[1]).isoformat()
+
+
 def somar_meses(d: date, n: int, dia: int | None = None) -> date:
     """Soma n meses a d; usa `dia` (ou o dia de d) limitado ao último dia do mês."""
     if dia is not None and not 1 <= dia <= 31:

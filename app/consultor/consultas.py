@@ -210,6 +210,8 @@ def _cab_fatura(con: Any, f: Any, n_itens: int) -> dict[str, Any]:
         **dinheiro("total", int(f["total_impresso_centavos"])),
         "status": "paga" if f["pagamento_lancamento_id"] is not None else "a_pagar",
         "n_itens": n_itens, "divergencia_centavos": div or None,
+        # total impresso acima/abaixo da soma dos itens (+ ajustes)
+        "divergencia_sentido": "acima" if div > 0 else ("abaixo" if div < 0 else "zero"),
         "divergencia": formatar_brl(abs(div)) if div else None}
 
 

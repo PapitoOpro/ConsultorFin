@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -496,9 +497,92 @@ def test_migracao_v8_a_partir_de_v7_populado(tmp_path) -> None:
               " ('lu', 1, '2026-10-01', 'X', -100, 'saida', 'k', 'importado', 1)")
     c.commit()
     migrar(c)
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
     assert c.execute("SELECT descricao, valor_centavos FROM lancamentos").fetchone()[:] == ("X", -100)
     assert c.execute("SELECT COUNT(*) FROM contas").fetchone()[0] == 1
     assert c.execute("SELECT COUNT(*) FROM importacoes").fetchone()[0] == 1
     assert {"faturas", "fatura_itens"} <= _tabelas(c)
+    c.close()
+
+
+def _fatura_crua(c: sqlite3.Connection, competencia: str, lanc: int | None,
+                 pagamento: int | None) -> None:
+    c.execute("INSERT INTO faturas (uuid, conta_id, competencia, data_vencimento,"
+              " total_impresso_centavos, total_calculado_centavos, ajustes_resumo_centavos,"
+              " arquivo_hash, criado_em, lancamento_id, pagamento_lancamento_id)"
+              " VALUES (?, 1, ?, ?, 100, 100, 0, ?, '2026-10-27', ?, ?)",
+              (f"u{competencia}", competencia, f"{competencia}-10", f"h{competencia}", lanc,
+               pagamento))
+
+
+def test_migracao_v9_pagamento_e_lancamento_unicos_por_fatura(con: sqlite3.Connection) -> None:
+    con.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('cu', 'C', 'cartao')")
+    for i in (1, 2):
+        con.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos,"
+                    " tipo, chave_deduplicacao, origem) VALUES"
+                    " (?, 1, '2026-10-01', 'X', -100, 'saida', ?, 'manual')", (f"l{i}", f"k{i}"))
+    _fatura_crua(con, "2026-09", None, None)
+    _fatura_crua(con, "2026-10", None, None)  # várias sem pagamento/linha: permitido
+    _fatura_crua(con, "2026-11", 1, 2)
+    with pytest.raises(sqlite3.IntegrityError):
+        _fatura_crua(con, "2026-12", None, 2)
+    with pytest.raises(sqlite3.IntegrityError):
+        _fatura_crua(con, "2027-01", 1, None)
+    nomes = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
+    assert {"ux_faturas_lancamento", "ux_faturas_pagamento"} <= nomes
+
+
+
+# --- Migração v9: índices únicos de faturas (v8 já publicada) ---------------------------------
+
+def _indices_faturas(c: sqlite3.Connection) -> set[str]:
+    return {r[0] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'ux_faturas_%'")}
+
+
+def _banco_v8(caminho: Path) -> sqlite3.Connection:
+    c = conectar(caminho)
+    for numero in range(8):
+        c.execute("BEGIN")
+        MIGRACOES[numero](c)
+        c.execute(f"PRAGMA user_version = {numero + 1}")
+        c.execute("COMMIT")
+    assert _indices_faturas(c) == set()  # v8 publicada não tem os índices
+    c.execute("INSERT INTO contas (uuid, nome, tipo) VALUES ('cu', 'C', 'cartao')")
+    for i in (1, 2, 3):
+        c.execute("INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos,"
+                  " tipo, chave_deduplicacao, origem) VALUES"
+                  " (?, 1, '2026-10-10', 'X', -100, 'saida', ?, 'manual')", (f"l{i}", f"k{i}"))
+    _fatura_crua(c, "2026-10", 1, 2)
+    c.commit()
+    return c
+
+
+def test_banco_novo_termina_na_v9(con: sqlite3.Connection) -> None:
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) == 9
+    assert _indices_faturas(con) == {"ux_faturas_lancamento", "ux_faturas_pagamento"}
+
+
+def test_migracao_v9_a_partir_de_v8_populado(tmp_path: Path) -> None:
+    c = _banco_v8(tmp_path / "v8.db")
+    migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 9
+    assert _indices_faturas(c) == {"ux_faturas_lancamento", "ux_faturas_pagamento"}
+    assert c.execute("SELECT competencia, lancamento_id, pagamento_lancamento_id FROM faturas"
+                     ).fetchall()[0][:] == ("2026-10", 1, 2)
+    assert c.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0] == 3
+    with pytest.raises(sqlite3.IntegrityError):
+        _fatura_crua(c, "2026-11", None, 2)
+    c.close()
+
+
+def test_migracao_v9_com_pagamento_duplicado_aborta_sem_alterar(tmp_path: Path) -> None:
+    c = _banco_v8(tmp_path / "v8.db")
+    _fatura_crua(c, "2026-11", 3, 2)  # mesmo pagamento em duas faturas (possível na v8)
+    c.commit()
+    with pytest.raises(RuntimeError, match="nada foi alterado"):
+        migrar(c)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert _indices_faturas(c) == set()
+    assert c.execute("SELECT COUNT(*) FROM faturas").fetchone()[0] == 2
     c.close()

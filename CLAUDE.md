@@ -18,7 +18,7 @@ Padrão: vale sempre que o usuário perguntar ou pedir algo sobre as próprias f
 - Para "últimos lançamentos" use `lancamentos --status compensados` (padrão: últimos 30 dias até hoje; previsões ficam em `vencimentos`/`projecao`; `--ate` mostra o futuro).
 - Consultas (`saldos`, `resumo`, `vencimentos`, `projecao`, `gastos`, `lancamentos`, `faturas`, `contas`, `categorias`) podem ser feitas à vontade.
 - Escritas (`importar --confirmar`, `casar`, `categorizar`, `regra`, `pagar`, `criar-conta`) só a pedido explícito do usuário, depois de dizer o que será feito e receber o "sim". `importar` sem `--confirmar` só simula.
-- Faturas de cartão: `faturas [--conta ID]` lista e `faturas ver ID` mostra os itens (somente leitura). Fatura em PDF só se importa pelo painel (tela Importar): a senha do PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`. Em `gastos`, se `consumo` diferir de `saidas`, explique com `nota_totais` (categorias por data da compra; saídas por data do pagamento).
+- Faturas de cartão: `faturas [--conta ID]` lista e `faturas ver ID` mostra os itens (somente leitura). Fatura em PDF só se importa pelo painel (tela Importar): a senha do PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`. A linha da fatura nunca é "marcada como paga": o `pagar` recusa; ela fica paga casando o pagamento do banco no painel (Lançamentos). Na lista, `divergencia_sentido` (`acima`/`abaixo`/`zero`) diz se o total impresso ficou acima ou abaixo da soma dos itens. Em `gastos`, se `consumo` diferir de `saidas`, explique com `nota_totais` (categorias por data da compra; saídas por data do pagamento).
 - `resumo`, `vencimentos` e `projecao` também criam, uma única vez, os lançamentos estimados das contas fixas do período. Mencione isso só se o usuário perguntar.
 - Skills disponíveis: saldo, vencimentos, projecao, gastos, importar, categorizar, painel.
 
@@ -45,7 +45,8 @@ antes de implementar.
 Um painel pessoal de finanças que importa extratos e faturas de qualquer banco, mostra
 a situação atual e as projeções, e roda **no computador do usuário**. O produto precisa
 nascer de forma que possa ser vendido no futuro, por isso a arquitetura deve permitir
-sincronização, mas **a v0.1 é 100% local**.
+sincronização, mas **o app é 100% local** (inclusive a leitura de faturas de cartão em PDF,
+feita no computador, sem rede).
 
 ## 2. Princípios (não negociáveis)
 
@@ -83,7 +84,8 @@ sincronização, mas **a v0.1 é 100% local**.
   em ECharts ou Chart.js. Alternativa: Streamlit. **Não escolha sozinho.**
 - **Nome do produto:** provisório.
 - **Categorias iniciais:** lista pronta ou o usuário cadastra as próprias.
-- **Modelo de cartão** a ser lido primeiro na v0.2.
+- ~~Modelo de cartão a ser lido primeiro~~ Resolvido: faturas em PDF de Itaú, Porto e Mercado
+  Pago, importadas só pelo painel (tela Importar).
 
 ## 5. Visual
 
@@ -301,9 +303,11 @@ referência quando existir.
 Existe um projeto anterior chamado Financeiro-2026 (Streamlit + Supabase). Use-o **apenas
 como referência de ideias**, nunca copie código, credenciais ou a arquitetura em nuvem.
 Ideias aproveitáveis:
-- Leitura de PDF: primeiro extração direta, OCR só se necessário (v0.2).
-- Identificação de banco pelo texto e de cartão pelos últimos dígitos (v0.2).
-- Tolerância de centavos para reconhecer a mesma compra parcelada (v0.2, projeções).
+- Leitura de PDF: extração direta de texto (implementado para faturas de cartão; sem OCR:
+  PDF escaneado não é lido).
+- Identificação do emissor pelo texto e do cartão pelos últimos dígitos (implementado).
+- Tolerância de centavos para reconhecer a mesma compra parcelada (implementado: previstas
+  baixadas pela fatura seguinte).
 - Fatura tratada como um único lançamento no caixa (implementado: a fatura é um lançamento
   pendente no cartão; seus itens, com categoria, ficam em `fatura_itens`).
 

@@ -137,9 +137,10 @@ def atualizar_parcela_total_do_grupo(
 
 
 def candidatos_casamento_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
-    """Pendentes e "pagos à mão" (compensados, não importados e sem importação) da conta."""
+    """Pendentes e "pagos à mão" (compensados, não importados e sem importação) da conta;
+    nunca a linha da fatura (ela só é paga casando o pagamento do banco)."""
     return con.execute(
-        "SELECT * FROM lancamentos WHERE conta_id = ? AND (compensado = 0"
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND tipo <> 'fatura' AND (compensado = 0"
         " OR (compensado = 1 AND origem <> 'importado' AND importacao_id IS NULL)) ORDER BY id",
         (conta_id,),
     ).fetchall()
@@ -264,7 +265,8 @@ def _where(
         partes.append("l.conta_id = ?")
         params.append(conta_id)
     if sem_categoria:
-        partes.append("l.categoria_id IS NULL")
+        # A linha da fatura nunca tem categoria (os itens têm): não é "sem categoria".
+        partes.append("l.categoria_id IS NULL AND l.tipo <> 'fatura'")
     elif categoria_id is not None:
         partes.append("(l.categoria_id = ? OR l.categoria_id IN"
                       " (SELECT id FROM categorias WHERE pai_id = ?))")
@@ -494,10 +496,20 @@ def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,
 
 
 def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Previstas pendentes cuja data já foi coberta por uma fatura importada da mesma conta
-    (vencimento >= data da prevista) sem que um item a tenha baixado."""
+    """Previstas pendentes cujo mês já foi coberto por uma fatura importada da mesma conta
+    (competência da fatura >= mês da prevista) sem que um item a tenha baixado."""
     return con.execute(
         "SELECT l.* FROM lancamentos l WHERE l.origem = 'fatura_prevista' AND l.compensado = 0"
         " AND EXISTS (SELECT 1 FROM faturas f WHERE f.conta_id = l.conta_id"
-        "   AND f.data_vencimento >= l.data) ORDER BY l.data, l.id"
+        "   AND f.competencia >= substr(l.data, 1, 7)) ORDER BY l.data, l.id"
     ).fetchall()
+
+
+def reabrir_faturas_pagas_pela_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
+    """Linhas de fatura pagas por lançamentos da importação voltam a pendentes."""
+    return con.execute(
+        "UPDATE lancamentos SET compensado = 0, data_compensacao = NULL WHERE tipo = 'fatura'"
+        " AND id IN (SELECT f.lancamento_id FROM faturas f JOIN lancamentos p"
+        "   ON p.id = f.pagamento_lancamento_id WHERE p.importacao_id = ?)",
+        (importacao_id,),
+    ).rowcount

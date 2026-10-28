@@ -12,7 +12,7 @@ from app.dominio.normalizacao import normalizar_descricao
 from app.dominio.casamento import PropostaCasamento, propostas_com_detalhes  # noqa: F401 - reexport
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.importacao.base import ErroLeitura, LinhaImportada, Parser, ResultadoLeitura
-from app.repo import configuracoes, contas, importacoes, lancamentos
+from app.repo import configuracoes, contas, faturas, importacoes, lancamentos
 
 
 class ArquivoJaImportado(Exception):
@@ -197,6 +197,10 @@ def desfazer_importacao(con: Any, importacao_id: int) -> None:
         # Desfaz os casamentos (pendente volta a pendente; pago à mão volta a pago à mão,
         # com valor/estimado/data originais) e libera as chaves, para que reimportar volte
         # a criar as linhas.
+        # Faturas pagas por linhas desta importação voltam a 'a pagar' (antes de remover as
+        # linhas, que a fatura referencia).
+        lancamentos.reabrir_faturas_pagas_pela_importacao(con, importacao_id)
+        faturas.descasar_pagamentos_da_importacao(con, importacao_id)
         lancamentos.reabrir_pendentes_quitados_da_importacao(con, importacao_id)
         lancamentos.apagar_chaves_quitadas_da_importacao(con, importacao_id)
         lancamentos.remover_importados_da_importacao(con, importacao_id)

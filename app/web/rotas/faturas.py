@@ -94,6 +94,21 @@ def _abrir(request: Request, nome: str, conteudo: bytes, senha: str, token: str)
         raise ErroImportacao(MSG_ILEGIVEL) from None
 
 
+# Erros de regra da importação com mensagem própria; outro erro vira MSG_FALHA (loga só o tipo).
+ERROS_IMPORTACAO = (ErroFatura, FaturaJaImportada, FaturaDiferenteExistente, PagamentoInvalido,
+                    ErroLancamento)
+
+
+def _previa_segura(con: Any, fatura: FaturaLida, arquivo_hash: str) -> PreviaFatura:
+    try:
+        return preparar_previa(con, fatura, arquivo_hash)
+    except ERROS_IMPORTACAO as exc:
+        raise ErroImportacao(str(exc)) from None
+    except Exception as exc:  # noqa: BLE001 - nunca expor stack trace nem dados da fatura
+        log.error("event=fatura_previa_falhou erro=%s", type(exc).__name__)
+        raise ErroImportacao(MSG_FALHA, 500) from None
+
+
 def previa_de_upload(request: Request, con: Any, arquivo: UploadFile | None, token: str,
                      senha: str) -> Response:
     """Envio novo (ou reenvio da senha de um envio guardado) -> prévia da fatura."""
@@ -112,7 +127,7 @@ def previa_de_upload(request: Request, con: Any, arquivo: UploadFile | None, tok
         if token:
             request.app.state.uploads.descartar(token)
         arquivo_hash = hashlib.sha256(conteudo).hexdigest()
-        previa = preparar_previa(con, fatura, arquivo_hash)
+        previa = _previa_segura(con, fatura, arquivo_hash)
         novo = request.app.state.faturas.guardar(nome, arquivo_hash, fatura)
         return _render_previa(request, con, novo, FaturaPendente(nome, arquivo_hash, fatura, 0.0),
                               previa)
@@ -196,7 +211,10 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
     pendente = request.app.state.faturas.obter(token) if token else None
     if pendente is None:
         return _inicial(request, con, ErroImportacao(MSG_EXPIRADO))
-    previa = preparar_previa(con, pendente.fatura, pendente.arquivo_hash)
+    try:
+        previa = _previa_segura(con, pendente.fatura, pendente.arquivo_hash)
+    except ErroImportacao as e:
+        return _inicial(request, con, e)
     escolhidas: list[int | None] | None = None
     try:
         escolhidas = _ids_categorias(categoria, len(pendente.fatura.itens))
@@ -210,7 +228,7 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
             resumo = importar_fatura(con, pendente.fatura, pendente.arquivo_hash, pendente.nome,
                                      previa.conta_id, request.app.state.hoje_fn(), escolhidas,
                                      substituir=substituir == "1")
-        except (FaturaJaImportada, FaturaDiferenteExistente, ValueError) as exc:
+        except ERROS_IMPORTACAO as exc:
             raise ErroImportacao(str(exc)) from None
         except Exception as exc:  # noqa: BLE001 - a transação já fez rollback
             log.error("event=fatura_importacao_falhou erro=%s", type(exc).__name__)

@@ -138,7 +138,7 @@
       <tr class="linha{{ ' linha-prevista' if l.origem == 'fatura_prevista' }}" id="lancamento-{{ l.id }}">
         <td class="col-marcar"><input type="checkbox" form="lote" name="ids" value="{{ l.id }}" aria-label="Selecionar lançamento {{ l.id }}"></td>
         <td class="data-linha sec">{{ l.data | data_br }}</td>
-        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.origem == 'fatura_prevista' %}<span class="selo info" title="Parcela futura prevista pela fatura (valor estimado)">prevista</span>{% elif l.estimado %}<span class="selo">estimado</span>{% endif %}{% if l.tipo == 'pagamento_fatura' %}{% if l.fatura_casada_id is not none %}<span class="selo roxo">fatura casada</span>{% elif casaveis.get(l.id) %}{% set fc = casaveis[l.id] %}<span class="aviso-pagamento">{{ icone("alert-triangle", 12) }}não casado — conta como despesa até casar</span>
+        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.origem == 'fatura_prevista' %}<span class="selo info" title="Parcela futura prevista pela fatura (valor estimado)">prevista</span>{% if l.id in orfas %}<span class="selo saida" title="A fatura deste mês já foi importada e não trouxe esta parcela">não apareceu na fatura</span>{% endif %}{% elif l.estimado %}<span class="selo">estimado</span>{% endif %}{% if l.tipo == 'pagamento_fatura' %}{% if l.fatura_casada_id is not none %}<span class="selo roxo">fatura casada</span>{% elif casaveis.get(l.id) %}{% set fc = casaveis[l.id] %}<span class="aviso-pagamento">{{ icone("alert-triangle", 12) }}não casado — conta como despesa até casar</span>
           <form method="post" action="/faturas/{{ fc.fatura_id }}/pagamento/confirmar" class="casar-inline">
             <input type="hidden" name="voltar" value="{{ voltar }}"><input type="hidden" name="lancamento_id" value="{{ l.id }}">
             <button type="submit" class="secundario">{{ icone("check", 14) }}Casar com a fatura venc. {{ fc.data_vencimento | data_br }}</button>
@@ -178,6 +178,13 @@
               <input class="valor" name="valor" value="{{ (l.valor_centavos | abs) | brl }}" aria-label="Valor real">
               <input type="date" name="data" value="{{ hoje }}" aria-label="Data do pagamento" required>
               <button type="submit" class="secundario">{{ icone("check", 16) }}Marcar como pago</button>
+            </form>
+            {% endif %}
+            {% if l.id in orfas %}
+            <form method="post" action="/lancamentos/{{ l.id }}/descartar" onsubmit="return confirm('Descartar esta parcela prevista?')">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <p class="acao-titulo">Não apareceu na fatura</p>
+              <button type="submit" class="perigo" title="Apagar só esta parcela prevista">{{ icone("trash", 16) }}Descartar</button>
             </form>
             {% endif %}
             {% if l.origem == 'manual' %}

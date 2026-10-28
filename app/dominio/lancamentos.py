@@ -10,7 +10,7 @@ from app.db import transacao
 from app.dominio.categorias import aplicar_regras, criar_regra
 from app.dominio.dinheiro import data_br_para_iso, para_centavos
 from app.dominio.normalizacao import hash_chave_legada, hash_chave_v2, normalizar_descricao
-from app.dominio.parcelas import marcar_pago
+from app.dominio.parcelas import MSG_FATURA_PAGAR, TIPO_FATURA, marcar_pago
 from app.dominio.recorrentes import confirmar_recorrente
 from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
@@ -56,7 +56,6 @@ def criar_lancamento_manual(
 POR_PAGINA = 50
 MAX_LOTE = 500
 TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura")
-TIPO_FATURA = "fatura"  # gerado pela importação de fatura; fora de TIPOS (não editável)
 TIPOS_FILTRO = (*TIPOS, TIPO_FATURA)  # o filtro aceita a fatura; a edição de tipo, não
 MSG_FATURA_SEM_CATEGORIA = "A linha da fatura não tem categoria: categorize os itens dela."
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}
@@ -309,9 +308,23 @@ def excluir_manual(con: Any, lancamento_id: int) -> None:
         repo.excluir(con, lancamento_id)
 
 
+ORIGEM_PREVISTA = "fatura_prevista"
+
+
+def descartar_prevista(con: Any, lancamento_id: int) -> None:
+    """Apaga uma parcela prevista pela fatura (ex.: não apareceu na fatura do mês)."""
+    row = _exigir_lancamento(con, lancamento_id)
+    if row["origem"] != ORIGEM_PREVISTA or row["compensado"]:
+        raise ErroLancamento("Só uma parcela prevista pela fatura (pendente) pode ser descartada.")
+    with transacao(con):
+        repo.excluir(con, lancamento_id)
+
+
 def pagar_pendente(con: Any, lancamento_id: int, valor_real_centavos: int | None,
                    data_pagamento: date, *, hoje: date) -> None:
     row = _exigir_lancamento(con, lancamento_id)
+    if row["tipo"] == TIPO_FATURA:
+        raise ErroLancamento(MSG_FATURA_PAGAR)
     if row["compensado"]:
         raise ErroLancamento("Este lançamento já está compensado; não é possível pagar de novo.")
     if data_pagamento > hoje:

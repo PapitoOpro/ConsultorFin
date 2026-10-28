@@ -117,7 +117,8 @@ def test_remover_em_uso_sem_escolha_recusado_com_contagens(con: sqlite3.Connecti
 
 def test_remover_sem_uso(con: sqlite3.Connection) -> None:
     a = criar_categoria(con, "A", "saida")
-    assert remover_categoria(con, a) == {"lancamentos": 0, "recorrentes": 0, "regras": 0}
+    assert remover_categoria(con, a) == {"lancamentos": 0, "recorrentes": 0, "regras": 0,
+                                       "itens_fatura": 0}
     assert _cat(con, a) is None
     with pytest.raises(ErroCategoria, match="não encontrada"):
         remover_categoria(con, a)
@@ -136,7 +137,7 @@ def test_remover_substituir_por(con: sqlite3.Connection) -> None:
     with pytest.raises(ErroCategoria):
         remover_categoria(con, a, substituir_por=a)
     res = remover_categoria(con, a, substituir_por=b)
-    assert res == {"lancamentos": 1, "recorrentes": 1, "regras": 1}
+    assert res == {"lancamentos": 1, "recorrentes": 1, "regras": 1, "itens_fatura": 0}
     assert con.execute("SELECT categoria_id FROM lancamentos").fetchone()[0] == b
     assert con.execute("SELECT categoria_id FROM recorrentes").fetchone()[0] == b
     assert con.execute("SELECT categoria_id FROM regras_categoria").fetchone()[0] == b
@@ -153,7 +154,7 @@ def test_remover_deixar_sem_so_apaga_regras_da_categoria(con: sqlite3.Connection
     criar_regra(con, "AAA", a)
     criar_regra(con, "BBB", b)
     res = remover_categoria(con, a, deixar_sem=True)
-    assert res == {"lancamentos": 1, "recorrentes": 1, "regras": 1}
+    assert res == {"lancamentos": 1, "recorrentes": 1, "regras": 1, "itens_fatura": 0}
     assert [r[0] for r in con.execute("SELECT categoria_id FROM lancamentos ORDER BY id")] == [None, b]
     assert con.execute("SELECT categoria_id FROM recorrentes").fetchone()[0] is None
     assert [r["padrao"] for r in con.execute("SELECT padrao FROM regras_categoria")] == ["BBB"]

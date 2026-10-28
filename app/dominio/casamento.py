@@ -10,7 +10,8 @@ from functools import lru_cache
 from typing import Any
 
 from app.db import transacao
-from app.repo import lancamentos, recorrentes
+from app.dominio.parcelas import MSG_FATURA_PAGAR, TIPO_FATURA
+from app.repo import faturas, lancamentos, recorrentes
 
 JANELA_DIAS = 10
 # Brief dizia 5%, mas o próprio exemplo (21000 x 23000 = 9,5%) exige >= 9,53%: usado 10%.
@@ -197,9 +198,14 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
         pend = lancamentos.obter(con, pendente_id)
         if pend is None:
             raise ValueError(f"Lançamento pendente {pendente_id} não encontrado.")
+        if pend["tipo"] == TIPO_FATURA:
+            raise ValueError(MSG_FATURA_PAGAR)
         linha = lancamentos.obter(con, lancamento_id)
         if linha is None:
             raise ValueError(f"Linha importada {lancamento_id} não encontrada.")
+        if faturas.por_pagamento(con, lancamento_id) is not None:
+            raise ValueError("Esta linha do extrato é o pagamento de uma fatura; desfaça o "
+                             "pagamento da fatura antes.")
         if pend["compensado"] != 0 and not _pago_a_mao(pend):
             raise ValueError(f"O lançamento {pendente_id} não está mais pendente.")
         if linha["origem"] != "importado":

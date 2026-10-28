@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 
 from app import config
 from app.db import conectar, migrar
-from app.dominio.dinheiro import formatar_brl, iso_para_br
+from app.dominio.dinheiro import fim_do_mes_iso, formatar_brl, iso_para_br
 from app.web.rotas import routers
 from app.web.seguranca import ProtecaoOrigemHost
 from app.web.uploads import ArmazemFaturas, ArmazemUploads
@@ -39,6 +39,7 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
     templates.env.filters["brl"] = formatar_brl
     templates.env.filters["data_br"] = iso_para_br
+    templates.env.filters["fim_do_mes"] = fim_do_mes_iso
     app.add_middleware(ProtecaoOrigemHost)
     app.state.templates = templates
     app.state.uploads = ArmazemUploads()
