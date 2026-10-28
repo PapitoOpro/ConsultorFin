@@ -312,7 +312,7 @@ def test_confirmar_pagamento_erros_amigaveis(cliente: TestClient, db: Path, cen:
     r = cliente.post(url, data={"lancamento_id": "abc", "voltar": VOLTAR})
     assert r.status_code == 400 and "Identificador inválido." in r.text
     r = cliente.post(url, data={"lancamento_id": str(cen.pagamento_solto), "voltar": VOLTAR})
-    assert r.status_code == 400 and "O valor do pagamento difere do total da fatura." in r.text
+    assert r.status_code == 400 and "a mais de 7 dias do vencimento" in r.text
     r = cliente.post("/faturas/99999/pagamento/confirmar",
                      data={"lancamento_id": str(cen.pagamento)})
     assert r.status_code == 404 and "Fatura não encontrada." in r.text
@@ -347,8 +347,8 @@ def test_voltar_sobrevive_as_acoes(cliente: TestClient, cen: Cenario) -> None:
 def test_previstas_rotuladas(cliente: TestClient, db: Path, cen: Cenario) -> None:
     previstas = _sql(db, "SELECT id FROM lancamentos WHERE origem = 'fatura_prevista'")
     assert len(previstas) == 1  # parcela 3/3
-    linha = _linha(_get(cliente).text, int(previstas[0][0]))
-    assert "linha-prevista" in linha and ">prevista<" in linha
+    # previstas ficam em Contas a pagar: não aparecem no extrato (só as que não vieram na fatura)
+    assert f'id="lancamento-{previstas[0][0]}"' not in _get(cliente).text
 
 
 def test_tipo_fatura_no_filtro_e_nao_editavel(cliente: TestClient, db: Path, cen: Cenario) -> None:

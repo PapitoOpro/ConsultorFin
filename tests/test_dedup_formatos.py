@@ -273,3 +273,14 @@ def test_lacuna_com_duas_grafias(con: Any) -> None:
                          + [_linha_imp("2026-10-05", "X/1", -100)])
     r = importar(con, conta, "n", b"n", parser, HOJE)
     assert (r.novos, r.ignorados) == (0, 3)
+
+
+def test_descricao_com_acento_quebrado_entre_formatos_nao_duplica(con: Any) -> None:
+    conta = _conta(con)
+    csv = LinhaImportada(data="2026-08-31", descricao="PIX TRANSF VitÃ³ria30/08", valor_centavos=4300)
+    ofx = LinhaImportada(data="2026-08-31", descricao="PIX TRANSF VitAria30 08", valor_centavos=4300)
+    _ofx_imp(con, conta, [csv])
+    assert _ofx_imp(con, conta, [ofx]).novos == 0
+    assert _total(con) == 1
+    dois = [ofx, LinhaImportada(data="2026-08-31", descricao="PIX TRANSF Vitoria30 08", valor_centavos=4300)]
+    assert _ofx_imp(con, conta, dois).novos == 1  # duas transações iguais no arquivo: só a 2ª é nova

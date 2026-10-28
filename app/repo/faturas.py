@@ -154,6 +154,14 @@ def a_pagar_por_total(con: sqlite3.Connection, total_impresso_centavos: int, ven
     ).fetchall()
 
 
+def a_pagar(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Faturas com linha lançada e sem pagamento casado, pelo vencimento."""
+    return con.execute(
+        "SELECT * FROM faturas WHERE pagamento_lancamento_id IS NULL AND lancamento_id IS NOT NULL"
+        " ORDER BY data_vencimento, id"
+    ).fetchall()
+
+
 def descasar_pagamentos_da_importacao(con: sqlite3.Connection, importacao_id: int) -> int:
     """Faturas pagas por lançamentos da importação ficam sem pagamento casado."""
     return con.execute(

@@ -8,7 +8,7 @@ from datetime import date, datetime, time
 from app.db import transacao
 from app.dominio.categorias import PADROES_FATURA_PADRAO, aplicar_regras, classificar_tipo
 from app.dominio.lancamentos import chave_deduplicacao, chave_deduplicacao_legada
-from app.dominio.normalizacao import normalizar_descricao
+from app.dominio.normalizacao import normalizar_descricao, so_letras
 from app.dominio.casamento import PropostaCasamento, propostas_com_detalhes  # noqa: F401 - reexport
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.importacao.base import ErroLeitura, LinhaImportada, Parser, ResultadoLeitura
@@ -104,6 +104,17 @@ def _ja_existe(con: Any, nova: str, legada: str) -> bool:
     return lancamentos.chave_existe(con, nova) or lancamentos.chave_existe(con, legada)
 
 
+def _ja_existe_parecida(con: Any, conta_id: int, l: LinhaImportada, vistas: dict[tuple[str, int, str], int],
+                        imp_id: int | None) -> bool:
+    """Mesma transação vinda de outro formato (descrição escrita diferente): mesmo dia, valor e
+    letras da descrição; conta ocorrências para não esconder duas transações iguais do arquivo."""
+    letras = so_letras(l.descricao)
+    trio = (l.data, l.valor_centavos, letras)
+    vistas[trio] = vistas.get(trio, 0) + 1
+    return bool(letras) and lancamentos.contar_parecidos(
+        con, conta_id, l.data, l.valor_centavos, letras, imp_id) >= vistas[trio]
+
+
 def simular_importacao(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
                        parser: Parser) -> SimulacaoImportacao:
     """Dry-run de `importar`: conta novos/ignorados/erros sem escrever nada."""
@@ -118,8 +129,10 @@ def simular_importacao(con: Any, conta_id: int, nome_arquivo: str, conteudo: byt
     leitura = parser.ler(conteudo)
     _exigir_datas_validas(con, conta_id, leitura)
     novos = ignorados = 0
-    for _, nova, legada in _com_chaves(conta_uuid, leitura.linhas):
-        if _ja_existe(con, nova, legada):
+    vistas: dict[tuple[str, int, str], int] = {}
+    for l, nova, legada in _com_chaves(conta_uuid, leitura.linhas):
+        parecida = _ja_existe_parecida(con, conta_id, l, vistas, None)  # sempre: conta ocorrências
+        if _ja_existe(con, nova, legada) or parecida:
             ignorados += 1
         else:
             novos += 1
@@ -159,8 +172,10 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
     with transacao(con):
         imp_id = importacoes.criar(con, conta_id, nome_arquivo, arquivo_hash,
                                    datetime.combine(hoje, time()))
+        vistas: dict[tuple[str, int, str], int] = {}
         for l, chave, legada in _com_chaves(conta_uuid, leitura.linhas):
-            if _ja_existe(con, chave, legada):
+            parecida = _ja_existe_parecida(con, conta_id, l, vistas, imp_id)  # sempre: conta ocorrências
+            if _ja_existe(con, chave, legada) or parecida:
                 ignorados += 1
                 continue
             lancamentos.inserir_importado(con, conta_id, imp_id, l.data, l.descricao,
@@ -172,6 +187,8 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
         datas = [l.data for l in leitura.linhas]
         importacoes.finalizar(con, imp_id, min(datas, default=None), max(datas, default=None),
                               len(leitura.linhas), novos, ignorados)
+    from app.dominio.faturas_pagamento import casar_automaticamente
+    casar_automaticamente(con)
     return ResumoImportacao(imp_id, len(leitura.linhas), novos, ignorados, leitura.erros)
 
 

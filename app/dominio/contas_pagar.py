@@ -115,12 +115,33 @@ def agrupar_por_fatura(con: Any, linhas: list[Any]) -> list[Any]:
         if g is None:
             g = grupos[chave] = {
                 "grupo": True, "id": f"fatura-{chave[0]}-{chave[1]}", "data": chave[1],
-                "descricao": f"Fatura prevista · {nomes.get(chave[0], 'cartão')}",
+                "descricao": f"Fatura prevista (só parcelas) · {nomes.get(chave[0], 'cartão')}",
                 "valor_centavos": 0, "itens": []}
             saida.append(g)
         g["valor_centavos"] += int(r["valor_centavos"])
         g["itens"].append(r)
     return sorted(saida, key=lambda x: str(x["data"]))
+
+
+_MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+          "setembro", "outubro", "novembro", "dezembro")
+
+
+@dataclass(frozen=True)
+class MesVencimentos:
+    nome: str
+    total_centavos: int
+    itens: list[Any]
+
+
+def por_mes(itens: list[Any]) -> list[MesVencimentos]:
+    """Agrupa itens (já ordenados por data) por mês de vencimento, com o total de cada mês."""
+    meses: dict[str, list[Any]] = {}
+    for i in itens:
+        meses.setdefault(str(i["data"])[:7], []).append(i)
+    return [MesVencimentos(f"{_MESES[int(k[5:7]) - 1]} de {k[:4]}",
+                           sum(int(i["valor_centavos"]) for i in v), v)
+            for k, v in meses.items()]
 
 
 def resumo_parcelamentos(con: Any) -> list[Parcelamento]:

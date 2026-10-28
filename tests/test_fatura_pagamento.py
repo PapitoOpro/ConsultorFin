@@ -94,8 +94,8 @@ def test_pagamento_de_outra_fatura_rejeitado(con: sqlite3.Connection) -> None:
     longe = _pagto(con, cc, "2026-10-20")
     with pytest.raises(pag.PagamentoInvalido, match="vencimento"):
         pag.confirmar_pagamento(con, r2.fatura_id, longe)
-    errado = _pagto(con, cc, "2026-11-10", valor=-1)
-    with pytest.raises(pag.PagamentoInvalido, match="valor"):
+    errado = _pagto(con, cc, "2026-11-10", valor=-99_999_999)
+    with pytest.raises(pag.PagamentoInvalido, match="maior"):
         pag.confirmar_pagamento(con, r2.fatura_id, errado)
     saida = _pagto(con, cc, "2026-11-10", tipo="transferencia")
     with pytest.raises(pag.PagamentoInvalido, match="pagamento de fatura"):
@@ -125,3 +125,29 @@ def test_saida_do_banco_com_valor_exato_casa_e_vira_pagamento_de_fatura(con: sql
     assert [p.lancamento_id for p in pag.propor_pagamentos(con, fid)] == [lid]
     pag.confirmar_pagamento(con, fid, lid)
     assert repo_lanc.obter(con, lid)["tipo"] == "pagamento_fatura"
+
+
+def test_casar_automaticamente_so_com_candidata_unica(con: sqlite3.Connection) -> None:
+    cc, _, fid = _setup(con)
+    _pagto(con, cc, "2026-10-09")
+    _pagto(con, cc, "2026-10-10")
+    assert pag.casar_automaticamente(con) == 0  # ambíguo: o usuário escolhe
+    assert repo_faturas.obter(con, fid)["pagamento_lancamento_id"] is None
+
+
+def test_casar_automaticamente_casa_candidata_unica(con: sqlite3.Connection) -> None:
+    cc, _, fid = _setup(con)
+    lid = _pagto(con, cc, "2026-10-09", tipo="saida")
+    assert pag.casar_automaticamente(con) == 1
+    assert repo_faturas.obter(con, fid)["pagamento_lancamento_id"] == lid
+    assert pag.casar_automaticamente(con) == 0  # idempotente
+
+
+def test_pagamento_parcial_e_proposto_so_sem_exato_e_confirmavel(con: sqlite3.Connection) -> None:
+    cc, _, fatura_id = _setup(con)
+    parcial = _pagto(con, cc, "2026-10-09", valor=-10000)
+    assert pag.propor_pagamentos(con, fatura_id, parciais=False) == []
+    props = pag.propor_pagamentos(con, fatura_id)
+    assert [(p.lancamento_id, p.parcial) for p in props] == [(parcial, True)]
+    assert pag.casar_automaticamente(con) == 0
+    pag.confirmar_pagamento(con, fatura_id, parcial)

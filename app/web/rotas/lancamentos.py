@@ -24,7 +24,7 @@ router = APIRouter()
 
 MSG_INESPERADO = "Não foi possível concluir a operação. Nada foi alterado."
 TIPOS_ROTULO = {"entrada": "Entrada", "saida": "Saída", "transferencia": "Transferência",
-                "pagamento_fatura": "Pagamento de fatura", "fatura": "Fatura"}
+                "pagamento_fatura": "Pagamento de fatura", "ajuste": "Ajuste de saldo", "fatura": "Fatura"}
 
 
 def _status(exc: Exception) -> int:
