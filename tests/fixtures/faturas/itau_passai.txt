@@ -10,11 +10,11 @@ E Encargos (Financiamento + moratório) 8,50
 Postagem: 22/02/2027
 Vencimento: 01/03/2027 L Lançamentos atuais 222,90
 Emissão: 22/02/2027
-Previsão próx. Fechamento: 22/03/2027 = Total desta fatura 271,40
+Previsão próx. Fechamento: 22/03/2027 = Total desta fatura 251,40
 Titular TITULAR TESTE
 Cartão 4000.XXXX.XXXX.0003
 O total da sua fatura é: Com vencimento em: Limite total de crédito:
-R$ 271,40 01/03/2027 R$ 3.000,00
+R$ 251,40 01/03/2027 R$ 3.000,00
 Pagamento mínimo: Parcelas fixas:
 R$ 60,00
 Banco Itaú S.A. 341-7 00000000000000000000000000000000000000000000 recibo do pagador

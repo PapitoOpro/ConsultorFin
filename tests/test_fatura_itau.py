@@ -154,7 +154,7 @@ def test_passai_cabecalho() -> None:
     f = _ler("itau_passai")
     assert (f.bandeira, f.produto, f.final_cartao) == ("Visa", "Passaí", "0003")
     assert f.data_vencimento == "2027-03-01"
-    assert f.total_impresso_centavos == 27140
+    assert f.total_impresso_centavos == 25140
 
 
 def test_passai_encargo_sintetico_e_confere() -> None:
@@ -169,7 +169,7 @@ def test_passai_encargo_sintetico_e_confere() -> None:
 
 def test_passai_pagamentos_so_em_ajustes() -> None:
     f = _ler("itau_passai")
-    assert f.ajustes_resumo_centavos == 4000  # 420,00 - 400,00 + 20,00
+    assert f.ajustes_resumo_centavos == 2000  # saldo financiado (já inclui o que sobrou do anterior)
     assert not any(i.valor_centavos > 0 for i in f.itens)
     assert len(f.itens) == 7  # 5 compras + 1 serviço + 1 encargo
     assert _tipos(f).count("compra") == 5

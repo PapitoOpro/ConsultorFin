@@ -111,7 +111,8 @@ class ParserItau:
         return _centavos(m.group(1))
 
     def _ajustes(self, p1: str) -> int:
-        """Saldo anterior − pagamentos + saldo financiado (do resumo)."""
+        """Saldo financiado (do resumo); sem ele, saldo anterior − pagamentos.
+        O que ficou sem pagar já vem rolado no saldo financiado: somar os dois contaria em dobro."""
         def opcional(padrao: str) -> int:
             m = re.search(padrao, p1)
             return _centavos(m.group(1)) if m else 0
@@ -119,7 +120,7 @@ class ParserItau:
         anterior = opcional(rf"Total da fatura anterior\s+({_VAL})")
         pagamentos = opcional(rf"Pagamentos?\s+efetuados?(?:\s+em\s+\d{{2}}/\d{{2}}/\d{{4}})?\s+({_VAL})")
         financiado = opcional(rf"Saldo financiado\s+({_VAL})")
-        return anterior - abs(pagamentos) + financiado
+        return financiado if financiado else anterior - abs(pagamentos)
 
     @staticmethod
     def _produto(p1: str) -> str | None:
