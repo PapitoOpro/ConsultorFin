@@ -58,14 +58,16 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 2. Clique em **Ver prévia da fatura**. Nada é gravado ainda.
 3. **Conferência do total:** o app soma os itens, tira créditos e estornos, soma encargos e compara com o total impresso na fatura. Se aparecer **Divergente**, algum item pode ter sido lido errado; confira antes de confirmar.
 4. **Conta-cartão:** se já existe uma conta de cartão com o mesmo final, a fatura vai para ela. Se não existe, marque **Criar conta-cartão** para criá-la.
-5. **Categoria item a item:** o app sugere categorias (suas regras e a categoria do banco). Altere o que quiser.
+5. **Categoria item a item:** o app sugere categorias: suas regras, depois as categorias que você já usou nesse cartão (descrição igual na fatura anterior) e, por último, a do banco. Altere o que quiser.
 6. Clique em **Confirmar importação**.
 
 **Depois de importar**
 - Em **Lançamentos**, a fatura aparece como uma linha (**Fatura <cartão> · venc. dd/mm**, com selo **a pagar** ou **paga**). Clique na linha para expandir os itens; em cada item você escolhe a categoria, e pode marcar vários e categorizar de uma vez.
-- **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas (aparecem em Contas a pagar e na projeção). Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
-- **Prevista que não apareceu na fatura:** se a fatura do mês já foi importada e não trouxe uma parcela prevista (compra cancelada, quitada antes ou renegociada), a prevista ganha o selo **não apareceu na fatura** em Lançamentos. Abra **Ações** na linha e clique em **Descartar** para apagar só essa parcela prevista; as demais continuam.
-- **Casar o pagamento:** quando o pagamento da fatura aparece no extrato da conta corrente, o app propõe casá-lo com a fatura. Confirme: o pagamento deixa de contar como despesa (as compras já contam pelos itens) e a fatura vira **paga**. Pagamento não casado continua contando como despesa, com um aviso na linha.
+- **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas. Elas aparecem só em **Contas a pagar** (agrupadas por fatura, como "Fatura prevista (só parcelas)") e na projeção, sem **Ações**: servem para prever a dívida dos próximos meses. Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
+- **Prevista que não apareceu na fatura:** se a fatura do mês foi importada e não trouxe uma parcela prevista (compra cancelada, quitada antes, renegociada ou fatura de um mês anterior que você não importou), a prevista passa a aparecer em Lançamentos com o selo **não apareceu na fatura**. Abra **Ações** e clique em **Descartar** para apagar só essa parcela; ou importe a fatura que faltou e ela é baixada sozinha.
+- **Casar o pagamento:** quando a saída da fatura aparece no extrato da conta corrente com o **valor exato** do total impresso (até 7 dias do vencimento) e só uma fatura combina, o app casa sozinho, ao importar o extrato ou a fatura. Nos demais casos, use **Casar pagamento** na linha da fatura. Casado, o pagamento deixa de contar como despesa (as compras já contam pelos itens) e a fatura vira **paga**. Pagamento não casado continua contando como despesa, com um aviso na linha.
+- **Pagamento parcial:** se você pagou menos que o total (o resto foi financiado), **Casar pagamento** lista as saídas de valor menor, com o selo **parcial**. Ao confirmar, a fatura fica paga; o restante aparece como saldo financiado na fatura seguinte e não é contado de novo como gasto. O app nunca casa pagamento parcial sozinho.
+- **Valor da linha x total a pagar:** a linha da fatura soma só o consumo lido (itens, créditos e encargos). O total a pagar é o impresso no PDF, que pode incluir o saldo financiado do mês anterior; é com ele que o pagamento do banco é comparado.
 - **Nunca marque a fatura como paga à mão.** A fatura só fica paga casando o pagamento do banco (botão **Casar pagamento** na linha da fatura, em Lançamentos). Em Contas a pagar, a linha da fatura não tem **Marcar como pago**: ela leva para Lançamentos. Se você ainda não importou o extrato com o pagamento, importe-o primeiro. Desfazer a importação desse extrato volta a fatura para **a pagar**.
 - **Reimportar ou substituir:** o mesmo PDF não duplica. Se o emissor gerar uma versão diferente da fatura do mesmo mês, marque **Substituir a fatura existente deste mês**; as categorias já escolhidas nos itens iguais são mantidas.
 
@@ -77,11 +79,11 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 
 Em **Lançamentos**:
 
-- **Filtros**: período, conta, categoria, tipo, status e busca no texto da descrição. Os quatro cartões de total no topo (**Entradas**, **Saídas**, **Resultado líquido** e **Pendentes no filtro**) acompanham o filtro.
+- **Filtros**: período, conta, categoria, tipo, status e busca no texto da descrição. As parcelas previstas de fatura não aparecem aqui (ficam em Contas a pagar), salvo as que não apareceram na fatura. Os quatro cartões de total no topo (**Entradas**, **Saídas**, **Resultado líquido** e **Pendentes no filtro**) acompanham o filtro.
 - **Categoria**: escolha direto na linha, ou marque várias linhas (ou **Marcar todas as linhas da página**, na caixa do cabeçalho da tabela) e use **Categorizar selecionados em**; o contador ao lado diz quantas linhas estão marcadas.
 - **Menu Ações** (botão **Ações** no fim de cada linha): reúne o que se faz com aquele lançamento.
   - **Criar regra**: gera "sempre que a descrição contiver X, categoria Y" e aplica nos lançamentos ainda sem categoria.
-  - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto) ou **pagamento de fatura**. Se o pagamento estiver casado com uma fatura importada, ele não conta como gasto; sem casar, conta como despesa.
+  - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto), **pagamento de fatura** ou **ajuste de saldo** (corrige a diferença com o banco: entra no saldo, mas não conta como entrada nem saída). Se o pagamento estiver casado com uma fatura importada, ele não conta como gasto; sem casar, conta como despesa.
   - **Marcar como pago**: aparece nos lançamentos pendentes; informe o valor real e a data.
   - **Excluir**: aparece só nos lançamentos manuais; os importados não podem ser excluídos aqui.
 - **Novo lançamento**: o botão no topo da página abre o formulário **Novo lançamento manual**, para o que não está em nenhum extrato.
@@ -107,7 +109,7 @@ O consultor do Claude Code apenas lê as categorias; para criar, renomear, mover
 
 ## 5. Contas a pagar
 
-Em **Contas a pagar** você vê, em cartões, **Vencidas** (borda vermelha), **A vencer (7 dias)** (borda âmbar), **Próximos vencimentos**, **Receitas previstas**, **Possíveis correspondências no extrato**, **Parcelamentos**, **Contas fixas e receitas recorrentes** e **Contas e cartões**. Use o seletor **Horizonte** (3, 6 ou 12 meses) no topo e clique em **Atualizar** para mudar a previsão.
+Em **Contas a pagar** a tela é dividida em abas: **Vencimentos** (vencidas, a vencer em 7 dias e próximos vencimentos por mês, mais receitas previstas e possíveis correspondências quando houver), **Parcelamentos**, **Contas fixas e receitas recorrentes** e **Contas e cartões**. Use o seletor **Horizonte** (3, 6 ou 12 meses) no topo e clique em **Atualizar** para mudar a previsão. A aba escolhida fica lembrada.
 
 Em cada linha de vencimento, o botão **Ações** abre **Marcar como pago** (valor real e data) e, nas contas fixas, **Pular este mês**. A linha da **fatura de cartão** não tem **Marcar como pago**: use **Casar pagamento**, que leva a Lançamentos (veja "Importar fatura do cartão").
 
