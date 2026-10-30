@@ -35,16 +35,27 @@ def data(campo: str, iso: str | None) -> dict[str, Any]:
     return {campo: iso, f"{campo}_br": None if iso is None else iso_para_br(iso)}
 
 
+def _valor_conta(con: Any, hoje: date, c: Any) -> dict[str, Any]:
+    """Conta corrente: saldo. Cartão: só a fatura em aberto (o 'saldo' de um cartão, soma das
+    faturas já pagas, não significa dívida)."""
+    if c["tipo"] == "cartao":
+        return dinheiro("fatura_em_aberto", repo_faturas.total_em_aberto(con, int(c["id"])))
+    return dinheiro("saldo", saldo_atual(con, int(c["id"]), hoje))
+
+
 def _linha_saldo(con: Any, hoje: date, c: Any) -> dict[str, Any]:
     return {"id": int(c["id"]), "nome": c["nome"], "tipo": c["tipo"],
-            **dinheiro("saldo", saldo_atual(con, int(c["id"]), hoje))}
+            **_valor_conta(con, hoje, c)}
 
 
 def saldos(con: Any, hoje: date) -> dict[str, Any]:
     linhas = [_linha_saldo(con, hoje, c) for c in repo_contas.listar(con)]
     total = sum(l["saldo_centavos"] for l in linhas if l["tipo"] != "cartao")
+    em_aberto = sum(l["fatura_em_aberto_centavos"] for l in linhas if l["tipo"] == "cartao")
     return {"contas": linhas, **dinheiro("saldo_total", total),
-            "observacao": "O total não inclui contas de cartão.", **data("hoje", hoje.isoformat())}
+            **dinheiro("faturas_em_aberto_total", em_aberto),
+            "observacao": "O saldo total só considera contas correntes; cartões mostram a fatura em aberto.",
+            **data("hoje", hoje.isoformat())}
 
 
 def _mes(hoje: date, mes: str | None) -> tuple[int, int]:
@@ -187,7 +198,7 @@ def contas(con: Any, hoje: date) -> dict[str, Any]:
          "final_numero": c["final_numero"],
          **dinheiro("saldo_inicial", int(c["saldo_inicial_centavos"])),
          **data("data_saldo_inicial", c["data_saldo_inicial"]),
-         **dinheiro("saldo", saldo_atual(con, int(c["id"]), hoje))}
+         **_valor_conta(con, hoje, c)}
         for c in repo_contas.listar(con)]}
 
 

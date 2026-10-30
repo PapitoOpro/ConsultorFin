@@ -141,3 +141,41 @@ def test_faturas_divergencia_sentido(db: Path, capsys: pytest.CaptureFixture[str
         con.close()
     f = rodar(capsys, db, "faturas")[1]["faturas"][0]
     assert (f["divergencia_sentido"], f["divergencia_centavos"]) == (sentido, centavos)
+
+
+def test_saldos_cartao_mostra_fatura_em_aberto(db: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _, r = rodar(capsys, db, "saldos")
+    cartao = next(c for c in r["contas"] if c["tipo"] == "cartao")
+    assert cartao["fatura_em_aberto_centavos"] == 15000
+    assert cartao["fatura_em_aberto"] == "R$ 150,00"
+    assert "saldo_centavos" not in cartao
+    corrente = next(c for c in r["contas"] if c["tipo"] == "corrente")
+    assert "saldo_centavos" in corrente
+
+
+def test_saldos_cartao_fatura_paga_nao_conta(db: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    con = conectar(db)
+    try:
+        con.execute("UPDATE lancamentos SET compensado = 1 WHERE tipo = 'fatura'")
+        con.commit()
+    finally:
+        con.close()
+    _, r = rodar(capsys, db, "saldos")
+    cartao = next(c for c in r["contas"] if c["tipo"] == "cartao")
+    assert cartao["fatura_em_aberto_centavos"] == 0
+    _, r2 = rodar(capsys, db, "contas")
+    cartao2 = next(c for c in r2["contas"] if c["tipo"] == "cartao")
+    assert cartao2["fatura_em_aberto_centavos"] == 0 and "saldo_centavos" not in cartao2
+
+
+def test_saldos_cartao_usa_total_impresso(db: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    con = conectar(db)
+    try:
+        con.execute("UPDATE faturas SET total_impresso_centavos = 20000")
+        con.commit()
+    finally:
+        con.close()
+    _, r = rodar(capsys, db, "saldos")
+    cartao = next(c for c in r["contas"] if c["tipo"] == "cartao")
+    assert cartao["fatura_em_aberto_centavos"] == 20000
+    assert r["faturas_em_aberto_total_centavos"] == 20000
