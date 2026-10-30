@@ -41,7 +41,7 @@ def test_migracao_10_a_partir_da_v9_populada() -> None:
               " 'k1', 'manual')", (conta,))
     c.commit()
     migrar(c)
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 10
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 11
     tabelas = {r["name"] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"holerites", "holerite_itens"} <= tabelas
     assert c.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0] == 1

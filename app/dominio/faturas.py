@@ -275,9 +275,19 @@ def _desfazer_anterior(con: Any, fatura_id: int) -> Guardados:
     return guardados
 
 
+def _valor_da_linha(con: Any, fatura: FaturaLida, existente: Any | None) -> int:
+    """O que o banco cobra (total impresso, com saldo anterior/financiado). Fatura já paga
+    (parcialmente ou não): o valor que saiu do banco."""
+    if existente is not None and existente["pagamento_lancamento_id"] is not None:
+        pago = repo_lanc.obter(con, int(existente["pagamento_lancamento_id"]))
+        if pago is not None:
+            return int(pago["valor_centavos"])
+    return -fatura.total_impresso_centavos
+
+
 def _gravar_cabecalho(con: Any, fatura: FaturaLida, arquivo_hash: str, arquivo_nome: str,
                       conta_id: int, hoje: date, existente: Any | None) -> tuple[int, int]:
-    valor = -fatura.calculado_centavos
+    valor = _valor_da_linha(con, fatura, existente)
     if existente is None:
         fid = repo.criar(
             con, conta_id=conta_id, competencia=_competencia(fatura),

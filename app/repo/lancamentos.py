@@ -564,6 +564,12 @@ def definir_compensacao_fatura(con: sqlite3.Connection, lancamento_id: int,
     ).rowcount
 
 
+def definir_valor_fatura(con: sqlite3.Connection, lancamento_id: int, valor_centavos: int) -> None:
+    """Valor da linha da fatura: total impresso (pendente) ou o valor pago (pagamento parcial)."""
+    con.execute("UPDATE lancamentos SET valor_centavos = ? WHERE id = ? AND tipo = 'fatura'",
+                (valor_centavos, lancamento_id))
+
+
 def previstas_orfas(con: sqlite3.Connection) -> list[sqlite3.Row]:
     """Previstas pendentes cujo mês já foi coberto por uma fatura importada da mesma conta
     (competência da fatura >= mês da prevista) sem que um item a tenha baixado."""

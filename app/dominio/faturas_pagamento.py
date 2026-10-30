@@ -126,6 +126,8 @@ def confirmar_pagamento(con: Any, fatura_id: int, lancamento_id: int) -> None:
         data = str(lanc["data_compensacao"] or lanc["data"])
         if repo_lanc.definir_compensacao_fatura(con, int(fat["lancamento_id"]), data) != 1:
             raise PagamentoInvalido("Lançamento da fatura não encontrado.")
+        # Pagamento parcial: a linha vale o que saiu do banco; o resíduo vem na fatura seguinte.
+        repo_lanc.definir_valor_fatura(con, int(fat["lancamento_id"]), int(lanc["valor_centavos"]))
         if lanc["tipo"] == "saida":
             repo_lanc.atualizar_tipo(con, lancamento_id, "pagamento_fatura")
         repo.marcar_pagamento(con, fatura_id, lancamento_id)
@@ -170,4 +172,6 @@ def desfazer_pagamento(con: Any, fatura_id: int) -> None:
             raise PagamentoInvalido("Esta fatura não está paga.")
         if fat["lancamento_id"] is not None:
             repo_lanc.definir_compensacao_fatura(con, int(fat["lancamento_id"]), None)
+            repo_lanc.definir_valor_fatura(con, int(fat["lancamento_id"]),
+                                           -int(fat["total_impresso_centavos"]))
         repo.marcar_pagamento(con, fatura_id, None)

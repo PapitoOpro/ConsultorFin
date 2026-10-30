@@ -558,15 +558,15 @@ def _banco_v8(caminho: Path) -> sqlite3.Connection:
     return c
 
 
-def test_banco_novo_termina_na_v10(con: sqlite3.Connection) -> None:
-    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) == 10
+def test_banco_novo_termina_na_v11(con: sqlite3.Connection) -> None:
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) == 11
     assert _indices_faturas(con) == {"ux_faturas_lancamento", "ux_faturas_pagamento"}
 
 
 def test_migracao_v9_a_partir_de_v8_populado(tmp_path: Path) -> None:
     c = _banco_v8(tmp_path / "v8.db")
     migrar(c)
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 10
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 11
     assert _indices_faturas(c) == {"ux_faturas_lancamento", "ux_faturas_pagamento"}
     assert c.execute("SELECT competencia, lancamento_id, pagamento_lancamento_id FROM faturas"
                      ).fetchall()[0][:] == ("2026-10", 1, 2)
