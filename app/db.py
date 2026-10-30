@@ -397,9 +397,27 @@ def _migracao_10(con: sqlite3.Connection) -> None:
                 " WHERE lancamento_id IS NOT NULL")
 
 
+def _migracao_11(con: sqlite3.Connection) -> None:
+    """Linha da fatura = o que o banco cobra: total impresso (pendente) ou o valor do
+    pagamento casado (parcial inclusive). Antes valia a soma dos itens."""
+    con.execute(
+        "UPDATE lancamentos SET valor_centavos = ("
+        " SELECT -f.total_impresso_centavos FROM faturas f WHERE f.lancamento_id = lancamentos.id)"
+        " WHERE tipo = 'fatura' AND id IN ("
+        "  SELECT lancamento_id FROM faturas"
+        "  WHERE lancamento_id IS NOT NULL AND pagamento_lancamento_id IS NULL)")
+    con.execute(
+        "UPDATE lancamentos SET valor_centavos = ("
+        " SELECT p.valor_centavos FROM faturas f JOIN lancamentos p"
+        "  ON p.id = f.pagamento_lancamento_id WHERE f.lancamento_id = lancamentos.id)"
+        " WHERE tipo = 'fatura' AND id IN ("
+        "  SELECT lancamento_id FROM faturas"
+        "  WHERE lancamento_id IS NOT NULL AND pagamento_lancamento_id IS NOT NULL)")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
-    _migracao_7, _migracao_8, _migracao_9, _migracao_10,
+    _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11,
 ]
 
 
