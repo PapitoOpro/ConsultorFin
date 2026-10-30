@@ -22,7 +22,7 @@ No Windows manual, use `.venv\Scripts\python` no lugar de `.venv/bin/python`. Ab
 Categorias em dois níveis (categoria › subcategoria), com tipo entrada ou saída, editáveis na tela **Categorias** do painel. Antes de atualizar para esta versão, copie `data/consultorfin.db` como backup. Detalhes: [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
 
 ## Consultor pelo Claude Code
-Abra a pasta no Claude Code e converse em português. Skills: `saldo`, `vencimentos`, `projecao`, `gastos`, `importar`, `categorizar`, `painel`.
+Abra a pasta no Claude Code e converse em português. Skills: `saldo`, `holerite`, `vencimentos`, `projecao`, `gastos`, `importar`, `categorizar`, `painel`.
 Escritas (importar, casar, categorizar, regras, pagar, criar conta) só com o seu "sim".
 Ele nunca pede nem guarda senha, token ou chave de banco; só importa arquivos de extrato.
 Privacidade: o Claude vê os dados que consulta e o histórico das conversas fica salvo no seu computador.
@@ -36,6 +36,9 @@ Detalhes: seção 8 de [docs/PASSO-A-PASSO.md](docs/PASSO-A-PASSO.md).
 2. Em Importar, envie o extrato (OFX baixado do Itaú, recomendado, ou CSV).
 3. Confira a prévia e confirme.
 4. Verifique o aviso "Saldo confere com o banco".
+
+## Importar holerite
+Em Importar, "Importar holerite" lê o PDF (Adiantamento ou Folha Mensal; só esses dois layouts foram testados), mostra uma prévia com a conferência dos totais e o crédito do líquido no extrato, e grava só ao confirmar. Os valores ficam no servidor local; o arquivo não é guardado. O consultor só consulta (`holerites`).
 
 ## Conceitos
 - **Pendente vs compensado**: lançamento previsto ainda não confirmado no banco vs já efetivado.

@@ -1,0 +1,17 @@
+{% from "_macros.html" import opcoes_categoria %}
+<p id="itens-holerite-{{ holerite.id }}-status" hx-swap-oob="innerHTML">{{ itens | length }} {{ "item carregado" if itens | length == 1 else "itens carregados" }}.</p>
+<div class="tabela-rolavel tabela-itens-fatura" tabindex="0" role="region" aria-label="Itens do holerite"><table class="tabela-curta">
+  <thead><tr><th>Descrição</th><th class="sec">Referência</th><th>Categoria</th><th class="valor">Valor</th></tr></thead>
+  <tbody>
+  {% for it in itens %}
+    <tr id="item-holerite-{{ it.id }}">
+      <td class="desc">{{ it.descricao }} <span class="selo {{ 'entrada' if it.natureza == 'provento' else 'saida' }}">{{ 'provento' if it.natureza == 'provento' else 'desconto' }}</span>{% if it.referencia %}<span class="mob-info">ref. {{ it.referencia }}</span>{% endif %}</td>
+      <td class="sec">{{ it.referencia or "—" }}</td>
+      <td class="categoria">{% with item = it %}{% include "holerites/_item_categoria.html" %}{% endwith %}</td>
+      <td class="valor {{ 'entrada' if it.natureza == 'provento' else 'saida' }}">{{ "− " if it.natureza == "desconto" }}{{ it.valor_centavos | brl }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="secundario">Holerite sem itens.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>

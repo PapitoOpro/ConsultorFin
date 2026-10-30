@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import estado_vazio %}
+{% from "_icones.html" import icone %}
+{% block titulo %}Holerites{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Holerites</h1><p class="subtitulo">Proventos, descontos e líquido por competência. Os itens são informativos e não alteram o saldo.</p></div>
+<div class="cabecalho-acoes">
+  <a class="botao" href="/importar#holerite">{{ icone("upload", 16) }}Importar holerite</a>
+</div>
+<nav class="abas filtro-periodo" aria-label="Ano dos holerites">
+  {% for a in anos %}<a href="/holerites?ano={{ a }}" class="{{ 'ativa' if a == ano }}"{% if a == ano %} aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}
+</nav>
+{% endblock %}
+{% block conteudo %}
+<section class="painel" aria-label="Holerites de {{ ano }}">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Competências de {{ ano }}</h2><p class="subtitulo">Expanda uma linha para ver e categorizar os itens.</p></div></div>
+  {% if linhas %}
+  <div class="tabela-rolavel tabela-extrato" tabindex="0" role="region" aria-label="Tabela de holerites"><table class="tabela-curta">
+    <thead><tr><th class="col-marcar"><span class="sr-only">Itens</span></th><th>Competência</th><th class="valor sec">Bruto</th><th class="valor sec">Descontos</th><th class="valor">Líquido</th><th class="sec">Crédito</th></tr></thead>
+    <tbody>
+    {% for l in linhas %}
+      {% set cred = ("recebido em " ~ (l.credito_data | data_br)[:5]) if l.credito == "recebido" else (("previsto para " ~ (l.credito_data | data_br)[:5]) if l.credito == "previsto" else "sem crédito no extrato") %}
+      <tr class="linha linha-fatura" id="holerite-{{ l.id }}">
+        <td class="col-marcar"><button type="button" class="botao-expandir" data-fatura-toggle aria-expanded="false" aria-controls="itens-holerite-{{ l.id }}" aria-label="Itens do holerite {{ l.rotulo }} {{ l.competencia[5:7] }}/{{ l.competencia[:4] }}" hx-get="/holerites/{{ l.id }}/itens" hx-target="#itens-holerite-{{ l.id }}-corpo" hx-trigger="click once">{{ icone("chevron-down", 16) }}</button></td>
+        <td class="desc"><span class="fatura-titulo">{{ icone("file-text", 16) }}{{ l.rotulo }} · {{ l.competencia[5:7] }}/{{ l.competencia[:4] }}</span>
+          <span class="mob-info">Bruto {{ l.bruto_centavos | brl }} · Descontos {{ l.descontos_centavos | brl }}<br>{{ cred }}</span></td>
+        <td class="valor sec">{{ l.bruto_centavos | brl }}</td>
+        <td class="valor sec saida">{{ l.descontos_centavos | brl }}</td>
+        <td class="valor entrada"><strong>{{ l.liquido_centavos | brl }}</strong></td>
+        <td class="sec"><span class="selo {{ 'entrada' if l.credito == 'recebido' else 'neutro' }}">{{ cred }}</span></td>
+      </tr>
+      <tr class="fatura-itens" id="itens-holerite-{{ l.id }}" hidden>
+        <td colspan="6"><div class="fatura-itens-corpo" id="itens-holerite-{{ l.id }}-corpo"><p class="secundario">Carregando itens…</p></div>
+          <p class="sr-only" role="status" id="itens-holerite-{{ l.id }}-status"></p></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  {{ estado_vazio("Nenhum holerite importado em " ~ ano ~ ".", "file-text", "/importar#holerite", "Importar holerite") }}
+  {% endif %}
+</section>
+<script>
+  (function () {
+    /* linha expansível: o botão (Enter/Espaço nativos) alterna a linha de itens */
+    document.addEventListener("click", function (e) {
+      var botao = e.target.closest ? e.target.closest("[data-fatura-toggle]") : null;
+      if (!botao) { return; }
+      var alvo = document.getElementById(botao.getAttribute("aria-controls"));
+      if (!alvo) { return; }
+      var abrir = botao.getAttribute("aria-expanded") !== "true";
+      botao.setAttribute("aria-expanded", abrir ? "true" : "false");
+      alvo.hidden = !abrir;
+    });
+  })();
+</script>
+{% endblock %}

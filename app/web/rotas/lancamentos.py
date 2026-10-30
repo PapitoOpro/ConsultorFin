@@ -180,7 +180,7 @@ def mudar_tipo(lancamento_id: str, request: Request, con: Any = Depends(get_con)
 def excluir(lancamento_id: str, request: Request, con: Any = Depends(get_con),
             voltar: str = Form("")) -> HTMLResponse:
     def acao() -> str:
-        dom.excluir_manual(con, dom.interpretar_id(lancamento_id))
+        dom.excluir_manual(con, dom.interpretar_id(lancamento_id), request.app.state.hoje_fn())
         return "Lançamento excluído."
     return executar(request, con, voltar, acao)
 

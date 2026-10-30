@@ -7,7 +7,7 @@
   {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% macro uso_txt(u) -%}
-  {{ u.lancamentos }} lançamento{{ "" if u.lancamentos == 1 else "s" }} · {{ u.recorrentes }} conta{{ "" if u.recorrentes == 1 else "s" }} fixa{{ "" if u.recorrentes == 1 else "s" }}/recorrente{{ "" if u.recorrentes == 1 else "s" }} · {{ u.regras }} regra{{ "" if u.regras == 1 else "s" }}{% if u.itens_fatura %} · {{ u.itens_fatura }} {{ "item" if u.itens_fatura == 1 else "itens" }} de fatura{% endif %}
+  {{ u.lancamentos }} lançamento{{ "" if u.lancamentos == 1 else "s" }} · {{ u.recorrentes }} conta{{ "" if u.recorrentes == 1 else "s" }} fixa{{ "" if u.recorrentes == 1 else "s" }}/recorrente{{ "" if u.recorrentes == 1 else "s" }} · {{ u.regras }} regra{{ "" if u.regras == 1 else "s" }}{% if u.itens_fatura %} · {{ u.itens_fatura }} {{ "item" if u.itens_fatura == 1 else "itens" }} de fatura{% endif %}{% if u.itens_holerite %} · {{ u.itens_holerite }} {{ "item" if u.itens_holerite == 1 else "itens" }} de holerite{% endif %}
 {%- endmacro %}
 {% macro form_excluir(c) %}
   <form method="post" action="/categorias/{{ c.id }}/excluir" onsubmit="return confirm('Excluir esta categoria?')">
@@ -35,8 +35,9 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("alert-triangle", 18) }}Excluir "{{ excluindo.nome }}"</h2></div></div>
   <p>Esta categoria está em uso: {{ excluindo.uso.lancamentos }} lançamento{{ "" if excluindo.uso.lancamentos == 1 else "s" }},
     {{ excluindo.uso.recorrentes }} conta{{ "" if excluindo.uso.recorrentes == 1 else "s" }} fixa{{ "" if excluindo.uso.recorrentes == 1 else "s" }}/recorrente{{ "" if excluindo.uso.recorrentes == 1 else "s" }},
-    {{ excluindo.uso.regras }} regra{{ "" if excluindo.uso.regras == 1 else "s" }} automática{{ "" if excluindo.uso.regras == 1 else "s" }} e
-    {{ excluindo.uso.itens_fatura }} {{ "item" if excluindo.uso.itens_fatura == 1 else "itens" }} de fatura.
+    {{ excluindo.uso.regras }} regra{{ "" if excluindo.uso.regras == 1 else "s" }} automática{{ "" if excluindo.uso.regras == 1 else "s" }},
+    {{ excluindo.uso.itens_fatura }} {{ "item" if excluindo.uso.itens_fatura == 1 else "itens" }} de fatura e
+    {{ excluindo.uso.itens_holerite }} {{ "item" if excluindo.uso.itens_holerite == 1 else "itens" }} de holerite.
     Escolha o que fazer com eles; nada é excluído antes da sua escolha.</p>
   <form method="post" action="/categorias/{{ excluindo.id }}/excluir" onsubmit="return confirm('Confirmar a exclusão?')">
     <input type="hidden" name="aba" value="{{ aba }}">

@@ -65,10 +65,10 @@ def _inicial(request: Request, con: Any, erro: ErroImportacao) -> Response:
     return _sem_cache(_pagina_inicial(request, con, fatura=ctx, status=erro.status))
 
 
-def _ler_pdf(arquivo: UploadFile) -> tuple[str, bytes]:
+def _ler_pdf(arquivo: UploadFile, objeto: str = "a fatura") -> tuple[str, bytes]:
     nome = Path((arquivo.filename or "").replace("\\", "/")).name[:200]
     if Path(nome).suffix.lower() != ".pdf":
-        raise ErroImportacao("Formato não aceito. Envie a fatura em .pdf.")
+        raise ErroImportacao(f"Formato não aceito. Envie {objeto} em .pdf.")
     conteudo = arquivo.file.read(LIMITE_BYTES + 1)
     if len(conteudo) > LIMITE_BYTES:
         raise ErroImportacao("O arquivo excede o limite de 5 MB.", 413)
@@ -183,9 +183,10 @@ def previa(request: Request, con: Any = Depends(get_con), arquivo: UploadFile | 
     return previa_de_upload(request, con, arquivo, token, senha)
 
 
-def _ids_categorias(textos: list[str], quantidade: int) -> list[int | None]:
+def _ids_categorias(textos: list[str], quantidade: int,
+                    itens_de: str = "da fatura") -> list[int | None]:
     if len(textos) != quantidade:
-        raise ErroImportacao("A lista de categorias não corresponde aos itens da fatura.")
+        raise ErroImportacao(f"A lista de categorias não corresponde aos itens {itens_de}.")
     ids: list[int | None] = []
     for t in textos:
         t = t.strip()

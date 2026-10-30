@@ -79,8 +79,9 @@ def confirmar_recorrente(
             con, int(row["recorrente_id"]), str(row["data"]), sinal * valor_real_centavos)
 
 
-def pular_mes(con: Any, lancamento_id: int) -> None:
-    """Remove o pendente do mês e impede que a geração o recrie."""
+def pular_mes(con: Any, lancamento_id: int, hoje: date | None = None) -> None:
+    """Remove o pendente do mês e impede que a geração o recrie. Holerite ligado a ele é
+    solto antes (`hoje` decide se volta a ter entrada prevista; padrão: data do sistema)."""
     row = repo_lanc.obter(con, lancamento_id)
     if row is None:
         raise ValueError("Lançamento não encontrado.")
@@ -88,15 +89,21 @@ def pular_mes(con: Any, lancamento_id: int) -> None:
         raise ValueError("O lançamento não pertence a um recorrente.")
     if row["compensado"]:
         raise ValueError("Lançamento já pago não pode ser pulado.")
+    from app.dominio import holerites as dom_hol  # evita import circular
     with transacao(con):
+        dom_hol.liberar_vinculo_do_lancamento(con, lancamento_id, hoje)
         repo.excluir_lancamento(con, lancamento_id)
         repo.marcar_pulado(con, int(row["recorrente_id"]), str(row["competencia"] or str(row["data"])[:7]))
 
 
 def desativar_recorrente(con: Any, recorrente_id: int, hoje: date) -> None:
-    """Desativa e apaga só os pendentes futuros (data > hoje); vencidos e pagos permanecem."""
+    """Desativa e apaga só os pendentes futuros (data > hoje); vencidos e pagos permanecem.
+    Holerite ligado a um pendente apagado é solto antes."""
     if repo.obter(con, recorrente_id) is None:
         raise ValueError("Recorrente não encontrada.")
+    from app.dominio import holerites as dom_hol  # evita import circular
     with transacao(con):
         repo.desativar(con, recorrente_id)
+        for lid in repo.pendentes_futuros(con, recorrente_id, hoje.isoformat()):
+            dom_hol.liberar_vinculo_do_lancamento(con, lid, hoje)
         repo.excluir_pendentes_futuros(con, recorrente_id, hoje.isoformat())

@@ -1,0 +1,4 @@
+{% from "_macros.html" import opcoes_categoria %}<select name="categoria_id" aria-label="Categoria do item" data-busca hx-post="/holerites/itens/{{ item.id }}/categoria" hx-trigger="change" hx-target="closest td" hx-swap="innerHTML">
+  <option value=""{{ " selected" if item.categoria_id is none }}>Sem categoria</option>
+  {{ opcoes_categoria(categorias, item.categoria_id, true) }}
+</select>

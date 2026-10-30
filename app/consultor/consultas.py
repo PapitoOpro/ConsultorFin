@@ -11,14 +11,17 @@ from typing import Any
 from app import config
 from app.dominio import categorias as dom_categorias
 from app.dominio import faturas as dom_faturas
+from app.dominio import holerites as dom_hol
 from app.dominio import lancamentos as dom_lanc
 from app.dominio import painel, projecao as dom_proj
 from app.dominio.dinheiro import formatar_brl, iso_para_br
+from app.dominio.normalizacao import normalizar_descricao
 from app.dominio.recorrentes import gerar_recorrentes
 from app.dominio.saldo import saldo_atual
 from app.repo import categorias as repo_categorias
 from app.repo import contas as repo_contas
 from app.repo import faturas as repo_faturas
+from app.repo import holerites as repo_hol
 
 MAX_LIMITE = 200
 NOTA_TOTAIS = ("categorias por data da compra (itens de fatura); "
@@ -245,3 +248,49 @@ def fatura_ver(con: Any, hoje: date, fatura_id: int) -> dict[str, Any]:
          "parcela": (f"{i['parcela_atual']}/{i['parcela_total']}"
                      if i["parcela_atual"] and i["parcela_total"] else None),
          "portador": i["final_cartao"]} for i in itens]}
+
+
+def _linha_holerite(h: dom_hol.LinhaHolerite) -> dict[str, Any]:
+    """Sem empresa nem nome de arquivo: só competência, tipo, valores e crédito."""
+    return {"id": h.id, "competencia": h.competencia, "tipo": h.tipo,
+            **dinheiro("bruto", h.bruto_centavos), **dinheiro("descontos", h.descontos_centavos),
+            **dinheiro("liquido", h.liquido_centavos),
+            "credito": {"status": h.credito, **data("data", h.credito_data)}}
+
+
+def holerites(con: Any, hoje: date, ano: int | None = None,
+              item: str | None = None) -> dict[str, Any]:
+    """Holerites de um ano (padrão: o mais recente com holerite), totais e, com `item`, a soma
+    dos descontos cujo texto contém o termo. Só leitura."""
+    if ano is None:
+        anos = dom_hol.anos_com_holerite(con)
+        ano = anos[0] if anos else hoje.year
+    linhas = dom_hol.listar_por_ano(con, ano)
+    # A folha mensal já traz o salário todo no bruto e desconta o adiantamento: o bruto do
+    # adiantamento só conta enquanto a folha do mesmo mês não foi importada.
+    com_folha = {h.competencia for h in linhas if h.tipo == "mensal"}
+    bruto = sum(h.bruto_centavos for h in linhas
+                if h.tipo == "mensal" or h.competencia not in com_folha)
+    liquido = sum(h.liquido_centavos for h in linhas)
+    saida: dict[str, Any] = {
+        "ano": ano, "holerites": [_linha_holerite(h) for h in linhas],
+        "totais_ano": {**dinheiro("bruto", bruto), **dinheiro("descontos", bruto - liquido),
+                       **dinheiro("liquido", liquido)}}
+    termo = normalizar_descricao(item or "")
+    if termo:
+        saida["total_item"] = {"termo": termo, **dinheiro(
+            "total", repo_hol.total_por_descricao(con, ano, termo))}
+    return saida
+
+
+def holerite_detalhe(con: Any, holerite_id: int) -> dict[str, Any]:
+    """Cabeçalho e itens de um holerite, só leitura."""
+    hol, itens = dom_hol.detalhe(con, holerite_id)
+    nomes = {int(c["id"]): c["nome"] for c in repo_categorias.todas(con)}
+    linha = next(h for h in dom_hol.listar_por_ano(con, int(str(hol["competencia"])[:4]))
+                 if h.id == holerite_id)
+    return {"holerite": _linha_holerite(linha), "itens": [
+        {"id": int(i["id"]), "descricao": i["descricao"], "natureza": i["natureza"],
+         **dinheiro("valor", int(i["valor_centavos"])), "referencia": i["referencia"],
+         "categoria_id": i["categoria_id"], "categoria": nomes.get(i["categoria_id"])}
+        for i in itens]}

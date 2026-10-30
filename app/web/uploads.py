@@ -8,6 +8,7 @@ MAX_ITENS itens (os mais antigos são descartados). Processo único/local.
 - ArmazemUploads: arquivo enviado (nome + bytes).
 - ArmazemFaturas: fatura de cartão já lida (FaturaLida + hash do arquivo); nunca guarda
   os bytes do PDF nem a senha.
+- ArmazemHolerites: holerite já lido (HoleriteLido + hash + conta); nunca guarda os bytes.
 """
 import secrets
 import threading
@@ -16,6 +17,7 @@ from dataclasses import dataclass
 from typing import Generic, Protocol, TypeVar
 
 from app.importacao.fatura.modelo import FaturaLida
+from app.importacao.holerite.modelo import HoleriteLido
 
 TTL_SEGUNDOS = 15 * 60
 MAX_ITENS = 20
@@ -33,6 +35,15 @@ class FaturaPendente:
     nome: str
     arquivo_hash: str
     fatura: FaturaLida
+    criado_em: float
+
+
+@dataclass(frozen=True)
+class HoleritePendente:
+    """Sem nome do arquivo (pode conter o nome do funcionário) e sem bytes do PDF."""
+    arquivo_hash: str
+    holerite: HoleriteLido
+    conta_id: int
     criado_em: float
 
 
@@ -80,3 +91,9 @@ class ArmazemUploads(_Armazem[Envio]):
 class ArmazemFaturas(_Armazem[FaturaPendente]):
     def guardar(self, nome: str, arquivo_hash: str, fatura: FaturaLida) -> str:
         return self._guardar(FaturaPendente(nome, arquivo_hash, fatura, time.monotonic()))
+
+
+class ArmazemHolerites(_Armazem[HoleritePendente]):
+    def guardar(self, arquivo_hash: str, holerite: HoleriteLido, conta_id: int) -> str:
+        return self._guardar(
+            HoleritePendente(arquivo_hash, holerite, conta_id, time.monotonic()))

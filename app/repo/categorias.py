@@ -37,11 +37,13 @@ def uso(con: sqlite3.Connection, categoria_id: int) -> dict[str, int]:
         "SELECT (SELECT COUNT(*) FROM lancamentos WHERE categoria_id = :c) AS lancamentos,"
         " (SELECT COUNT(*) FROM recorrentes WHERE categoria_id = :c) AS recorrentes,"
         " (SELECT COUNT(*) FROM regras_categoria WHERE categoria_id = :c) AS regras,"
-        " (SELECT COUNT(*) FROM fatura_itens WHERE categoria_id = :c) AS itens_fatura",
+        " (SELECT COUNT(*) FROM fatura_itens WHERE categoria_id = :c) AS itens_fatura,"
+        " (SELECT COUNT(*) FROM holerite_itens WHERE categoria_id = :c) AS itens_holerite",
         {"c": categoria_id},
     ).fetchone()
     return {"lancamentos": int(row["lancamentos"]), "recorrentes": int(row["recorrentes"]),
-            "regras": int(row["regras"]), "itens_fatura": int(row["itens_fatura"])}
+            "regras": int(row["regras"]), "itens_fatura": int(row["itens_fatura"]),
+            "itens_holerite": int(row["itens_holerite"])}
 
 
 def arvore(con: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -81,8 +83,8 @@ def mover(con: sqlite3.Connection, categoria_id: int, novo_pai_id: int) -> None:
 
 
 def reapontar(con: sqlite3.Connection, de_id: int, para_id: int) -> dict[str, int]:
-    """Aponta lançamentos, recorrentes, regras e itens de fatura de uma categoria para outra
-    (sem commit)."""
+    """Aponta lançamentos, recorrentes, regras e itens de fatura/holerite de uma categoria para
+    outra (sem commit)."""
     return {
         "lancamentos": con.execute(
             "UPDATE lancamentos SET categoria_id = ? WHERE categoria_id = ?", (para_id, de_id)
@@ -96,12 +98,15 @@ def reapontar(con: sqlite3.Connection, de_id: int, para_id: int) -> dict[str, in
         "itens_fatura": con.execute(
             "UPDATE fatura_itens SET categoria_id = ? WHERE categoria_id = ?", (para_id, de_id)
         ).rowcount,
+        "itens_holerite": con.execute(
+            "UPDATE holerite_itens SET categoria_id = ? WHERE categoria_id = ?", (para_id, de_id)
+        ).rowcount,
     }
 
 
 def limpar(con: sqlite3.Connection, categoria_id: int) -> dict[str, int]:
-    """Zera a categoria em lançamentos/recorrentes/itens de fatura e apaga as regras dela
-    (sem commit)."""
+    """Zera a categoria em lançamentos/recorrentes/itens de fatura e de holerite e apaga as
+    regras dela (sem commit)."""
     return {
         "lancamentos": con.execute(
             "UPDATE lancamentos SET categoria_id = NULL WHERE categoria_id = ?", (categoria_id,)
@@ -114,6 +119,9 @@ def limpar(con: sqlite3.Connection, categoria_id: int) -> dict[str, int]:
         ).rowcount,
         "itens_fatura": con.execute(
             "UPDATE fatura_itens SET categoria_id = NULL WHERE categoria_id = ?", (categoria_id,)
+        ).rowcount,
+        "itens_holerite": con.execute(
+            "UPDATE holerite_itens SET categoria_id = NULL WHERE categoria_id = ?", (categoria_id,)
         ).rowcount,
     }
 

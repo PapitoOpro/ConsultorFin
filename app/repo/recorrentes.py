@@ -88,6 +88,13 @@ def atualizar_futuros_estimados(
     return cur.rowcount
 
 
+def pendentes_futuros(con: sqlite3.Connection, recorrente_id: int, apos_iso: str) -> list[int]:
+    """Ids dos pendentes que `excluir_pendentes_futuros` apagaria."""
+    return [int(r[0]) for r in con.execute(
+        "SELECT id FROM lancamentos WHERE recorrente_id = ? AND compensado = 0 AND data > ?",
+        (recorrente_id, apos_iso))]
+
+
 def excluir_pendentes_futuros(
     con: sqlite3.Connection, recorrente_id: int, apos_iso: str
 ) -> int:

@@ -360,9 +360,46 @@ def _migracao_9(con: sqlite3.Connection) -> None:
                 " ON faturas(pagamento_lancamento_id) WHERE pagamento_lancamento_id IS NOT NULL")
 
 
+def _migracao_10(con: sqlite3.Connection) -> None:
+    """Holerites (PDF) e seus itens; uma linha de entrada pertence a no máximo um holerite."""
+    con.execute(
+        "CREATE TABLE holerites ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " conta_id INTEGER NOT NULL REFERENCES contas(id),"
+        " competencia TEXT NOT NULL,"
+        " tipo TEXT NOT NULL CHECK (tipo IN ('adiantamento','mensal')),"
+        " empresa TEXT,"
+        " total_vencimentos_centavos INTEGER NOT NULL,"
+        " total_descontos_centavos INTEGER NOT NULL,"
+        " liquido_centavos INTEGER NOT NULL,"
+        " arquivo_hash TEXT NOT NULL,"
+        " arquivo_nome TEXT,"
+        " lancamento_id INTEGER REFERENCES lancamentos(id),"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (competencia, tipo))"
+    )
+    con.execute(
+        "CREATE TABLE holerite_itens ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " holerite_id INTEGER NOT NULL REFERENCES holerites(id) ON DELETE CASCADE,"
+        " ordem INTEGER NOT NULL,"
+        " codigo TEXT,"
+        " descricao TEXT NOT NULL,"
+        " referencia TEXT,"
+        " natureza TEXT NOT NULL CHECK (natureza IN ('provento','desconto')),"
+        " valor_centavos INTEGER NOT NULL,"
+        " categoria_id INTEGER REFERENCES categorias(id))"
+    )
+    con.execute("CREATE INDEX idx_holerite_itens_holerite ON holerite_itens(holerite_id)")
+    con.execute("CREATE UNIQUE INDEX ux_holerites_lancamento ON holerites(lancamento_id)"
+                " WHERE lancamento_id IS NOT NULL")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
-    _migracao_7, _migracao_8, _migracao_9,
+    _migracao_7, _migracao_8, _migracao_9, _migracao_10,
 ]
 
 

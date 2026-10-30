@@ -47,12 +47,15 @@ def _render(request: Request, nome: str, ctx: dict[str, Any], status: int = 200)
 
 
 def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: str | None = None,
-                    status: int = 200, fatura: dict[str, Any] | None = None) -> HTMLResponse:
-    """`fatura`: estado do formulário de fatura em PDF (erro, envio guardado, pedir senha)."""
+                    status: int = 200, fatura: dict[str, Any] | None = None,
+                    holerite: dict[str, Any] | None = None) -> HTMLResponse:
+    """`fatura`: estado do formulário de fatura em PDF (erro, envio guardado, pedir senha);
+    `holerite`: estado do formulário de holerite (erro)."""
     return _render(request, "index.html", {
         "contas": contas.listar(con), "historico": importacoes.listar_com_conta(con),
         "desfaziveis": importacoes.ids_ultimas_ativas(con),
-        "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso, "fatura": fatura or {}}, status)
+        "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso, "fatura": fatura or {},
+        "holerite": holerite or {}}, status)
 
 
 def _ler_upload(arquivo: UploadFile) -> tuple[str, bytes]:
@@ -302,7 +305,7 @@ def casamento(request: Request, con: Any = Depends(get_con), pendente_id: str = 
 @router.post("/importar/{importacao_id}/desfazer")
 def desfazer(importacao_id: int, request: Request, con: Any = Depends(get_con)) -> Response:
     try:
-        desfazer_importacao(con, importacao_id)
+        desfazer_importacao(con, importacao_id, request.app.state.hoje_fn())
     except ImportacaoNaoEncontrada:
         return _pagina_inicial(request, con, erro="Importação não encontrada.", status=404)
     except ValueError as exc:
