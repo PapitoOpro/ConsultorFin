@@ -196,9 +196,10 @@ class ImportacaoNaoEncontrada(ValueError):
     """Importação inexistente."""
 
 
-def desfazer_importacao(con: Any, importacao_id: int) -> None:
+def desfazer_importacao(con: Any, importacao_id: int, hoje: date | None = None) -> None:
     """Desfaz só a importação ativa mais recente da conta (uma anterior pode ter linhas
-    das quais uma posterior, sobreposta, depende)."""
+    das quais uma posterior, sobreposta, depende). `hoje` decide se um holerite liberado
+    volta a ter entrada prevista (padrão: data do sistema)."""
     with transacao(con):
         imp = importacoes.obter(con, importacao_id)
         if imp is None:
@@ -220,5 +221,8 @@ def desfazer_importacao(con: Any, importacao_id: int) -> None:
         faturas.descasar_pagamentos_da_importacao(con, importacao_id)
         lancamentos.reabrir_pendentes_quitados_da_importacao(con, importacao_id)
         lancamentos.apagar_chaves_quitadas_da_importacao(con, importacao_id)
+        # Holerites ligados a linhas desta importação voltam a uma entrada prevista (FK).
+        from app.dominio.holerites import liberar_vinculos_da_importacao
+        liberar_vinculos_da_importacao(con, importacao_id, hoje)
         lancamentos.remover_importados_da_importacao(con, importacao_id)
         importacoes.marcar_desfeita(con, importacao_id)

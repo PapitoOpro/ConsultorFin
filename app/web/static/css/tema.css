@@ -695,3 +695,10 @@ tr.fatura-itens > td { padding: 8px 8px 16px 24px; border-left: 3px solid var(--
   .tabela-itens-fatura .busca { width: 112px; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .botao-expandir .icone { transition: none; } }
+
+/* escolha do crédito do holerite no extrato (opções com área de toque) */
+.escolha-credito { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; border: 0; min-width: 0; }
+.opcao-credito { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio-pequeno); cursor: pointer; }
+.opcao-credito:has(input:checked) { border-color: var(--primaria); }
+.opcao-credito input { margin-top: 2px; flex: none; }
+.opcao-credito .quebra { overflow-wrap: anywhere; }

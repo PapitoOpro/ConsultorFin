@@ -161,8 +161,9 @@ def importados_da_conta(
     con: sqlite3.Connection, conta_id: int, data_min: str | None = None,
     data_max: str | None = None,
 ) -> list[sqlite3.Row]:
-    """Linhas importadas livres (ainda não casadas) da conta, de todas as importações.
-    `data_min`/`data_max` (ISO, inclusivos) limitam a janela de datas."""
+    """Linhas importadas livres (ainda não casadas) da conta, de todas as importações; a
+    vinculada a holerite também (o casamento reaponta o holerite). `data_min`/`data_max`
+    (ISO, inclusivos) limitam a janela de datas."""
     return con.execute(
         "SELECT * FROM lancamentos WHERE conta_id = ? AND origem = 'importado'"
         " AND (? IS NULL OR data >= ?) AND (? IS NULL OR data <= ?) ORDER BY id",
@@ -171,9 +172,11 @@ def importados_da_conta(
 
 
 def importados_da_importacao(con: sqlite3.Connection, importacao_id: int) -> list[sqlite3.Row]:
-    """Linhas importadas ainda existentes (as casadas já foram removidas)."""
+    """Linhas importadas ainda existentes (as casadas já foram removidas); a vinculada a
+    holerite também (o casamento reaponta o holerite)."""
     return con.execute(
-        "SELECT * FROM lancamentos WHERE importacao_id = ? AND origem = 'importado' ORDER BY id",
+        "SELECT * FROM lancamentos WHERE importacao_id = ? AND origem = 'importado'"
+        " ORDER BY id",
         (importacao_id,),
     ).fetchall()
 
@@ -450,6 +453,46 @@ def inserir_prevista(con: sqlite3.Connection, *, conta_id: int, data: str, descr
          f"fatura_prevista:{novo}", grupo_parcela_uuid, parcela_atual, parcela_total),
     )
     return int(cur.lastrowid)
+
+
+def inserir_holerite_previsto(con: sqlite3.Connection, *, conta_id: int, data: str,
+                              descricao: str, valor_centavos: int,
+                              categoria_id: int | None) -> int:
+    """Entrada prevista pelo holerite: pendente, estimada, origem 'holerite'."""
+    novo = str(uuid.uuid4())
+    cur = con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " categoria_id, chave_deduplicacao, origem, compensado, estimado)"
+        " VALUES (?,?,?,?,?,'entrada',?,?,'holerite',0,1)",
+        (novo, conta_id, data, descricao, valor_centavos, categoria_id, f"holerite:{novo}"),
+    )
+    return int(cur.lastrowid)
+
+
+def entradas_candidatas(con: sqlite3.Connection, conta_id: int, valor_centavos: int,
+                        de_iso: str, ate_iso: str) -> list[sqlite3.Row]:
+    """Entradas compensadas da conta com o valor exato e data em [de, ate] ainda não
+    vinculadas a um holerite, por data."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND tipo = 'entrada' AND compensado = 1"
+        " AND valor_centavos = ? AND data >= ? AND data <= ?"
+        " AND id NOT IN (SELECT lancamento_id FROM holerites WHERE lancamento_id IS NOT NULL)"
+        " ORDER BY data, id",
+        (conta_id, valor_centavos, de_iso, ate_iso),
+    ).fetchall()
+
+
+def entradas_pendentes_candidatas(con: sqlite3.Connection, conta_id: int, de_iso: str,
+                                  ate_iso: str) -> list[sqlite3.Row]:
+    """Entradas pendentes da conta (não previstas por holerite) com data em [de, ate], ainda
+    não vinculadas a um holerite, por data (ex.: salário recorrente já cadastrado)."""
+    return con.execute(
+        "SELECT * FROM lancamentos WHERE conta_id = ? AND tipo = 'entrada' AND compensado = 0"
+        " AND origem <> 'holerite' AND data >= ? AND data <= ?"
+        " AND id NOT IN (SELECT lancamento_id FROM holerites WHERE lancamento_id IS NOT NULL)"
+        " ORDER BY data, id",
+        (conta_id, de_iso, ate_iso),
+    ).fetchall()
 
 
 def previstas_pendentes_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:

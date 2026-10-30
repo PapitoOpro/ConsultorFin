@@ -79,6 +79,28 @@
   </div>
 </form>
 
+<form method="post" action="/holerites/previa" enctype="multipart/form-data" class="painel" id="holerite" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar holerite (PDF)</h2><p class="subtitulo">Adiantamento ou folha mensal em PDF. Nada é gravado agora: você confere uma prévia antes de confirmar.</p></div></div>
+  {% if holerite.erro %}{% call alerta("erro") %}{{ holerite.erro }}{% endcall %}{% endif %}
+  <div class="grade-form">
+    <div class="campo">
+      <label for="holerite-arquivo">Arquivo do holerite (.pdf, até 5 MB)</label>
+      <input id="holerite-arquivo" name="arquivo" type="file" accept=".pdf,application/pdf" required>
+    </div>
+    <div class="campo">
+      <label for="holerite-conta">Conta que recebe o crédito</label>
+      <select id="holerite-conta" name="conta_id" required>
+        <option value="">Selecione a conta</option>
+        {% for c in contas if c.tipo != "cartao" %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="acoes-form">
+    <button type="submit">{{ icone("search", 16) }}Ver prévia do holerite<span class="spinner" aria-hidden="true"></span></button>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo o holerite, aguarde…</p>
+  </div>
+</form>
+
 {% set token = none %}{% set sugestao = none %}
 <div class="grade-forms">
 {% include "importar/_form_conta.html" %}

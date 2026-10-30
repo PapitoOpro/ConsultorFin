@@ -9,7 +9,7 @@ from app.consultor.cli import construir_parser
 RAIZ = Path(__file__).resolve().parent.parent
 SKILLS = RAIZ / ".claude" / "skills"
 CLAUDE_MD = RAIZ / "CLAUDE.md"
-ESPERADAS = {"saldo", "vencimentos", "projecao", "gastos", "importar", "categorizar", "painel"}
+ESPERADAS = {"saldo", "holerite", "vencimentos", "projecao", "gastos", "importar", "categorizar", "painel"}
 REGRA_CREDENCIAIS = (
     "Nunca peça, receba, repita, grave ou versione senha, token ou chave de acesso de banco. "
     "Se o usuário colar uma, avise para trocá-la e não a use. "

@@ -105,6 +105,11 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("acao", nargs="?", choices=["ver"], default=None)
     s.add_argument("id", nargs="?", default=None)
     s.add_argument("--conta", default=None)
+    s = sub.add_parser("holerites", help="Holerites importados (somente leitura).")
+    s.add_argument("acao", nargs="?", choices=["ver"], default=None)
+    s.add_argument("id", nargs="?", default=None)
+    s.add_argument("--ano", default=None)
+    s.add_argument("--item", default=None)
     sub.add_parser("contas", help="Contas cadastradas.")
     sub.add_parser("categorias", help="Categorias e subcategorias.")
     s = sub.add_parser("importar", help="Importa um extrato (simula sem --confirmar).")
@@ -151,6 +156,17 @@ def _faturas(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
     return consultas.faturas(con, hoje, _id(a.conta, "Conta") if a.conta else None)
 
 
+def _holerites(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
+    if a.acao == "ver":
+        return consultas.holerite_detalhe(con, _id(a.id, "Holerite"))
+    if a.id is not None:
+        raise ErroLancamento("Use: holerites [--ano AAAA] [--item TERMO] ou holerites ver ID.")
+    ano = _int(a.ano, "Ano") if a.ano else None
+    if ano is not None and not 1900 <= ano <= 2999:
+        raise ErroLancamento("Ano inválido.")
+    return consultas.holerites(con, hoje, ano, a.item)
+
+
 COMANDOS: dict[str, Comando] = {
     "saldos": lambda con, hoje, a: consultas.saldos(con, hoje),
     "resumo": lambda con, hoje, a: consultas.resumo(con, hoje, a.mes),
@@ -159,6 +175,7 @@ COMANDOS: dict[str, Comando] = {
     "gastos": lambda con, hoje, a: consultas.gastos(con, hoje, a.mes),
     "lancamentos": _lancamentos,
     "faturas": _faturas,
+    "holerites": _holerites,
     "contas": lambda con, hoje, a: consultas.contas(con, hoje),
     "categorias": lambda con, hoje, a: consultas.categorias(con, hoje),
 }

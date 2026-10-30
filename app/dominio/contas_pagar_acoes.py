@@ -173,11 +173,11 @@ def confirmar_correspondencia(con: Any, pendente_id: str, lancamento_id: str) ->
     return "Correspondência confirmada."
 
 
-def pular(con: Any, lancamento_id: str) -> str:
+def pular(con: Any, lancamento_id: str, hoje: date | None = None) -> str:
     lid = interpretar_id(lancamento_id)
     if repo_lanc.obter(con, lid) is None:
         raise NaoEncontrado("Lançamento não encontrado.")
-    _traduzir(lambda: pular_mes(con, lid))
+    _traduzir(lambda: pular_mes(con, lid, hoje))
     return "Mês pulado."
 
 

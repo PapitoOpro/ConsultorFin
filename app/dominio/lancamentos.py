@@ -295,7 +295,9 @@ def alterar_tipo(con: Any, lancamento_id: int, tipo: str) -> None:
         repo.atualizar_tipo(con, lancamento_id, novo)
 
 
-def excluir_manual(con: Any, lancamento_id: int) -> None:
+def excluir_manual(con: Any, lancamento_id: int, hoje: date | None = None) -> None:
+    """Exclui lançamento manual; holerite ligado a ele é solto antes (regra do desfazer)."""
+    from app.dominio.holerites import liberar_vinculo_do_lancamento  # evita import circular
     row = _exigir_lancamento(con, lancamento_id)
     if row["origem"] != "manual" or row["importacao_id"] is not None:
         raise ErroLancamento("Lançamentos importados não podem ser excluídos aqui. "
@@ -305,6 +307,7 @@ def excluir_manual(con: Any, lancamento_id: int) -> None:
                              "recriado. Para não pagá-lo neste mês, use \"Pular este mês\" em "
                              "Contas a pagar.")
     with transacao(con):
+        liberar_vinculo_do_lancamento(con, lancamento_id, hoje)
         repo.excluir(con, lancamento_id)
 
 

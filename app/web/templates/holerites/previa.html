@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import alerta, etapas, opcoes_categoria %}
+{% from "_icones.html" import icone %}
+{% block titulo %}Prévia do holerite{% endblock %}
+{% block mensagens %}
+  {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
+{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Prévia do holerite</h1><p class="subtitulo">Confira os itens e as categorias. Nada é gravado até você confirmar.</p></div>
+{% endblock %}
+{% block conteudo %}
+{% set bloqueado = previa.situacao == "identico" %}
+{% set c = conferencia %}
+{{ etapas(2 if bloqueado else 3) }}
+<div class="arquivo-info">
+  <span>{{ icone("file-text", 18) }}</span>
+  <span>Arquivo PDF enviado</span>
+  <span>{{ rotulo }} · {{ competencia }}{% if h.empresa %} · {{ h.empresa }}{% endif %}</span>
+</div>
+
+<div class="grade-kpi">
+  <div class="kpi kpi-compacto"><span class="rotulo">{{ icone("calendar-clock", 16) }}Competência</span><span class="numero">{{ competencia }}</span><span class="secundario">{{ rotulo }}</span></div>
+  <div class="kpi kpi-compacto entrada"><span class="rotulo">{{ icone("trending-up", 16) }}Bruto</span><span class="numero">{{ h.total_vencimentos_centavos | brl }}</span></div>
+  <div class="kpi kpi-compacto saida"><span class="rotulo">{{ icone("trending-down", 16) }}Descontos</span><span class="numero">{{ h.total_descontos_centavos | brl }}</span></div>
+  <div class="kpi kpi-compacto"><span class="rotulo">{{ icone("receipt", 16) }}Líquido</span><span class="numero">{{ h.liquido_centavos | brl }}</span>{% if conta %}<span class="secundario quebra">{{ conta.nome }}</span>{% endif %}</div>
+</div>
+
+<section class="painel secao {{ 'secao-ok' if c.confere else 'secao-risco' }}" aria-label="Conferência dos totais">
+  <div class="painel-cabecalho"><div class="painel-titulo">
+    <h2>{{ icone("check-circle" if c.confere else "alert-triangle", 18) }}Conferência
+      {% if c.confere %}<span class="selo entrada">{{ icone("check", 12) }}&nbsp;Confere</span>{% else %}<span class="selo saida">{{ icone("alert-triangle", 12) }}&nbsp;Divergente</span>{% endif %}</h2>
+    <p class="subtitulo">Soma dos itens comparada aos totais impressos no holerite.</p>
+  </div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Conferência dos totais"><table class="tabela-curta">
+    <thead><tr><th>Total</th><th class="valor">Soma dos itens</th><th class="valor">Impresso</th></tr></thead>
+    <tbody>
+      <tr><td>Proventos</td><td class="valor">{{ c.soma_proventos | brl }}</td><td class="valor">{{ c.total_vencimentos | brl }}</td></tr>
+      <tr><td>Descontos</td><td class="valor">{{ c.soma_descontos | brl }}</td><td class="valor">{{ c.total_descontos | brl }}</td></tr>
+      <tr><th scope="row">Líquido</th><td class="valor"><strong>{{ (c.soma_proventos - c.soma_descontos) | brl }}</strong></td><td class="valor"><strong>{{ c.liquido | brl }}</strong></td></tr>
+    </tbody>
+  </table></div>
+  {% if h.avisos %}
+  <div class="mb-0">
+    {% for a in h.avisos %}{% call alerta() %}{{ a }}{% endcall %}{% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{% if bloqueado %}
+  {% call alerta() %}Este holerite já foi importado. Nada a fazer.{% endcall %}
+{% elif previa.situacao == "substitui" %}
+  {% call alerta() %}Já existe um holerite deste tipo nesta competência, com conteúdo diferente. Para importar, marque a opção de substituir abaixo; as categorias já escolhidas nos itens iguais são mantidas.{% endcall %}
+{% endif %}
+
+{% if not bloqueado %}<form method="post" action="/holerites/confirmar" data-carregando>
+<input type="hidden" name="token" value="{{ token }}">
+<section class="painel" aria-label="Crédito no extrato">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Crédito no extrato</h2><p class="subtitulo">Sem entrada correspondente, o líquido fica como previsão até casar com o extrato.</p></div></div>
+  <fieldset class="escolha-credito">
+    <legend class="sr-only">Crédito do líquido no extrato</legend>
+    {% for cr in previa.creditos_candidatos if not cr.pendente %}
+    <label class="opcao-credito"><input type="radio" name="credito" value="{{ cr.lancamento_id }}"{{ " checked" if credito == cr.lancamento_id | string }}>
+      <span>{{ cr.data | data_br }} · <strong class="valor">{{ cr.valor_centavos | brl }}</strong> <span class="secundario quebra">{{ cr.descricao }}</span></span></label>
+    {% else %}
+    <p class="campo-ajuda mb-0">{{ icone("info", 14) }} Nenhuma entrada de {{ h.liquido_centavos | brl }} encontrada no extrato da conta.</p>
+    {% endfor %}
+    {% for cr in previa.creditos_candidatos if cr.pendente %}
+    <label class="opcao-credito"><input type="radio" name="credito" value="{{ cr.lancamento_id }}"{{ " checked" if credito == cr.lancamento_id | string }}>
+      <span>Entrada prevista já cadastrada: {{ cr.data | data_br }} · <strong class="valor">{{ cr.valor_centavos | brl }}</strong> <span class="secundario quebra">{{ cr.descricao }}</span></span></label>
+    {% endfor %}
+    <label class="opcao-credito"><input type="radio" name="credito" value=""{{ " checked" if credito == "" }}>
+      <span>{% if previa.sem_prevista %}Nenhum (sem crédito no extrato){% else %}Nenhum, prever entrada em {{ previa.data_prevista | data_br }}{% endif %}</span></label>
+  </fieldset>
+  {% if previa.sem_prevista %}
+  <p class="campo-ajuda">{{ icone("info", 14) }} {% if h.liquido_centavos <= 0 %}Líquido zerado: não será criada entrada prevista.{% else %}Sem crédito no extrato e a data prevista já passou: não será criada entrada prevista.{% endif %}</p>
+  {% endif %}
+  {% if previa.situacao == "substitui" %}
+  <p class="mb-0"><label><input type="checkbox" name="substituir" value="1" required> Substituir o holerite existente desta competência</label></p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="painel" aria-label="Itens do holerite">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Itens do holerite</h2><p class="subtitulo">{% if bloqueado %}Itens lidos do arquivo.{% else %}As categorias servem para análise e não alteram o saldo; altere o que quiser.{% endif %}</p></div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
+    <thead><tr><th>Descrição</th><th class="sec">Referência</th><th class="valor">Valor</th><th>Categoria</th></tr></thead>
+    <tbody>
+    {% for item, cat in linhas %}
+      <tr>
+        <td class="desc">{{ item.descricao }} <span class="selo {{ 'entrada' if item.natureza == 'provento' else 'saida' }}">{{ 'provento' if item.natureza == 'provento' else 'desconto' }}</span>{% if item.referencia %}<span class="mob-info">ref. {{ item.referencia }}</span>{% endif %}</td>
+        <td class="sec">{{ item.referencia or "—" }}</td>
+        <td class="valor {{ 'entrada' if item.natureza == 'provento' else 'saida' }}">{{ "− " if item.natureza == "desconto" }}{{ item.valor_centavos | brl }}</td>
+        <td class="categoria">{% if bloqueado %}{% for cid, rotulo_cat, _ in categorias if cid == cat %}{{ rotulo_cat }}{% else %}—{% endfor %}{% else %}<select id="cat-{{ loop.index }}" name="categoria" data-busca aria-label="Categoria do item {{ loop.index }}"><option value="">Sem categoria</option>{{ opcoes_categoria(categorias, cat, mostrar_tipo=true) }}</select>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+{% if bloqueado %}
+<p><a href="/importar" class="botao secundario">{{ icone("chevron-left", 16) }}Voltar para Importar</a></p>
+{% else %}
+<section class="painel" aria-label="Confirmar importação do holerite">
+  <div class="acoes-form">
+    <button type="submit">{{ icone("check", 16) }}Confirmar importação<span class="spinner" aria-hidden="true"></span></button>
+    <a href="/importar" class="botao secundario">Cancelar</a>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Importando, aguarde…</p>
+  </div>
+</section>
+</form>
+{% endif %}
+{% endblock %}

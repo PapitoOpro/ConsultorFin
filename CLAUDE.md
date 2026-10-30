@@ -16,11 +16,12 @@ Padrão: vale sempre que o usuário perguntar ou pedir algo sobre as próprias f
 - Rode sempre a partir da raiz do repositório, com o Python do ambiente do projeto: `.venv/Scripts/python -m app.consultor <subcomando>` (funciona no Git Bash e no PowerShell; em Linux/macOS use `.venv/bin/python`). A saída é um objeto JSON; os campos `*_centavos` são inteiros, os demais já vêm formatados (`saldo`, `data_br`).
 - Se a saída tiver `erro`, traduza em orientação prática; se tiver `aviso`, explique ao usuário o que significa (ex.: importado, mas a conferência de saldo falhou).
 - Para "últimos lançamentos" use `lancamentos --status compensados` (padrão: últimos 30 dias até hoje; previsões ficam em `vencimentos`/`projecao`; `--ate` mostra o futuro).
-- Consultas (`saldos`, `resumo`, `vencimentos`, `projecao`, `gastos`, `lancamentos`, `faturas`, `contas`, `categorias`) podem ser feitas à vontade.
+- Consultas (`saldos`, `resumo`, `vencimentos`, `projecao`, `gastos`, `lancamentos`, `faturas`, `holerites`, `contas`, `categorias`) podem ser feitas à vontade.
 - Escritas (`importar --confirmar`, `casar`, `categorizar`, `regra`, `pagar`, `criar-conta`) só a pedido explícito do usuário, depois de dizer o que será feito e receber o "sim". `importar` sem `--confirmar` só simula.
 - Faturas de cartão: `faturas [--conta ID]` lista e `faturas ver ID` mostra os itens (somente leitura). Fatura em PDF só se importa pelo painel (tela Importar): a senha do PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`. A linha da fatura nunca é "marcada como paga": o `pagar` recusa; ela fica paga casando o pagamento do banco no painel (Lançamentos). Na lista, `divergencia_sentido` (`acima`/`abaixo`/`zero`) diz se o total impresso ficou acima ou abaixo da soma dos itens. Em `gastos`, se `consumo` diferir de `saidas`, explique com `nota_totais` (categorias por data da compra; saídas por data do pagamento).
+- Holerites: `holerites [--ano AAAA] [--item TERMO]` e `holerites ver ID` (somente leitura). Holerite em PDF só se importa pelo painel (Importar → Holerite): o PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`.
 - `resumo`, `vencimentos` e `projecao` também criam, uma única vez, os lançamentos estimados das contas fixas do período. Mencione isso só se o usuário perguntar.
-- Skills disponíveis: saldo, vencimentos, projecao, gastos, importar, categorizar, painel.
+- Skills disponíveis: saldo, holerite, vencimentos, projecao, gastos, importar, categorizar, painel.
 
 ## Segurança
 

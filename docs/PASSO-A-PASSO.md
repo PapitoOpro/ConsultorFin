@@ -75,6 +75,18 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 
 **No consultor (Claude Code):** peça "mostra minhas faturas", "mostra as faturas do cartão X" (filtro por conta: `faturas --conta ID`) ou "mostra os itens da fatura 1". Na lista, `divergencia_sentido` diz se o total impresso ficou **acima** ou **abaixo** da soma dos itens (ou **zero**). Ele só consulta e sugere categorias; a importação do PDF, a escolha da categoria de cada item, casar o pagamento e descartar uma prevista são no painel. Ele recusa marcar a fatura como paga (`pagar`). O consultor recusa PDF de propósito: a senha do PDF nunca passa pelo Claude.
 
+## Importar holerite
+
+**O que faz:** lê o PDF do holerite (layouts Adiantamento e Folha Mensal; são os únicos testados), guarda os itens (proventos e descontos) e liga o líquido ao crédito do extrato, ou cria uma entrada prevista.
+
+**Passo a passo** (tela **Importar**, bloco **Importar holerite**):
+1. Escolha o PDF (e a senha, se houver) e a conta que recebe o salário.
+2. Clique em prévia. Nada é gravado ainda.
+3. **Como ler a prévia:** confira competência e tipo; a conferência compara a soma dos itens com os totais impressos (se aparecer divergência, algum item pode ter sido lido errado); escolha o crédito do extrato com o valor exato do líquido, ou deixe sem vínculo para ficar como previsto; ajuste a categoria de cada item.
+4. Confirme. O mesmo PDF não duplica; um PDF diferente da mesma competência pede confirmação para substituir.
+
+**Privacidade:** os valores ficam só no seu computador; o nome do arquivo não é guardado. No consultor (Claude Code) só há consulta: "mostra meus holerites", "quanto paguei de pensão em 2026?" (`holerites --item`). A importação é só pelo painel.
+
 ## 4. Organizar os lançamentos
 
 Em **Lançamentos**:

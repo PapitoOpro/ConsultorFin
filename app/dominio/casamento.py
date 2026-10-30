@@ -11,7 +11,7 @@ from typing import Any
 
 from app.db import transacao
 from app.dominio.parcelas import MSG_FATURA_PAGAR, TIPO_FATURA
-from app.repo import faturas, lancamentos, recorrentes
+from app.repo import faturas, holerites, lancamentos, recorrentes
 
 JANELA_DIAS = 10
 # Brief dizia 5%, mas o próprio exemplo (21000 x 23000 = 9,5%) exige >= 9,53%: usado 10%.
@@ -129,6 +129,10 @@ def propor_casamentos(con: Any, conta_id: int, importacao_id: int | None = None)
             if partes is not None:
                 teto = round(partes[0] + partes[1] + 0.3 * 1.0, 6)
                 fila.append((-teto, int(p["id"]), int(linhas[li]["id"]), partes, pi, li, 0))
+    # Linha e pendente ligados cada um a um holerite: casar deixaria dois holerites no mesmo
+    # lançamento; esse par nunca é proposto.
+    com_holerite = holerites.lancamentos_vinculados(con) if fila else set()
+    fila = [f for f in fila if not (f[1] in com_holerite and f[2] in com_holerite)]
     heapq.heapify(fila)
     usados_p: set[int] = set()
     usadas_l: set[int] = set()
@@ -193,7 +197,8 @@ def linha_do_extrato_para(con: Any, lancamento_id: int) -> bool:
 
 def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
     """Quita o pendente (ou o pago à mão) com os dados reais da linha e remove a linha
-    (chave vai a chaves_quitadas com o estado anterior, para o desfazer restaurar)."""
+    (chave vai a chaves_quitadas com o estado anterior, para o desfazer restaurar). Holerite
+    ligado à linha passa ao pendente, que assume o crédito."""
     with transacao(con):
         pend = lancamentos.obter(con, pendente_id)
         if pend is None:
@@ -212,6 +217,12 @@ def confirmar_casamento(con: Any, pendente_id: int, lancamento_id: int) -> None:
             raise ValueError(f"O lançamento {lancamento_id} não é uma linha importada livre.")
         if pend["conta_id"] != linha["conta_id"]:
             raise ValueError("Pendente e linha importada são de contas diferentes.")
+        hol = holerites.por_lancamento(con, lancamento_id)
+        if hol is not None:
+            if holerites.por_lancamento(con, pendente_id) is not None:
+                raise ValueError("Pendente e linha do extrato já estão ligados a holerites "
+                                 "diferentes; não é possível casá-los.")
+            holerites.definir_lancamento(con, int(hol["id"]), pendente_id)
         lancamentos.excluir(con, lancamento_id)
         lancamentos.registrar_chave_quitada(con, linha["chave_deduplicacao"], pendente_id,
                                             linha["importacao_id"],

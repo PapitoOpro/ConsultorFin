@@ -161,4 +161,4 @@ def pagar(lancamento_id: str, request: Request, con: Any = Depends(get_con),
 @router.post("/contas-a-pagar/{lancamento_id}/pular", response_class=HTMLResponse)
 def pular(lancamento_id: str, request: Request, con: Any = Depends(get_con),
           horizonte: str = Form("")) -> HTMLResponse:
-    return _executar(request, con, horizonte, lambda _: acoes.pular(con, lancamento_id))
+    return _executar(request, con, horizonte, lambda hoje: acoes.pular(con, lancamento_id, hoje))
