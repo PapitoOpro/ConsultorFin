@@ -109,6 +109,16 @@ def listar(con: sqlite3.Connection, conta_id: int | None = None) -> list[sqlite3
     ).fetchall()
 
 
+def total_em_aberto(con: sqlite3.Connection, conta_id: int) -> int:
+    """Soma (centavos, positivo) do total impresso das faturas da conta ainda não pagas
+    (lançamento pendente). O impresso é o que o banco cobra (inclui saldo anterior/financiado)."""
+    row = con.execute(
+        "SELECT COALESCE(SUM(f.total_impresso_centavos), 0) FROM faturas f"
+        " JOIN lancamentos l ON l.id = f.lancamento_id"
+        " WHERE f.conta_id = ? AND l.compensado = 0", (conta_id,)).fetchone()
+    return int(row[0])
+
+
 def marcar_pagamento(con: sqlite3.Connection, fatura_id: int,
                      lancamento_id: int | None) -> None:
     con.execute("UPDATE faturas SET pagamento_lancamento_id = ? WHERE id = ?",
