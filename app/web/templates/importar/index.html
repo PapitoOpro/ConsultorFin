@@ -57,7 +57,7 @@
 <div id="fila-faturas" hx-get="/faturas/fila" hx-trigger="load, every 5s" hx-swap="innerHTML" hx-include="#fila-versao" aria-live="polite"></div>
 
 <form method="post" action="/faturas/previa" enctype="multipart/form-data" class="painel" id="fatura" data-carregando>
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar fatura do cartão (PDF)</h2><p class="subtitulo">Fatura em PDF do Itaú, Porto ou Mercado Pago. A senha, se o PDF tiver, só é usada para abrir o arquivo e não é guardada.</p></div></div>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar fatura do cartão (PDF)</h2><p class="subtitulo">Fatura em PDF do Itaú, Porto ou Mercado Pago. A senha, se o PDF tiver, só é usada para abrir o arquivo; ela só é guardada (cifrada) se você marcar a opção abaixo.</p></div></div>
   {% if fatura.erro %}{% call alerta("erro") %}{{ fatura.erro }}{% endcall %}{% endif %}
   <div class="grade-form">
     {% if fatura.token %}
@@ -72,6 +72,7 @@
     <div class="campo">
       <label for="fatura-senha">Senha do PDF{% if not fatura.pedir_senha %} (se tiver){% endif %}</label>
       <input id="fatura-senha" name="senha" type="password" autocomplete="off" spellcheck="false"{% if fatura.pedir_senha %} required autofocus{% endif %}>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:normal"><input type="checkbox" name="lembrar" value="1"> Lembrar a senha deste cartão</label>
     </div>
   </div>
   <div class="acoes-form">
@@ -80,6 +81,19 @@
     <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo a fatura, aguarde…</p>
   </div>
 </form>
+
+{% if senhas_guardadas %}
+<section class="painel" id="senhas-guardadas" aria-label="Senhas guardadas">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Senhas guardadas</h2><p class="subtitulo">Senhas de PDF lembradas por cartão (cifradas; nunca exibidas). Esquecer faz o sistema voltar a pedir a senha.</p></div></div>
+  <ul style="list-style:none;margin:0;padding:0;display:grid;gap:8px">
+  {% for s in senhas_guardadas %}
+    <li style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">{{ s.emissor }} · final {{ s.cartao_final }}
+      <form method="post" action="/senhas/{{ s.id }}/esquecer" style="display:inline" onsubmit="return confirm('Esquecer a senha guardada deste cartão?')"><button type="submit" class="secundario" aria-label="Esquecer a senha de {{ s.emissor }} final {{ s.cartao_final }}">{{ icone("x", 16) }}Esquecer</button></form>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 <form method="post" action="/holerites/previa" enctype="multipart/form-data" class="painel" id="holerite" data-carregando>
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar holerite (PDF)</h2><p class="subtitulo">Adiantamento ou folha mensal em PDF. Nada é gravado agora: você confere uma prévia antes de confirmar.</p></div></div>

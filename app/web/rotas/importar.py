@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from app.dominio import cofre_senhas
 from app.dominio.casamento import confirmar_casamento
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
 from app.dominio.lancamentos import interpretar_id
@@ -55,7 +56,7 @@ def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: 
         "contas": contas.listar(con), "historico": importacoes.listar_com_conta(con),
         "desfaziveis": importacoes.ids_ultimas_ativas(con),
         "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso, "fatura": fatura or {},
-        "holerite": holerite or {}, "titulares": titulares.listar(con),
+        "holerite": holerite or {}, "senhas_guardadas": cofre_senhas.listar(con), "titulares": titulares.listar(con),
         "titular_padrao": titulares.ultimo_usado(con)}, status)
 
 

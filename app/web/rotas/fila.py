@@ -1,7 +1,7 @@
 """Fila de faturas vindas do Gmail, mostrada na tela Importar.
 
 A tabela guarda só emissor/final/vencimento/hash (nunca texto de e-mail). O PDF fica em
-DIR_FILA/<id>.pdf (id inteiro) e a senha nunca é guardada: "Importar" entrega o PDF ao fluxo
+DIR_FILA/<id>.pdf (id inteiro) e a senha só é guardada (cifrada, cofre_senhas) se o usuário pedir: "Importar" entrega o PDF ao fluxo
 normal de fatura (token + formulário de senha).
 """
 import hashlib
@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 
 from app import config
+from app.dominio import cofre_senhas
 from app.dominio import fila_faturas as dominio
 from app.repo import fila_faturas as repo
 from app.web.deps import get_con
@@ -91,6 +92,10 @@ def importar(item_id: int, request: Request, con: Any = Depends(get_con)) -> Res
         return _sem_cache(_pagina_inicial(request, con, fatura={"erro": MSG_EXPIRADO},
                                           status=410))
     nome = f"Fatura {item['emissor'] or 'cartão'}.pdf"
-    token = request.app.state.uploads.guardar(nome, conteudo)
+    emissor, final = item["emissor"], item["cartao_final"]
+    token = request.app.state.uploads.guardar(nome, conteudo, emissor, final)
+    if cofre_senhas.candidatas(con, emissor, final):  # senha guardada: tenta sem pedir
+        from app.web.rotas.faturas import previa_de_upload  # import local: evita ciclo
+        return previa_de_upload(request, con, None, token, "")
     return _sem_cache(_pagina_inicial(
         request, con, fatura={"token": token, "nome": nome, "pedir_senha": True}))

@@ -28,6 +28,8 @@ class Envio:
     nome: str
     conteudo: bytes
     criado_em: float
+    dica_emissor: str | None = None  # só para ordenar as senhas guardadas (fila do Gmail)
+    dica_final: str | None = None
 
 
 @dataclass(frozen=True)
@@ -85,8 +87,9 @@ class _Armazem(Generic[T]):
 
 
 class ArmazemUploads(_Armazem[Envio]):
-    def guardar(self, nome: str, conteudo: bytes) -> str:
-        return self._guardar(Envio(nome, conteudo, time.monotonic()))
+    def guardar(self, nome: str, conteudo: bytes, dica_emissor: str | None = None,
+                dica_final: str | None = None) -> str:
+        return self._guardar(Envio(nome, conteudo, time.monotonic(), dica_emissor, dica_final))
 
 
 class ArmazemFaturas(_Armazem[FaturaPendente]):

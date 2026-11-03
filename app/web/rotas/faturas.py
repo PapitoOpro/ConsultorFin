@@ -1,7 +1,7 @@
 """Importar fatura de cartão em PDF: envio (+ senha opcional), prévia e confirmação.
 
 A senha do PDF só serve para abrir o arquivo nesta requisição: nunca vai para armazém,
-log nem HTML. Entre a prévia e a confirmação guarda-se só a FaturaLida (sem bytes do PDF).
+log nem HTML. Só com "lembrar" (e PDF aberto) ela é guardada, cifrada, no cofre_senhas. Entre a prévia e a confirmação guarda-se só a FaturaLida (sem bytes do PDF).
 """
 import calendar
 import hashlib
@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from app.dominio import cofre_senhas
 from app.dominio.faturas import (
     ErroFatura, FaturaDiferenteExistente, FaturaJaImportada, PreviaFatura, RegistroNaoEncontrado,
     alterar_categoria_item, categorizar_itens_da_fatura, detalhe, importar_fatura, nome_cartao,
@@ -27,6 +28,7 @@ from app.dominio.lancamentos import (
     ErroLancamento, NaoEncontrado, interpretar_id, opcoes_categorias,
 )
 from app.importacao.fatura import ler_fatura
+from app.importacao.fatura.texto import abrir_pdf
 from app.importacao.fatura.modelo import FaturaIlegivel, FaturaLida, PdfProtegido, SenhaIncorreta
 from app.repo import contas
 from app.web.deps import get_con
@@ -77,10 +79,29 @@ def _ler_pdf(arquivo: UploadFile, objeto: str = "a fatura") -> tuple[str, bytes]
     return nome, conteudo
 
 
-def _abrir(request: Request, nome: str, conteudo: bytes, senha: str, token: str) -> FaturaLida:
-    """Lê a fatura; protegida/senha errada guarda os bytes (sem a senha) para pedir a senha."""
+def _ler_com_guardadas(request: Request, con: Any, conteudo: bytes, senha: str,
+                      token: str) -> FaturaLida:
+    """Lê a fatura; PDF protegido sem senha digitada tenta as senhas guardadas (dica da fila)."""
     try:
         return ler_fatura(conteudo, senha or None)
+    except PdfProtegido:
+        if senha:
+            raise
+        envio = request.app.state.uploads.obter(token) if token else None
+        dica = (envio.dica_emissor, envio.dica_final) if envio else (None, None)
+        for candidata in cofre_senhas.candidatas(con, *dica):
+            try:
+                return ler_fatura(conteudo, candidata)
+            except SenhaIncorreta:
+                continue
+        raise
+
+
+def _abrir(request: Request, con: Any, nome: str, conteudo: bytes, senha: str,
+           token: str) -> FaturaLida:
+    """Lê a fatura; protegida/senha errada guarda os bytes (sem a senha) para pedir a senha."""
+    try:
+        return _ler_com_guardadas(request, con, conteudo, senha, token)
     except (PdfProtegido, SenhaIncorreta) as exc:
         if not token:
             token = request.app.state.uploads.guardar(nome, conteudo)
@@ -92,6 +113,29 @@ def _abrir(request: Request, nome: str, conteudo: bytes, senha: str, token: str)
             raise ErroImportacao(str(exc)) from None
         log.warning("event=fatura_leitura_falhou erro=%s", type(exc).__name__)
         raise ErroImportacao(MSG_ILEGIVEL) from None
+
+
+def _exigia_senha(conteudo: bytes) -> bool:
+    """O PDF realmente é protegido? (um PDF aberto aceita qualquer senha: nada a lembrar)."""
+    try:
+        abrir_pdf(conteudo)
+    except PdfProtegido:
+        return True
+    except Exception:  # noqa: BLE001 - só interessa saber se pedia senha
+        return False
+    return False
+
+
+def _lembrar_senha(con: Any, fatura: FaturaLida, conteudo: bytes, senha: str) -> None:
+    """Guarda a senha (já validada: o PDF abriu com ela) do cartão da fatura lida."""
+    if not (senha and fatura.emissor and fatura.final_cartao and _exigia_senha(conteudo)):
+        return
+    try:
+        cofre_senhas.guardar(con, fatura.emissor, fatura.final_cartao, senha)
+    except Exception as exc:  # noqa: BLE001 - a importação segue; nunca loga a senha
+        log.error("event=senha_pdf_nao_guardada erro=%s", type(exc).__name__)
+        return
+    log.info("event=senha_pdf_guardada emissor=%s", fatura.emissor)
 
 
 # Erros de regra da importação com mensagem própria; outro erro vira MSG_FALHA (loga só o tipo).
@@ -110,7 +154,7 @@ def _previa_segura(con: Any, fatura: FaturaLida, arquivo_hash: str) -> PreviaFat
 
 
 def previa_de_upload(request: Request, con: Any, arquivo: UploadFile | None, token: str,
-                     senha: str) -> Response:
+                     senha: str, lembrar: bool = False) -> Response:
     """Envio novo (ou reenvio da senha de um envio guardado) -> prévia da fatura."""
     try:
         if arquivo is not None and arquivo.filename:
@@ -123,7 +167,9 @@ def previa_de_upload(request: Request, con: Any, arquivo: UploadFile | None, tok
             nome, conteudo = envio.nome, envio.conteudo
         else:
             raise ErroImportacao("Selecione a fatura em PDF para importar.")
-        fatura = _abrir(request, nome, conteudo, senha, token)
+        fatura = _abrir(request, con, nome, conteudo, senha, token)
+        if lembrar:
+            _lembrar_senha(con, fatura, conteudo, senha)
         if token:
             request.app.state.uploads.descartar(token)
         arquivo_hash = hashlib.sha256(conteudo).hexdigest()
@@ -179,8 +225,8 @@ def _render_previa(request: Request, con: Any, token: str, pendente: FaturaPende
 
 @router.post("/faturas/previa", response_class=HTMLResponse)
 def previa(request: Request, con: Any = Depends(get_con), arquivo: UploadFile | None = File(None),
-           token: str = Form(""), senha: str = Form("")) -> Response:
-    return previa_de_upload(request, con, arquivo, token, senha)
+           token: str = Form(""), senha: str = Form(""), lembrar: str = Form("")) -> Response:
+    return previa_de_upload(request, con, arquivo, token, senha, lembrar == "1")
 
 
 def _ids_categorias(textos: list[str], quantidade: int,
