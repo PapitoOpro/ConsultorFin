@@ -50,6 +50,20 @@
       </main>
     </div>
   </div>
+  {% if url_terminal %}
+  <button type="button" id="consultor-balao" class="consultor-balao" aria-expanded="false" aria-controls="consultor-painel" aria-label="Abrir o Consultor">{{ icone("message-circle", 24) }}</button>
+  <section id="consultor-painel" class="consultor-painel" role="dialog" aria-label="Consultor" data-url="{{ url_terminal }}" hidden>
+    <header class="consultor-topo">
+      <strong>Consultor</strong>
+      <a class="consultor-acao" href="{{ url_terminal }}" target="_blank" rel="noopener" title="Abrir em nova aba" aria-label="Abrir em nova aba">{{ icone("external-link", 16) }}</a>
+      <button type="button" id="consultor-fechar" class="consultor-acao" aria-label="Minimizar o Consultor">{{ icone("x", 16) }}</button>
+    </header>
+    <div class="consultor-corpo"></div>
+    <p class="consultor-rodape">Não carregou? <a href="{{ url_terminal }}" target="_blank" rel="noopener">Abrir terminal em nova aba</a></p>
+    <div id="consultor-alca" class="consultor-alca" aria-hidden="true"></div>
+  </section>
+  <script src="/static/js/consultor-balao.js" defer></script>
+  {% endif %}
   <script>
     (function () {
       var app = document.getElementById("app");

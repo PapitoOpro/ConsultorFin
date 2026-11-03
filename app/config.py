@@ -10,3 +10,9 @@ JANELA_VENCER_DIAS: int = 7
 HOSTS_PERMITIDOS: tuple[str, ...] = tuple(
     h.strip().lower() for h in os.environ.get("CONSULTORFIN_HOSTS", "").split(",") if h.strip()
 )
+
+
+def url_terminal() -> str:
+    """URL https do terminal do consultor (env CONSULTORFIN_TERMINAL_URL); vazio desativa o balão."""
+    url = os.environ.get("CONSULTORFIN_TERMINAL_URL", "").strip()
+    return url if url.lower().startswith("https://") else ""

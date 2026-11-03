@@ -40,6 +40,7 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     templates.env.filters["brl"] = formatar_brl
     templates.env.filters["data_br"] = iso_para_br
     templates.env.filters["fim_do_mes"] = fim_do_mes_iso
+    templates.env.globals["url_terminal"] = config.url_terminal()
     app.add_middleware(ProtecaoOrigemHost)
     app.state.templates = templates
     app.state.uploads = ArmazemUploads()

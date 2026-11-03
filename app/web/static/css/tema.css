@@ -702,3 +702,21 @@ tr.fatura-itens > td { padding: 8px 8px 16px 24px; border-left: 3px solid var(--
 .opcao-credito:has(input:checked) { border-color: var(--primaria); }
 .opcao-credito input { margin-top: 2px; flex: none; }
 .opcao-credito .quebra { overflow-wrap: anywhere; }
+
+/* balão do Consultor (terminal embutido) */
+.consultor-balao { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: 52px; height: 52px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: linear-gradient(135deg, var(--primaria), var(--primaria-escura)); color: var(--fundo); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .45); }
+.consultor-painel { position: fixed; right: 20px; bottom: 84px; z-index: 50; width: 420px; height: 600px; min-width: 300px; min-height: 320px; max-width: calc(100vw - 24px); max-height: calc(100vh - 100px); display: flex; flex-direction: column; background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; box-shadow: 0 12px 40px rgba(0, 0, 0, .55); }
+.consultor-painel[hidden] { display: none; }
+.consultor-topo { display: flex; align-items: center; gap: 4px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--borda); }
+.consultor-topo strong { flex: 1; color: var(--texto); }
+.consultor-acao { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--texto-secundario); cursor: pointer; }
+.consultor-acao:hover { color: var(--texto); background: var(--superficie-2); }
+.consultor-corpo { flex: 1; min-height: 0; }
+.consultor-corpo iframe { width: 100%; height: 100%; border: 0; background: var(--fundo); }
+.consultor-rodape { margin: 0; padding: 4px 12px; font-size: 12px; color: var(--texto-secundario); border-top: 1px solid var(--borda); }
+.consultor-alca { position: absolute; left: 0; top: 0; width: 18px; height: 18px; cursor: nwse-resize; touch-action: none; }
+@media (max-width: 640px) {
+  .consultor-painel { inset: 0; width: auto; height: auto; max-width: none; max-height: none; border-radius: 0; border: 0; }
+  .consultor-alca { display: none; }
+  .consultor-balao.aberto { display: none; }
+}
