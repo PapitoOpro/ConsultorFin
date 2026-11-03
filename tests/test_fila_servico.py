@@ -1,7 +1,10 @@
 """Serviço da fila de faturas do Gmail (cliente falso, dados inventados)."""
 import hashlib
+import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 from app.dominio import fila_faturas as svc
 from app.gmail.cliente import Anexo, Mensagem
@@ -130,3 +133,49 @@ def test_expirar_apaga_pdf_e_marca_pulada(con, tmp_path) -> None:
     assert repo.obter(con, int(item["id"]))["estado"] == "pulada"
     assert not (tmp_path / f"{item['id']}.pdf").exists()
     svc.descartar_pdf(tmp_path, int(item["id"]))  # idempotente
+
+
+def test_falha_ao_gravar_pdf_desfaz_linha_e_arquivo(con, tmp_path, monkeypatch) -> None:
+    def quebra(self, dados):
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(Path, "write_bytes", quebra)
+    with pytest.raises(OSError, match="disco cheio"):
+        _buscar(con, ClienteFalso([_msg()], {"a1": PDF}), tmp_path)
+    assert repo.listar_pendentes(con) == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_falha_no_commit_apos_gravar_remove_arquivo_e_linha(con, tmp_path, monkeypatch) -> None:
+    class ConProxy:
+        def __init__(self, real) -> None:
+            self.real, self.falhou = real, False
+
+        def commit(self) -> None:
+            if not self.falhou and list(tmp_path.glob("*.pdf")):
+                self.falhou = True
+                raise sqlite3.OperationalError("commit falhou")
+            self.real.commit()
+
+        def __getattr__(self, nome):
+            return getattr(self.real, nome)
+
+    proxy = ConProxy(con)
+    monkeypatch.setattr(svc, "descartar_pdf", svc.descartar_pdf)
+    with pytest.raises(sqlite3.OperationalError):
+        _buscar(proxy, ClienteFalso([_msg()], {"a1": PDF}), tmp_path)
+    assert repo.listar_pendentes(con) == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_falha_na_limpeza_nao_mascara_erro_original(con, tmp_path, monkeypatch) -> None:
+    def quebra(self, dados):
+        raise OSError("original")
+
+    def limpeza(dir_fila, item_id):
+        raise PermissionError("limpeza")
+
+    monkeypatch.setattr(Path, "write_bytes", quebra)
+    monkeypatch.setattr(svc, "descartar_pdf", limpeza)
+    with pytest.raises(OSError, match="original"):
+        _buscar(con, ClienteFalso([_msg()], {"a1": PDF}), tmp_path)

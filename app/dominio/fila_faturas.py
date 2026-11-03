@@ -102,7 +102,10 @@ def buscar_para_fila(con: sqlite3.Connection, cliente: ClienteBusca, de: date, a
                 con.commit()
             except BaseException:
                 con.rollback()
-                descartar_pdf(dir_fila, item_id)
+                try:
+                    descartar_pdf(dir_fila, item_id)
+                except OSError as exc:
+                    log.warning("event=fila_limpeza_falhou erro=%s", type(exc).__name__)
                 raise
             if ja_importada(con, repo.obter(con, item_id)):  # type: ignore[arg-type]
                 importadas += 1
