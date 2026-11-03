@@ -258,6 +258,10 @@ def pendentes_ate(con: sqlite3.Connection, fim_iso: str) -> list[sqlite3.Row]:
 
 # --- Extrato (tela Lançamentos) -------------------------------------------------------------
 
+# pagamento_fatura casado com uma fatura (a linha da fatura é que conta como saída).
+_CASADO = "EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
+
+
 def _escapar_like(texto: str) -> str:
     return texto.replace("!", "!!").replace("%", "!%").replace("_", "!_")
 
@@ -272,6 +276,9 @@ def _where(
         "(l.origem <> 'fatura_prevista' OR EXISTS (SELECT 1 FROM faturas f"
         " WHERE f.conta_id = l.conta_id AND f.competencia >= substr(l.data, 1, 7)))"]
     params: list[object] = []
+    if tipo != "pagamento_fatura":
+        # Pagamento casado é a mesma coisa que a linha da fatura paga: só aparece no filtro por tipo.
+        partes.append(f"NOT {_CASADO}")
     if de is not None:
         partes.append("l.data >= ?")
         params.append(de)
@@ -333,10 +340,6 @@ def listar_extrato(
         + " LIMIT ? OFFSET ?",
         (*params, limite, deslocamento),
     ).fetchall()
-
-
-# pagamento_fatura casado com uma fatura (a linha da fatura é que conta como saída).
-_CASADO = "EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
 
 
 def totais_extrato(

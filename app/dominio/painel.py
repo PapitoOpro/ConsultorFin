@@ -10,7 +10,7 @@ from app.dominio import insights
 from app.dominio.categorias import despesas_do_mes, entradas_do_mes
 from app.dominio.dinheiro import formatar_brl, iso_para_br, somar_meses
 from app.dominio.lancamentos import ErroLancamento
-from app.dominio.projecao import Vencimentos, projetar, vencimentos
+from app.dominio.projecao import Vencimentos, pendentes_por_mes, projetar, vencimentos
 from app.dominio.recorrentes import gerar_recorrentes
 from app.dominio.saldo import saldo_atual
 from app.repo import contas, faturas as repo_faturas, painel
@@ -228,6 +228,7 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
                     for n, _ in top},
         "rosca": {f["nome"]: _detalhe_rosca(f["nome"], por_nome, top_rosca, resumo) for f in rosca},
         "cartoes": detalhe_cartoes(con),
+        **detalhes_projecao(con, hoje, horizonte, pontos),
     }
     return {
         "mes": resumo.mes_iso, "horizonte": horizonte, "rosca": rosca, "maiores": maiores,
@@ -244,6 +245,40 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
                                              top[0][0] if top else None),
         },
     }
+
+
+def detalhes_projecao(con: Any, hoje: date, horizonte: int, pontos: list[Any]) -> dict[str, dict[str, Any]]:
+    """Origem de cada mês dos gráficos Saldo projetado e Parcelas futuras (chave = rótulo do mês):
+    os maiores pendentes que o compõem, com a mesma base de `projetar`."""
+    nomes = {int(c["id"]): str(c["nome"]) for c in contas.listar(con)}
+    por_mes = pendentes_por_mes(con, hoje, horizonte)
+
+    def linha(r: Any) -> dict[str, str]:
+        v = int(r["valor_centavos"])
+        return {"data": iso_para_br(str(r["data"])), "descricao": str(r["descricao"]),
+                "valor_fmt": formatar_brl(v), "conta": nomes.get(int(r["conta_id"]), ""),
+                "origem": "Estimado" if r["estimado"] else "Pendente", "categoria": ""}
+
+    def montar(titulo: str, total: int, rows: list[Any], nota: str) -> dict[str, Any]:
+        top = sorted(rows, key=lambda r: -abs(int(r["valor_centavos"])))[:LIMITE_DETALHE]
+        return {"titulo": titulo, "total_fmt": formatar_brl(total), "n": len(rows),
+                "restantes": len(rows) - len(top), "link": "/contas-a-pagar", "link_rotulo": "Ver em Contas a pagar",
+                "nota": nota, "linhas": [linha(r) for r in top]}
+
+    saldo: dict[str, Any] = {}
+    parcelas: dict[str, Any] = {}
+    for p in pontos:
+        rot, rows = rotulo_mes(p.mes), por_mes[p.mes]
+        inicio = p.saldo_final_centavos - p.entrada_pendente_centavos + p.saida_pendente_centavos
+        nota = (f"Saldo no início do mês {formatar_brl(inicio)} + entradas pendentes "
+                f"{formatar_brl(p.entrada_pendente_centavos)} − saídas pendentes {formatar_brl(p.saida_pendente_centavos)}.")
+        if p.mes == next(iter(por_mes)):
+            nota += " Inclui pendências vencidas."
+        saldo[rot] = montar(f"Saldo ao fim de {rot}", p.saldo_final_centavos, rows, nota)
+        par = [r for r in rows if int(r["valor_centavos"]) < 0 and r["grupo_parcela_uuid"]]
+        parcelas[rot] = montar(f"Parcelas de {rot}", p.parcelas_centavos, par,
+                               "Compras parceladas ainda pendentes neste mês.")
+    return {"saldo": saldo, "parcelas": parcelas}
 
 
 def _link_categoria(cat: Categoria, resumo: Resumo) -> str:

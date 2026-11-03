@@ -145,7 +145,11 @@
           </form>{% else %}<span class="aviso-pagamento">{{ icone("info", 12) }}sem fatura importada — conta como despesa</span>{% endif %}{% endif %}
           <span class="mob-info" aria-hidden="false">{{ l.data | data_br }} · {{ l.conta_nome }} · {{ tipos[l.tipo] }}<br><strong class="mob-valor {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</strong></span></td>
         <td class="conta sec">{{ l.conta_nome }}</td>
+        {% if l.tipo == 'pagamento_fatura' and l.fatura_casada_id is not none %}
+        <td class="categoria fatura-sem-categoria"><span class="secundario" title="O pagamento casado não tem categoria; as categorias estão nos itens da fatura.">— · categorias nos itens da fatura</span></td>
+        {% else %}
         <td class="categoria">{% include "lancamentos/_categoria.html" %}</td>
+        {% endif %}
         <td class="valor sec {{ 'neutro' if l.tipo == 'transferencia' else ('entrada' if l.valor_centavos > 0 else 'saida') }}">{{ l.valor_centavos | brl }}</td>
         <td class="valor saldo">{% if l.saldo_acumulado_centavos is none %}—{% else %}{{ l.saldo_acumulado_centavos | brl }}{% endif %}</td>
         <td class="sec"><span class="selo {{ {'entrada': 'entrada', 'saida': 'saida', 'transferencia': 'info', 'pagamento_fatura': 'roxo'}.get(l.tipo, 'neutro') }}">{{ tipos[l.tipo] }}</span></td>

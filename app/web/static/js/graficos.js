@@ -105,7 +105,7 @@
 
   function colunas(id, pontos, corDe) {
     var muitos = pontos.length > 6;
-    criar(id, {
+    return criar(id, {
       grid: T.grade({ top: 22, bottom: 20 }),
       xAxis: T.eixoCategoria(pontos.map(function (p) { return p.rotulo; }), C,
                              { axisLabel: { color: C.sec, fontSize: 10, interval: 0, hideOverlap: true } }),
@@ -252,8 +252,8 @@
       detalhes = d.detalhes || detalhes;
       fluxo(d.fluxo);
       if (d.rosca.length) { rosca(d.rosca); }
-      colunas("graf-parcelas", d.parcelas, function () { return NEUTRO; });
-      colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.saida : NEUTRO; });
+      aoClicar(colunas("graf-parcelas", d.parcelas, function () { return NEUTRO; }), "parcelas");
+      aoClicar(colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.saida : NEUTRO; }), "saldo");
       if (d.maiores.length) { barras("graf-maiores", "maiores", d.maiores, NEUTRO, "pct"); }
       if (d.cartoes.length) { barras("graf-cartoes", "cartoes", d.cartoes, NEUTRO); }
     })

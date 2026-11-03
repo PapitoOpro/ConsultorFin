@@ -87,3 +87,15 @@ def test_numero_de_pontos(con, n) -> None:
 def test_horizonte_invalido(con) -> None:
     with pytest.raises(ValueError, match="Horizonte inválido"):
         projetar(con, HOJE, 5)
+
+
+def test_detalhes_projecao_por_mes(con) -> None:
+    from app.dominio.painel import detalhes_projecao
+
+    c = _conta(con)
+    _lanc(con, c, "2026-10-20", -30000, grupo="g")
+    _lanc(con, c, "2026-11-05", 50000)
+    d = detalhes_projecao(con, HOJE, 3, projetar(con, HOJE, 3))
+    assert list(d["saldo"]) == ["out/26", "nov/26", "dez/26"]
+    assert d["saldo"]["nov/26"]["total_fmt"] == "R$ 1.200,00" and d["saldo"]["nov/26"]["n"] == 1
+    assert d["parcelas"]["out/26"]["n"] == 1 and d["parcelas"]["nov/26"]["n"] == 0

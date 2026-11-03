@@ -77,8 +77,11 @@ def test_extrato_casado_conta_a_fatura_e_nao_o_pagamento(con: sqlite3.Connection
     rows = repo_lanc.listar_extrato(con, de=None, ate=None, conta_id=None, categoria_id=None,
                                     sem_categoria=False, tipo=None, texto=None, compensado=None,
                                     limite=50, deslocamento=0)
-    marca = {int(r["id"]): r["fatura_casada_id"] for r in rows}
-    assert marca[lid] == ids["fatura"] and marca[ids["linha"]] is None
+    assert lid not in {int(r["id"]) for r in rows}  # pagamento casado fica oculto no extrato
+    rows = repo_lanc.listar_extrato(con, de=None, ate=None, conta_id=None, categoria_id=None,
+                                    sem_categoria=False, tipo="pagamento_fatura", texto=None,
+                                    compensado=None, limite=50, deslocamento=0)
+    assert [int(r["id"]) for r in rows] == [lid] and rows[0]["fatura_casada_id"] == ids["fatura"]
 
 
 # --- Regra 2: painel -------------------------------------------------------------------------

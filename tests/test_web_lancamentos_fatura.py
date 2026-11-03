@@ -268,8 +268,7 @@ def test_aviso_pagamento_nao_casado_oferece_casar(cliente: TestClient, db: Path,
     assert "Casar com a fatura venc. 10/10/2026" in linha
     r = cliente.post(f"/faturas/{cen.fatura_id}/pagamento/confirmar",
                      data={"lancamento_id": str(cen.pagamento), "voltar": VOLTAR})
-    linha = _linha(r.text, cen.pagamento)
-    assert "fatura casada" in linha and NAO_CASADO not in linha and SEM_FATURA not in linha
+    assert f'id="lancamento-{cen.pagamento}"' not in r.text  # casado: só a linha da fatura aparece
     assert _sql(db, "SELECT pagamento_lancamento_id FROM faturas") == [(cen.pagamento,)]
 
 
@@ -288,7 +287,7 @@ def test_casar_pagamento_muda_selo_e_nao_conta_duas_vezes(cliente: TestClient, d
     linha = _linha(r.text, cen.fatura_lanc)
     assert "paga" in linha and "a pagar" not in linha
     assert "Desfazer pagamento" in linha and "Casar pagamento" not in linha
-    assert NAO_CASADO not in _linha(r.text, cen.pagamento)
+    assert f'id="lancamento-{cen.pagamento}"' not in r.text
     assert SEM_FATURA in _linha(r.text, cen.pagamento_solto)
     assert _total(r.text, "saidas") == saidas_antes == "R$ 197,00"  # 155 + 42, sem duplicar
     assert _sql(db, "SELECT pagamento_lancamento_id FROM faturas") == [(cen.pagamento,)]

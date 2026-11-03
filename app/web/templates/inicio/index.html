@@ -135,6 +135,7 @@
       <p class="subtitulo">Saldo previsto ao fim de {{ dados.saldo_projetado[-1].rotulo }}</p></div>
       <strong class="destaque-grafico numero {{ dados.insights.saldo.tom }}">{{ dados.insights.saldo.destaque }}</strong></div>
     <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês, a partir de {{ dados.saldo_projetado[0].rotulo }}"></div>
+    <div id="detalhe-saldo" class="detalhe-grafico" role="region" aria-live="polite" hidden></div>
     <p class="insight {{ dados.insights.saldo.tom }}"><span>{{ dados.insights.saldo.texto }}</span></p>
     <div class="sr-only"><table><caption>Saldo projetado por mês</caption>
       <thead><tr><th>Mês</th><th>Saldo</th></tr></thead>
@@ -145,6 +146,7 @@
       <p class="subtitulo">Total nos próximos {{ horizonte }} meses</p></div>
       <strong class="destaque-grafico numero {{ dados.insights.parcelas.tom }}">{{ dados.insights.parcelas.destaque }}</strong></div>
     <div id="graf-parcelas" class="grafico pequeno" role="img" aria-label="Colunas de parcelas por mês"></div>
+    <div id="detalhe-parcelas" class="detalhe-grafico" role="region" aria-live="polite" hidden></div>
     <p class="insight {{ dados.insights.parcelas.tom }}"><span>{{ dados.insights.parcelas.texto }}</span></p>
     <div class="sr-only"><table><caption>Parcelas por mês</caption>
       <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
