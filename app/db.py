@@ -491,10 +491,24 @@ def _migracao_13(con: sqlite3.Connection) -> None:
     con.execute("CREATE INDEX idx_fila_faturas_estado ON fila_faturas(estado)")
 
 
+def _migracao_14(con: sqlite3.Connection) -> None:
+    """Senhas de PDF de fatura por cartão, cifradas (AES-GCM); a chave fica fora do banco."""
+    con.execute(
+        "CREATE TABLE senhas_pdf ("
+        " id INTEGER PRIMARY KEY,"
+        " emissor TEXT NOT NULL,"
+        " cartao_final TEXT NOT NULL,"
+        " nonce BLOB NOT NULL,"
+        " cifra BLOB NOT NULL,"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (emissor, cartao_final))"
+    )
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
-    _migracao_13,
+    _migracao_13, _migracao_14,
 ]
 
 

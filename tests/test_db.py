@@ -558,8 +558,8 @@ def _banco_v8(caminho: Path) -> sqlite3.Connection:
     return c
 
 
-def test_banco_novo_termina_na_v13(con: sqlite3.Connection) -> None:
-    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) == 13
+def test_banco_novo_termina_na_v14(con: sqlite3.Connection) -> None:
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES) == 14
     assert _indices_faturas(con) == {"ux_faturas_lancamento", "ux_faturas_pagamento"}
 
 

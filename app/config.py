@@ -28,3 +28,9 @@ DIR_FILA: Path = RAIZ / "data" / "fila"
 LIMITE_MENSAGENS_GMAIL: int = 50
 DIAS_EXPIRACAO_FILA: int = 7
 LIMITE_PDF_BYTES: int = 5 * 1024 * 1024
+
+
+def caminho_chave_senhas() -> Path:
+    """Chave AES das senhas de PDF (env CONSULTORFIN_SENHAS_KEY; padrão data/senhas.key)."""
+    valor = os.environ.get("CONSULTORFIN_SENHAS_KEY", "").strip()
+    return Path(valor) if valor else RAIZ / "data" / "senhas.key"

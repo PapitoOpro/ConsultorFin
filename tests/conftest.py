@@ -12,3 +12,11 @@ def con() -> Iterator[sqlite3.Connection]:
     migrar(c)
     yield c
     c.close()
+
+
+@pytest.fixture(autouse=True)
+def _chave_senhas_isolada(tmp_path_factory: pytest.TempPathFactory,
+                          monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nenhum teste toca em data/senhas.key."""
+    monkeypatch.setenv("CONSULTORFIN_SENHAS_KEY",
+                       str(tmp_path_factory.mktemp("chave") / "senhas.key"))
