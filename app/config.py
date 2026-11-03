@@ -16,3 +16,9 @@ def url_terminal() -> str:
     """URL https do terminal do consultor (env CONSULTORFIN_TERMINAL_URL); vazio desativa o balão."""
     url = os.environ.get("CONSULTORFIN_TERMINAL_URL", "").strip()
     return url if url.lower().startswith("https://") else ""
+
+
+def caminho_token_gmail() -> Path:
+    """JSON do token OAuth do Gmail (env CONSULTORFIN_GMAIL_TOKEN; padrão data/gmail-token.json)."""
+    valor = os.environ.get("CONSULTORFIN_GMAIL_TOKEN", "").strip()
+    return Path(valor) if valor else RAIZ / "data" / "gmail-token.json"
