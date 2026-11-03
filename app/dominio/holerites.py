@@ -390,10 +390,10 @@ def anos_com_holerite(con: Any) -> list[int]:
     return sorted({int(str(h["competencia"])[:4]) for h in repo.listar(con)}, reverse=True)
 
 
-def listar_por_ano(con: Any, ano: int, titular_id: int | None = None) -> list[LinhaHolerite]:
+def listar_por_ano(con: Any, ano: int) -> list[LinhaHolerite]:
     """Holerites da competência-ano com o estado do crédito (recebido no extrato ou previsto)."""
     linhas: list[LinhaHolerite] = []
-    for h in repo.listar(con, ano, titular_id):
+    for h in repo.listar(con, ano):
         lanc = None if h["lancamento_id"] is None else repo_lanc.obter(con, int(h["lancamento_id"]))
         estado: Literal["recebido", "previsto", "sem"] = "sem"
         if lanc is not None:

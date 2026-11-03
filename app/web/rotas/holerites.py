@@ -20,7 +20,6 @@ from app.dominio.lancamentos import ErroLancamento, interpretar_id, opcoes_categ
 from app.importacao.holerite import ler_holerite
 from app.importacao.holerite.modelo import HoleriteIlegivel, HoleriteLido
 from app.repo import contas, titulares
-from app.repo import holerites as repo_hol
 from app.web.deps import get_con
 from app.web.rotas.faturas import MSG_EXPIRADO, _ids_categorias, _ler_pdf, _sem_cache, _texto
 from app.web.rotas.importar import ErroImportacao, _pagina_inicial
@@ -193,19 +192,12 @@ def _ano(texto: str) -> int | None:
 
 
 @router.get("/holerites", response_class=HTMLResponse)
-def lista(request: Request, con: Any = Depends(get_con), ano: str = "", titular: str = "") -> Response:
+def lista(request: Request, con: Any = Depends(get_con), ano: str = "") -> Response:
     anos = anos_com_holerite(con)
     escolhido = _ano(ano) or (anos[0] if anos else request.app.state.hoje_fn().year)
-    todos = titulares.listar(con)
-    filtro = int(titular) if titular.isascii() and titular.isdigit() and len(titular) <= 18 else None
-    if filtro is not None and titulares.obter(con, filtro) is None:
-        filtro = None
     ctx = {"ativo": "holerites", "ano": escolhido,
            "anos": anos if escolhido in anos else sorted({*anos, escolhido}, reverse=True),
-           "linhas": listar_por_ano(con, escolhido, filtro),
-           "titulares": todos, "titular_filtro": filtro, "varios_titulares": len(todos) > 1,
-           "totais": [{"id": int(r["id"]), "nome": str(r["nome"]), "liquido": int(r["liquido"]),
-                       "n": int(r["n"])} for r in repo_hol.liquido_por_titular(con, escolhido)]}
+           "linhas": listar_por_ano(con, escolhido), "varios_titulares": len(titulares.listar(con)) > 1}
     return _sem_cache(request.app.state.templates.TemplateResponse(
         request, "holerites/index.html", ctx))
 

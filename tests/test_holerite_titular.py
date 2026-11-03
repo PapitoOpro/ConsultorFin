@@ -58,15 +58,12 @@ def test_mesma_competencia_para_titulares_diferentes_mas_nao_para_o_mesmo(con: s
         _holerite(con, conta, 1)
 
 
-def test_listar_filtra_por_titular_e_totaliza(con: sqlite3.Connection) -> None:
+def test_listar_junta_todos_os_titulares_e_traz_o_nome(con: sqlite3.Connection) -> None:
     conta = _conta(con)
     outro = titulares.criar(con, "Outra pessoa")
     _holerite(con, conta, 1, liquido=100000)
     _holerite(con, conta, outro, liquido=250000)
-    assert [r["titular_nome"] for r in repo.listar(con, 2026, outro)] == ["Outra pessoa"]
-    assert len(repo.listar(con, 2026)) == 2
-    totais = {r["nome"]: (r["liquido"], r["n"]) for r in repo.liquido_por_titular(con, 2026)}
-    assert totais == {"Eu": (100000, 1), "Outra pessoa": (250000, 1)}
+    assert sorted(r["titular_nome"] for r in repo.listar(con, 2026)) == ["Eu", "Outra pessoa"]
     assert titulares.ultimo_usado(con) == outro
 
 
@@ -77,9 +74,10 @@ def cliente(tmp_path: Path) -> Iterator[tuple[TestClient, Path]]:
         yield c, db
 
 
-def test_tela_holerites_so_mostra_filtro_com_mais_de_um_titular(cliente: tuple[TestClient, Path]) -> None:
+def test_tela_holerites_e_lista_unica_com_selo_do_titular(cliente: tuple[TestClient, Path]) -> None:
     c, db = cliente
-    assert 'aria-label="Titular dos holerites"' not in c.get("/holerites").text
+    antes = c.get("/holerites").text
+    assert "Titular dos holerites" not in antes and "selo neutro\">Eu" not in antes
     con = conectar(db)
     conta = _conta(con)
     outro = titulares.criar(con, "Outra pessoa")
@@ -87,13 +85,10 @@ def test_tela_holerites_so_mostra_filtro_com_mais_de_um_titular(cliente: tuple[T
     _holerite(con, conta, outro, liquido=222200)
     con.commit()
     con.close()
-    todos = c.get("/holerites?ano=2026").text
-    assert 'aria-label="Titular dos holerites"' in todos and "R$ 1.111,00" in todos and "R$ 2.222,00" in todos
-    so_outro = c.get(f"/holerites?ano=2026&titular={outro}").text
-    assert "R$ 2.222,00" in so_outro and todos.count("selo neutro") > so_outro.count("selo neutro") - 1
-    assert 'class="valor entrada"><strong>R$ 1.111,00' not in so_outro  # linha do outro titular some
-    invalido = c.get("/holerites?ano=2026&titular=999").text  # titular inexistente: volta a "Todos"
-    assert "R$ 1.111,00" in invalido
+    html = c.get("/holerites?ano=2026").text
+    assert "R$ 1.111,00" in html and "R$ 2.222,00" in html  # tudo junto
+    assert "Titular dos holerites" not in html and "líquido em 2026" not in html  # sem filtro nem cartões
+    assert ">Eu</span>" in html and ">Outra pessoa</span>" in html  # só o selo distingue as linhas
 
 
 def test_formulario_de_importacao_pede_titular_com_mais_de_um(cliente: tuple[TestClient, Path]) -> None:

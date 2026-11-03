@@ -30,29 +30,12 @@ def por_competencia_tipo(con: sqlite3.Connection, competencia: str, tipo: str,
     ).fetchone()
 
 
-def listar(con: sqlite3.Connection, ano: int | None = None,
-           titular_id: int | None = None) -> list[sqlite3.Row]:
-    """Holerites (com `titular_nome`), mais recentes primeiro; filtros opcionais por ano e titular."""
-    filtros, params = [], []
-    if ano is not None:
-        filtros.append("substr(h.competencia, 1, 4) = ?")
-        params.append(f"{ano:04d}")
-    if titular_id is not None:
-        filtros.append("h.titular_id = ?")
-        params.append(titular_id)
-    onde = f" WHERE {' AND '.join(filtros)}" if filtros else ""
+def listar(con: sqlite3.Connection, ano: int | None = None) -> list[sqlite3.Row]:
+    """Holerites de todos os titulares (com `titular_nome`), mais recentes primeiro."""
+    onde, params = ("", []) if ano is None else (" WHERE substr(h.competencia, 1, 4) = ?", [f"{ano:04d}"])
     return con.execute(
         "SELECT h.*, t.nome AS titular_nome FROM holerites h JOIN titulares t ON t.id = h.titular_id"
         + onde + " ORDER BY h.competencia DESC, h.tipo, h.id", params).fetchall()
-
-
-def liquido_por_titular(con: sqlite3.Connection, ano: int) -> list[sqlite3.Row]:
-    """Líquido e quantidade de holerites do ano por titular (todos os titulares, mesmo sem holerite)."""
-    return con.execute(
-        "SELECT t.id, t.nome, COALESCE(SUM(h.liquido_centavos), 0) AS liquido, COUNT(h.id) AS n"
-        " FROM titulares t LEFT JOIN holerites h"
-        " ON h.titular_id = t.id AND substr(h.competencia, 1, 4) = ?"
-        " GROUP BY t.id ORDER BY t.id", (f"{ano:04d}",)).fetchall()
 
 
 def atualizar_cabecalho(con: sqlite3.Connection, holerite_id: int, *, conta_id: int,
