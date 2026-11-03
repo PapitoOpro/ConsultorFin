@@ -1,0 +1,18 @@
+{% from "_icones.html" import icone %}
+{% for i in itens %}
+<section class="painel" aria-label="Fatura encontrada no Gmail">
+  <div class="painel-cabecalho"><div class="painel-titulo">
+    <h2>{{ icone("inbox", 18) }}{{ i.emissor or "Fatura" }}{% if i.ja_importada %} <span class="selo info">{{ icone("check", 12) }}&nbsp;já importada</span>{% endif %}</h2>
+    <p class="subtitulo">{% if i.cartao_final %}final {{ i.cartao_final }}{% else %}final não identificado{% endif %} · {% if i.vencimento %}vencimento {{ i.vencimento | data_br }}{% else %}vencimento não identificado{% endif %}</p>
+  </div></div>
+  <div class="acoes-form">
+    {% if i.ja_importada %}
+    <button type="button" hx-post="/faturas/fila/{{ i.id }}/pular" hx-target="#fila-faturas" hx-swap="innerHTML">{{ icone("x", 16) }}Pular</button>
+    <form method="post" action="/faturas/fila/{{ i.id }}/importar"><button type="submit" class="secundario">{{ icone("upload", 16) }}Importar mesmo assim</button></form>
+    {% else %}
+    <form method="post" action="/faturas/fila/{{ i.id }}/importar"><button type="submit">{{ icone("upload", 16) }}Importar</button></form>
+    <button type="button" class="secundario" hx-post="/faturas/fila/{{ i.id }}/pular" hx-target="#fila-faturas" hx-swap="innerHTML">{{ icone("x", 16) }}Pular</button>
+    {% endif %}
+  </div>
+</section>
+{% endfor %}

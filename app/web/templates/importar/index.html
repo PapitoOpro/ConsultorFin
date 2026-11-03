@@ -54,6 +54,8 @@
   })();
 </script>
 
+<div id="fila-faturas" hx-get="/faturas/fila" hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
+
 <form method="post" action="/faturas/previa" enctype="multipart/form-data" class="painel" id="fatura" data-carregando>
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar fatura do cartão (PDF)</h2><p class="subtitulo">Fatura em PDF do Itaú, Porto ou Mercado Pago. A senha, se o PDF tiver, só é usada para abrir o arquivo e não é guardada.</p></div></div>
   {% if fatura.erro %}{% call alerta("erro") %}{{ fatura.erro }}{% endcall %}{% endif %}
