@@ -4,6 +4,7 @@ A tabela guarda só emissor/final/vencimento/hash (nunca texto de e-mail). O PDF
 DIR_FILA/<id>.pdf (id inteiro) e a senha nunca é guardada: "Importar" entrega o PDF ao fluxo
 normal de fatura (token + formulário de senha).
 """
+import hashlib
 import logging
 from datetime import datetime
 from typing import Any
@@ -39,13 +40,16 @@ def _sincronizar(con: Any) -> None:
     con.commit()
 
 
-def _fragmento(request: Request, con: Any) -> Response:
+def _fragmento(request: Request, con: Any, versao_cliente: str = "") -> Response:
     _sincronizar(con)
     itens = [{"id": int(i["id"]), "emissor": i["emissor"], "cartao_final": i["cartao_final"],
               "vencimento": i["vencimento"], "ja_importada": dominio.ja_importada(con, i)}
              for i in repo.listar_pendentes(con)]
+    versao = hashlib.sha256(repr(itens).encode()).hexdigest()[:16] if itens else ""
+    if versao and versao == versao_cliente:  # nada mudou: sem swap, o foco do teclado fica
+        return _sem_cache(Response(status_code=204))
     resp = request.app.state.templates.TemplateResponse(
-        request, "importar/_fila.html", {"itens": itens})
+        request, "importar/_fila.html", {"itens": itens, "versao": versao})
     return _sem_cache(resp)
 
 
@@ -60,8 +64,8 @@ def _nao_encontrado() -> Response:
 
 
 @router.get("/faturas/fila", response_class=HTMLResponse)
-def listar(request: Request, con: Any = Depends(get_con)) -> Response:
-    return _fragmento(request, con)
+def listar(request: Request, con: Any = Depends(get_con), v: str = "") -> Response:
+    return _fragmento(request, con, v[:32])
 
 
 @router.post("/faturas/fila/{item_id}/pular", response_class=HTMLResponse)

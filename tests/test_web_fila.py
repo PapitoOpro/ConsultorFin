@@ -217,3 +217,28 @@ def test_importada_pelo_fluxo_normal_some_da_fila(cliente: TestClient, db: Path,
     r = cliente.get("/faturas/fila")
     assert r.text.strip() == ""
     assert _estado(db, item) == "importada" and not (dir_fila / f"{item}.pdf").exists()
+
+
+def test_ids_estaveis_labels_por_item_e_aria_live(cliente: TestClient, db: Path,
+                                                  dir_fila: Path) -> None:
+    a = _semear(db, dir_fila, emissor="Itaú <i>x</i>")
+    b = _semear(db, dir_fila, b"%PDF outro", msg="m2", emissor="Porto", final=None)
+    r = cliente.get("/faturas/fila")
+    for i in (a, b):
+        assert f'id="fila-importar-{i}"' in r.text and f'id="fila-pular-{i}"' in r.text
+    assert 'aria-label="Pular fatura Itaú &lt;i&gt;x&lt;/i&gt; final 1234"' in r.text
+    assert 'aria-label="Pular fatura Porto final não identificado"' in r.text
+    assert 'aria-label="Importar fatura Porto final não identificado"' in r.text
+    assert 'aria-live="polite"' in cliente.get("/importar").text
+
+
+def test_fila_sem_mudanca_devolve_204_para_preservar_foco(cliente: TestClient, db: Path,
+                                                          dir_fila: Path) -> None:
+    _semear(db, dir_fila)
+    r = cliente.get("/faturas/fila")
+    v = re.search(r'id="fila-versao" name="v" value="([^"]+)"', r.text)
+    assert v
+    r2 = cliente.get("/faturas/fila", params={"v": v.group(1)})
+    assert r2.status_code == 204 and r2.headers["cache-control"] == "no-store"
+    _semear(db, dir_fila, b"%PDF outro", msg="m2")
+    assert cliente.get("/faturas/fila", params={"v": v.group(1)}).status_code == 200
