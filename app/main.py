@@ -40,6 +40,8 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     templates.env.filters["brl"] = formatar_brl
     templates.env.filters["data_br"] = iso_para_br
     templates.env.filters["fim_do_mes"] = fim_do_mes_iso
+    estaticos = (WEB_DIR / "static").rglob("*")
+    templates.env.globals["versao_static"] = max((int(f.stat().st_mtime) for f in estaticos if f.is_file()), default=0)
     templates.env.globals["url_terminal"] = config.url_terminal()
     app.add_middleware(ProtecaoOrigemHost)
     app.state.templates = templates
