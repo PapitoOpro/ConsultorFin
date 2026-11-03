@@ -14,3 +14,8 @@ Faturas Testes/
 scripts/_saida/
 
 Holerites/
+
+# Credenciais do Gmail (nunca versionar)
+client_secret*.json
+gmail-token*.json
+gmail-*.json

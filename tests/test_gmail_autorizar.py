@@ -32,3 +32,14 @@ def test_montar_token_sem_refresh_token_falha() -> None:
     client = {"client_id": "id-x", "client_secret": "seg-x"}
     with pytest.raises(ValueError, match="refresh_token"):
         m.montar_token(client, {"access_token": "at"})
+
+
+def test_gitignore_cobre_credenciais_na_raiz() -> None:
+    import subprocess
+
+    raiz = _CAMINHO.parent.parent
+    for nome in ("client_secret.json", "client_secret_123.json", "gmail-token.json"):
+        r = subprocess.run(
+            ["git", "check-ignore", "-q", nome], cwd=raiz, capture_output=True
+        )
+        assert r.returncode == 0, f"{nome} não está no .gitignore"
