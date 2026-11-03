@@ -7,7 +7,8 @@
     fundo: "--fundo", superficie: "--superficie", superficie2: "--superficie-2", borda: "--borda",
     texto: "--texto", sec: "--texto-secundario", aux: "--texto-auxiliar",
     primaria: "--primaria", entrada: "--entrada", saida: "--saida", alerta: "--alerta",
-    info: "--info", roxo: "--roxo", fonte: "--fonte-texto"
+    info: "--info", roxo: "--roxo", fonte: "--fonte-texto", dados: "--fonte-dados",
+    cinza1: "--cinza-1", cinza2: "--cinza-2", cinza3: "--cinza-3", cinza4: "--cinza-4", cinza5: "--cinza-5"
   };
 
   function cores() {
@@ -19,7 +20,8 @@
 
   function paleta(c) {
     c = c || cores();
-    return [c.primaria, c.info, c.roxo, c.alerta, c.saida, c.sec];
+    /* um acento (o maior item) e degraus de cinza neutro; sem arco-íris */
+    return [c.primaria, c.cinza1, c.cinza2, c.cinza3, c.cinza4, c.cinza5];
   }
 
   function esc(t) {
@@ -81,7 +83,7 @@
     c = c || cores();
     return Object.assign({
       type: "value", show: false,
-      splitLine: { lineStyle: { color: c.borda, type: "dashed" } }
+      splitLine: { lineStyle: { color: c.borda } }
     }, extra || {});
   }
 

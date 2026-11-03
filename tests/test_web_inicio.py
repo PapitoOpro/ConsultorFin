@@ -204,7 +204,7 @@ def test_blocos_novos_do_dashboard_com_dados_reais(cliente: TestClient, conta: i
                    "Fluxo de caixa", "Gastos por categoria", "Lançamentos recentes",
                    "Próximos vencimentos"):
         assert titulo in html, titulo
-    assert "Visão geral das suas finanças — outubro de 2026" in html
+    assert "Outubro de 2026" in html
     rec = _bloco(html, "Lançamentos recentes")
     assert "PIX TRANSF RR Supo22/10" in rec and "22/10/2026" in rec and "- R$ 343,54" in rec
     assert "UBER *TRIP" in rec and "Sem categoria" in rec and "Itaú" in rec

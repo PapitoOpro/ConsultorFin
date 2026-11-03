@@ -31,9 +31,9 @@ def test_inicio_ok_e_lang(cliente: TestClient) -> None:
 def test_tema_variaveis_exatas(cliente: TestClient) -> None:
     css = cliente.get("/static/css/tema.css").text
     for v in (
-        "--fundo: #080912", "--superficie: #111120", "--borda: #242438",
+        "--fundo: #141415", "--superficie: #19191b", "--borda: #2a2a2c",
         "--primaria: #00D6A0", "--alerta: #FFB84D", "--entrada: #00D6A0",
-        "--saida: #FF5470", "--texto: #F5F5FA", "--texto-secundario: #9292AB",
+        "--saida: #ef5b5f", "--texto: #ededed", "--texto-secundario: #a1a1a6",
         '--fonte-texto: "Inter", system-ui, sans-serif',
         '--fonte-dados: "JetBrains Mono", ui-monospace, monospace',
     ):

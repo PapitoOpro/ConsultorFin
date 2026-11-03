@@ -11,6 +11,7 @@
   if (!T) { return; }
   var C = T.cores();
   var graficos = [];
+  var NEUTRO = C.cinza3;  // barras sem destaque; o acento marca só o que importa
 
   var agendado = false;
   function redimensionar() {
@@ -111,8 +112,9 @@
       yAxis: T.eixoValor(C),
       series: [{
         type: "bar", barMaxWidth: 28, labelLayout: { hideOverlap: true },
+        markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: C.sec, width: 1, type: "solid" }, data: [{ yAxis: 0 }] },
         label: {
-          show: true, color: C.texto, fontSize: 10, fontFamily: C.fonte,
+          show: true, color: C.sec, fontSize: 10, fontFamily: C.dados,
           position: "top", formatter: function (p) { return muitos ? compacto(p.value) : reais(p.value); }
         },
         data: pontos.map(function (p) {
@@ -141,13 +143,13 @@
       title: {
         text: T.moeda(total), subtext: "total em saídas", left: "center", top: "center",
         itemGap: 4,
-        textStyle: { color: C.texto, fontSize: 18, fontWeight: 700, fontFamily: C.fonte },
+        textStyle: { color: C.texto, fontSize: 18, fontWeight: 500, fontFamily: C.dados },
         subtextStyle: { color: C.sec, fontSize: 11, fontFamily: C.fonte }
       },
       series: [{
         type: "pie", radius: ["62%", "86%"], center: ["50%", "50%"],
         label: { show: false }, labelLine: { show: false }, avoidLabelOverlap: false,
-        itemStyle: { borderColor: C.superficie, borderWidth: 3, borderRadius: 4 },
+        itemStyle: { borderColor: C.superficie, borderWidth: 2, borderRadius: 2 },
         emphasis: { scaleSize: 4 },
         data: fatias.map(function (f, i) {
           return { value: f.valor_centavos, name: f.nome, fmt: f.valor_fmt,
@@ -168,14 +170,15 @@
     var topo = 0;  // escala mínima de R$ 1.000 quando todos os meses são baixos/zero
     meses.forEach(function (m) { topo = Math.max(topo, m.entradas_centavos, m.saidas_centavos); });
     function serie(nome, chave, fmt, cor) {
+      var ultimo = meses.length - 1;  // só o mês atual ganha ponto
       return {
-        name: nome, type: "line", smooth: 0.35, smoothMonotone: "x", symbol: "circle", symbolSize: 8, showSymbol: false,
-        lineStyle: { width: 3, color: cor }, itemStyle: { color: cor, borderColor: C.superficie, borderWidth: 2 },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: cor + "55" }, { offset: 1, color: cor + "00" }])
-        },
-        data: meses.map(function (m) { return { value: m[chave], fmt: m[fmt], name: m.rotulo }; })
+        name: nome, type: "line", smooth: 0.35, smoothMonotone: "x", symbol: "none",
+        lineStyle: { width: 2, color: cor }, itemStyle: { color: cor, borderColor: C.superficie, borderWidth: 2 },
+        data: meses.map(function (m, i) {
+          var d = { value: m[chave], fmt: m[fmt], name: m.rotulo };
+          if (i === ultimo) { d.symbol = "circle"; d.symbolSize = 8; }
+          return d;
+        })
       };
     }
     criar("graf-fluxo", {
@@ -196,11 +199,11 @@
       }),
       yAxis: T.eixoValor(C, {
         show: true, min: 0, max: topo < 100000 ? 100000 : undefined,
-        axisLabel: { color: C.sec, fontSize: 10, formatter: compacto },
-        splitLine: { lineStyle: { color: C.borda, type: "dashed", opacity: .6 } }
+        axisLabel: { color: C.sec, fontSize: 10, fontFamily: C.dados, formatter: compacto },
+        splitLine: { lineStyle: { color: C.borda } }
       }),
       series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.primaria),
-               serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
+               serie("Saídas", "saidas_centavos", "saidas_fmt", C.cinza2)]
     });
   }
 
@@ -217,17 +220,18 @@
       yAxis: {
         type: "category", data: ord.map(function (i) { return i.nome; }),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: C.texto, fontSize: 11, width: larguraRotulo(id), overflow: "break" }, triggerEvent: true
+        axisLabel: { color: C.sec, fontSize: 11, width: larguraRotulo(id), overflow: "break" }, triggerEvent: true
       },
       series: [{
         type: "bar", barMaxWidth: 22,
         label: {
-          show: true, position: "right", color: C.texto, fontSize: 11, fontFamily: C.fonte,
+          show: true, position: "right", color: C.sec, fontSize: 11, fontFamily: C.dados,
           formatter: function (p) { return p.data.fmt + (rotuloExtra ? "  " + p.data[rotuloExtra] : ""); }
         },
-        data: ord.map(function (i) {
+        data: ord.map(function (i, idx) {
+          var lider = idx === ord.length - 1;  // maior item (último após inverter) leva o acento
           return { value: i.valor_centavos, fmt: i.valor_fmt, pct: i.percentual, name: i.nome,
-                   itemStyle: { color: cor, borderRadius: [0, 3, 3, 0] } };
+                   itemStyle: { color: lider ? C.primaria : cor, borderRadius: [0, 2, 2, 0] } };
         })
       }]
     }), chave);
@@ -248,10 +252,10 @@
       detalhes = d.detalhes || detalhes;
       fluxo(d.fluxo);
       if (d.rosca.length) { rosca(d.rosca); }
-      colunas("graf-parcelas", d.parcelas, function () { return C.primaria; });
-      colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.saida : C.primaria; });
-      if (d.maiores.length) { barras("graf-maiores", "maiores", d.maiores, C.primaria, "pct"); }
-      if (d.cartoes.length) { barras("graf-cartoes", "cartoes", d.cartoes, C.saida); }
+      colunas("graf-parcelas", d.parcelas, function () { return NEUTRO; });
+      colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.saida : NEUTRO; });
+      if (d.maiores.length) { barras("graf-maiores", "maiores", d.maiores, NEUTRO, "pct"); }
+      if (d.cartoes.length) { barras("graf-cartoes", "cartoes", d.cartoes, NEUTRO); }
     })
     .catch(function () {
       aviso("Não foi possível carregar os gráficos. Os números estão na tabela de apoio.");

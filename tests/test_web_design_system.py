@@ -45,12 +45,12 @@ def _razao(a: str, b: str) -> float:
 def test_tokens_novos_em_tema_css() -> None:
     css = _css()
     for v in (
-        "--fundo: #080912", "--fundo-menu: #0D0D19", "--superficie: #111120",
-        "--superficie-2: #171728", "--borda: #242438", "--texto: #F5F5FA",
-        "--texto-secundario: #9292AB", "--texto-auxiliar: #6D6D88",
-        "--primaria: #00D6A0", "--entrada: #00D6A0", "--saida: #FF5470",
+        "--fundo: #141415", "--fundo-menu: #0f0f10", "--superficie: #19191b",
+        "--superficie-2: #232325", "--borda: #2a2a2c", "--texto: #ededed",
+        "--texto-secundario: #a1a1a6", "--texto-auxiliar: #85858b",
+        "--primaria: #00D6A0", "--entrada: #00D6A0", "--saida: #ef5b5f",
         "--alerta: #FFB84D", "--info: #4DA3FF", "--roxo: #A78BFA",
-        "--raio: 14px", "--raio-pequeno: 10px", "--sombra:", "--transicao:",
+        "--raio: 12px", "--raio-pequeno: 8px", "--sombra:", "--transicao:",
     ):
         assert v in css, v
     assert "prefers-reduced-motion" in css
