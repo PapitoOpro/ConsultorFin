@@ -9,6 +9,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}ConsultorFin{% endblock %} · ConsultorFin</title>
   <link rel="icon" type="image/svg+xml" href="/static/img/logo-consultorfin.svg">
+  <script>try { if (localStorage.getItem("menu-recolhido") === "1") document.documentElement.classList.add("menu-recolhido"); } catch (e) {}</script>
   <link rel="stylesheet" href="/static/css/tema.css?v={{ versao_static }}">
   <script src="/static/js/htmx.min.js" defer></script>
   <script src="/static/js/categoria-busca.js" defer></script>
@@ -22,6 +23,7 @@
     <div class="menu-lateral">
       <div class="menu-topo">
         <a class="marca" href="/" title="Ir para o Início"><img class="marca-img" src="/static/img/logo-consultorfin.svg" alt="ConsultorFin" width="51" height="40" decoding="async"><span class="marca-nome" aria-hidden="true">ConsultorFin</span></a>
+        <button type="button" id="botao-recolher" class="botao-recolher" aria-pressed="false" aria-label="Recolher o menu" title="Recolher o menu">{{ icone("panel-left-close", 18) }}</button>
         <button type="button" id="botao-menu" class="botao-menu" aria-expanded="false" aria-controls="menu-principal" aria-label="Menu de navegação"><span class="icone-abrir">{{ icone("menu", 20) }}</span><span class="icone-fechar">{{ icone("x", 20) }}</span></button>
       </div>
       <nav class="menu-nav" id="menu-principal" aria-label="Menu principal">
@@ -75,6 +77,17 @@
       }
       botao.addEventListener("click", function () {
         definir(botao.getAttribute("aria-expanded") !== "true");
+      });
+      var recolher = document.getElementById("botao-recolher");
+      var raiz = document.documentElement;
+      function marcarRecolhido() {
+        recolher.setAttribute("aria-pressed", raiz.classList.contains("menu-recolhido") ? "true" : "false");
+      }
+      marcarRecolhido();
+      recolher.addEventListener("click", function () {
+        raiz.classList.toggle("menu-recolhido");
+        marcarRecolhido();
+        try { localStorage.setItem("menu-recolhido", raiz.classList.contains("menu-recolhido") ? "1" : "0"); } catch (e) {}
       });
       document.addEventListener("keydown", function (e) {
         if (e.key === "Escape" && botao.getAttribute("aria-expanded") === "true") {

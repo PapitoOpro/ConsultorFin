@@ -219,7 +219,7 @@ def test_blocos_novos_do_dashboard_com_dados_reais(cliente: TestClient, conta: i
 
 def test_sem_avatar_sino_busca_saudacao(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/?mes=2026-10").text.lower()
-    for proibido in ("avatar", "notifica", "bom dia", "boa tarde", "olá,", "metas", 'type="search"'):
+    for proibido in ("avatar", "notifica", "metas", 'type="search"'):
         assert proibido not in html, proibido
 
 

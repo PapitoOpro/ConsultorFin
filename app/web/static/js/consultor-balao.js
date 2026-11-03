@@ -19,6 +19,9 @@
     }
     if (!aberto) balao.focus();
   }
+  document.querySelectorAll("[data-abrir-consultor]").forEach(function (b) {
+    b.addEventListener("click", function () { definir(true); });
+  });
   balao.addEventListener("click", function () { definir(painel.hidden); });
   document.getElementById("consultor-fechar").addEventListener("click", function () { definir(false); });
   document.addEventListener("keydown", function (e) {

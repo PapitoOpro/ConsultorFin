@@ -54,6 +54,36 @@
 {% else %}
 <div id="inicio" class="dashboard" data-mes="{{ mes_iso }}" data-horizonte="{{ horizonte }}">
 
+<section class="hero" aria-label="Resumo">
+  <div>
+    <h2 id="saudacao">Olá</h2>
+    {% if resumo.entradas_centavos or resumo.saidas_centavos %}
+    <p>Resumo de {{ resumo.nome_mes }}: {% if resumo.sobra_centavos >= 0 %}sobraram{% else %}faltaram{% endif %} <strong class="numero {{ classe(resumo.sobra_centavos) }}">{{ resumo.sobra_centavos|abs|brl }}</strong> até agora.</p>
+    {% else %}
+    <p>Sem movimento em {{ resumo.nome_mes }} até agora.</p>
+    {% endif %}
+    {% set nv = resumo.venc.vencidas|length %}{% set na = resumo.venc.a_vencer|length %}
+    <div class="hero-chips">
+      {% if nv %}<a class="chip alerta-chip" href="/contas-a-pagar#vencidas">{{ icone("alert-triangle", 14) }} {{ nv }} vencida{{ 's' if nv != 1 }}</a>{% endif %}
+      {% if na %}<a class="chip" href="/contas-a-pagar#a-vencer">{{ icone("calendar-clock", 14) }} {{ na }} a vencer em 7 dias</a>{% endif %}
+      {% if not nv and not na %}<span class="chip ok">{{ icone("check-circle", 14) }} Nenhuma conta vencida ou a vencer</span>{% endif %}
+    </div>
+  </div>
+  {% if resumo.entradas_centavos > 0 %}
+  {% set pct = (resumo.saidas_centavos * 100 // resumo.entradas_centavos) %}
+  <div class="medidor {{ 'estouro' if pct > 100 else 'atencao' if pct >= 80 else '' }}" style="--pct: {{ [pct, 100]|min }}" role="img" aria-label="Saídas equivalem a {{ pct }}% das entradas do mês">
+    <div class="medidor-texto"><strong>{{ pct }}%</strong><span>das entradas gastas</span></div>
+  </div>
+  {% endif %}
+</section>
+
+<nav class="atalhos" aria-label="Atalhos">
+  <a class="atalho" href="/importar">{{ icone("upload", 20) }}<span>Importar<small>extrato ou fatura</small></span></a>
+  <a class="atalho" href="/holerites">{{ icone("file-text", 20) }}<span>Holerites<small>enviar e conferir</small></span></a>
+  <a class="atalho" href="/contas-a-pagar">{{ icone("calendar-clock", 20) }}<span>Contas a pagar<small>vencimentos</small></span></a>
+  {% if url_terminal %}<button type="button" class="atalho" data-abrir-consultor>{{ icone("message-circle", 20) }}<span>Consultor<small>pergunte ao Claude</small></span></button>{% endif %}
+</nav>
+
 <section class="grade-kpi" aria-label="Resumo do mês">
   <div class="kpi kpi-destaque"><div class="rotulo">Saldo total</div>
     <div class="valor numero">{{ resumo.saldo_total_centavos|brl }}</div>
@@ -140,6 +170,7 @@
       <tbody>{% for p in dados.comparativo %}<tr><td>{{ p.rotulo }}</td><td>{{ p.entradas_fmt }}</td><td>{{ p.saidas_fmt }}</td></tr>{% endfor %}</tbody></table></div>
   </section>
 </div>
+<script>(function(){var h=new Date().getHours(),e=document.getElementById("saudacao");if(e)e.textContent=h<12?"Bom dia":h<18?"Boa tarde":"Boa noite";})();</script>
 <p id="msg-graficos" class="secundario" role="status"></p>
 
 <div class="grade-paineis recentes">
