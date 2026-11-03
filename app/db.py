@@ -472,9 +472,29 @@ def _migracao_12(con: sqlite3.Connection) -> None:
     con.execute("CREATE INDEX idx_holerite_itens_holerite ON holerite_itens(holerite_id)")
 
 
+def _migracao_13(con: sqlite3.Connection) -> None:
+    """Fila de faturas de cartão encontradas no Gmail, aguardando revisão do dono."""
+    con.execute(
+        "CREATE TABLE fila_faturas ("
+        " id INTEGER PRIMARY KEY,"
+        " gmail_msg_id TEXT NOT NULL,"
+        " anexo_id TEXT NOT NULL,"
+        " emissor TEXT,"
+        " cartao_final TEXT,"
+        " vencimento TEXT,"
+        " pdf_hash TEXT NOT NULL,"
+        " estado TEXT NOT NULL DEFAULT 'pendente'"
+        " CHECK (estado IN ('pendente','pulada','importada')),"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (gmail_msg_id, anexo_id))"
+    )
+    con.execute("CREATE INDEX idx_fila_faturas_estado ON fila_faturas(estado)")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
+    _migracao_13,
 ]
 
 
