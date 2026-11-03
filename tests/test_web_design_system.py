@@ -109,7 +109,7 @@ def test_shell_pagina(cliente: TestClient, rota: str) -> None:
     assert 'class="cabecalho-pagina"' in r.text
     assert r.text.count("<h1") == 1
     assert PAGINAS[rota] in re.search(r"<h1[^>]*>(.*?)</h1>", r.text, re.S).group(1)  # type: ignore[union-attr]
-    assert '<script src="/static/js/graficos-tema.js"' in r.text
+    assert '<script src="/static/js/graficos-tema.js?v=' in r.text
 
 
 def test_graficos_tema_carregado_antes_de_graficos() -> None:

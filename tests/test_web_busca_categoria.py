@@ -17,7 +17,7 @@ from app.repo import contas
 
 RAIZ = Path(__file__).parent.parent
 JS = RAIZ / "app" / "web" / "static" / "js" / "categoria-busca.js"
-SCRIPT_TAG = '<script src="/static/js/categoria-busca.js"'
+SCRIPT_TAG = '<script src="/static/js/categoria-busca.js?v='
 TUDO = {"de": "2000-01-01", "ate": "2100-01-01"}
 
 

@@ -35,17 +35,28 @@
 
   var tip = T.textoTooltip;
 
+  function reais(centavos) {
+    var n = Math.round(Math.abs(centavos) / 100);
+    return (centavos < 0 ? "-" : "") + "R$ " + n.toLocaleString("pt-BR");
+  }
+
   function colunas(id, pontos, corDe) {
+    var muitos = pontos.length > 6;
     criar(id, {
-      grid: T.grade(),
+      grid: T.grade({ top: 22, bottom: 20 }),
       xAxis: T.eixoCategoria(pontos.map(function (p) { return p.rotulo; }), C,
-                             { axisLabel: { color: C.sec, fontSize: 9, interval: pontos.length > 6 ? 1 : 0, hideOverlap: true } }),
+                             { axisLabel: { color: C.sec, fontSize: 10, interval: 0, hideOverlap: true } }),
       yAxis: T.eixoValor(C),
       series: [{
-        type: "bar", barMaxWidth: 18,
+        type: "bar", barMaxWidth: 28, labelLayout: { hideOverlap: true },
+        label: {
+          show: true, color: C.texto, fontSize: 10, fontFamily: C.fonte,
+          position: "top", formatter: function (p) { return muitos ? compacto(p.value) : reais(p.value); }
+        },
         data: pontos.map(function (p) {
           return { value: p.valor_centavos, fmt: p.valor_fmt, name: p.rotulo,
-                   itemStyle: { color: corDe(p), borderRadius: [2, 2, 0, 0] } };
+                   label: { position: p.valor_centavos < 0 ? "bottom" : "top" },
+                   itemStyle: { color: corDe(p), borderRadius: p.valor_centavos < 0 ? [0, 0, 2, 2] : [2, 2, 0, 0] } };
         })
       }]
     });
@@ -131,48 +142,32 @@
     });
   }
 
-  function larguraRotulo() {
-    var el = document.getElementById("graf-maiores");
+  function larguraRotulo(id) {
+    var el = document.getElementById(id);
     return Math.max(70, Math.min(170, Math.round((el ? el.clientWidth : 300) * 0.4)));
   }
 
-  function barras(itens) {
+  function barras(id, itens, cor, rotuloExtra) {
     var ord = itens.slice().reverse();  // maior no topo
-    criar("graf-maiores", {
-      grid: { left: 4, right: 8, top: 4, bottom: 4, containLabel: true },
+    criar(id, {
+      grid: { left: 4, right: 96, top: 4, bottom: 4, containLabel: true },
       xAxis: { type: "value", show: false },
       yAxis: {
         type: "category", data: ord.map(function (i) { return i.nome; }),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: C.sec, fontSize: 10, width: larguraRotulo(), overflow: "truncate" }
+        axisLabel: { color: C.texto, fontSize: 11, width: larguraRotulo(id), overflow: "break" }
       },
       series: [{
-        type: "bar", barMaxWidth: 8,
+        type: "bar", barMaxWidth: 12,
+        label: {
+          show: true, position: "right", color: C.texto, fontSize: 11, fontFamily: C.fonte,
+          formatter: function (p) { return p.data.fmt + (rotuloExtra ? "  " + p.data[rotuloExtra] : ""); }
+        },
         data: ord.map(function (i) {
-          return { value: i.valor_centavos, fmt: i.valor_fmt, name: i.nome,
-                   itemStyle: { color: C.primaria, borderRadius: [0, 2, 2, 0] } };
+          return { value: i.valor_centavos, fmt: i.valor_fmt, pct: i.percentual, name: i.nome,
+                   itemStyle: { color: cor, borderRadius: [0, 3, 3, 0] } };
         })
       }]
-    });
-  }
-
-  function comparativo(meses) {
-    function serie(nome, chave, fmt, cor) {
-      return {
-        name: nome, type: "bar", barMaxWidth: 22, itemStyle: { color: cor },
-        data: meses.map(function (m) {
-          return { value: m[chave], fmt: m[fmt], name: m.rotulo + " · " + nome,
-                   itemStyle: { color: cor, borderRadius: [2, 2, 0, 0] } };
-        })
-      };
-    }
-    criar("graf-comparativo", {
-      grid: T.grade(),
-      legend: T.legenda(C, { right: 0, top: 0 }),
-      xAxis: T.eixoCategoria(meses.map(function (m) { return m.rotulo; }), C),
-      yAxis: T.eixoValor(C),
-      series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.entrada),
-               serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
     });
   }
 
@@ -191,9 +186,9 @@
       fluxo(d.fluxo);
       if (d.rosca.length) { rosca(d.rosca); }
       colunas("graf-parcelas", d.parcelas, function () { return C.primaria; });
-      colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.alerta : C.primaria; });
-      if (d.maiores.length) { barras(d.maiores); }
-      comparativo(d.comparativo);
+      colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.saida : C.primaria; });
+      if (d.maiores.length) { barras("graf-maiores", d.maiores, C.primaria, "pct"); }
+      if (d.cartoes.length) { barras("graf-cartoes", d.cartoes, C.saida); }
     })
     .catch(function () {
       aviso("Não foi possível carregar os gráficos. Os números estão na tabela de apoio.");

@@ -373,7 +373,7 @@ def test_xss_escapado(cliente: TestClient, conta: int, db: Path) -> None:
 def test_sem_urls_externas(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/?mes=2026-10").text
     assert not re.search(r'(?:src|href|action)="(?:https?:)?//', html)
-    assert 'src="/static/js/echarts.min.js"' in html and 'src="/static/js/graficos.js"' in html
+    assert 'src="/static/js/echarts.min.js?v=' in html and 'src="/static/js/graficos.js?v=' in html
     js = (Path(__file__).parent.parent / "app/web/static/js/graficos.js").read_text(encoding="utf-8")
     assert "http://" not in js and "https://" not in js
     assert "innerHTML" not in js
@@ -382,7 +382,7 @@ def test_sem_urls_externas(cliente: TestClient, conta: int) -> None:
 def test_fallback_acessivel_com_numeros(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/?mes=2026-10").text
     assert 'class="sr-only"' in html
-    comp = _bloco(html, "Entradas e saídas")
+    comp = _bloco(html, "Fluxo de caixa")
     assert "R$ 3.233,29" in comp and "R$ 400,00" in comp and "set/26" in comp
 
 
@@ -485,9 +485,9 @@ def test_janeiro_compara_com_dezembro_do_ano_anterior(cliente: TestClient, conta
 
 def test_rotulos_dos_graficos(cliente: TestClient, conta: int) -> None:
     html_ = cliente.get("/?mes=2026-10").text
-    assert "A partir de out/26" in html_
+    assert "Saldo previsto ao fim de" in html_
     assert "Colunas de saldo projetado por mês, a partir de out/26" in html_
-    assert "Entradas e saídas: out/26 comparado a set/26" in html_
+    assert "Barras de fatura em aberto por cartão" in html_ or "Nenhuma fatura de cartão em aberto" in html_
     assert "<thead>" in _bloco(html_, "Parcelas")
 
 
@@ -589,3 +589,16 @@ def test_resultado_zero_nao_diz_superavit(cliente: TestClient, conta: int, db: P
     _manual(db, conta, date(2026, 12, 6), "Sai", -5000, True)
     eq = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
     assert "equilibrado" in eq and "superávit" not in eq
+
+
+def test_cada_grafico_traz_numero_e_insight(cliente: TestClient, conta: int) -> None:
+    html_ = cliente.get("/?mes=2026-10").text
+    for titulo in ("Saldo projetado", "Parcelas"):
+        bloco = _bloco(html_, titulo)
+        assert 'class="destaque-grafico' in bloco and 'class="insight' in bloco, titulo
+    sem_cartao = _bloco(html_, "Faturas de cartão em aberto")  # sem cartões: estado vazio, sem insight
+    assert "Nenhuma fatura de cartão em aberto" in sem_cartao and 'class="insight' not in sem_cartao
+    d = cliente.get("/inicio/dados.json?mes=2026-10").json()
+    assert set(d["insights"]) == {"saldo", "parcelas", "maiores", "cartoes", "gastos"}
+    assert all({"destaque", "texto", "tom"} <= set(i) for i in d["insights"].values())
+    assert all("percentual" in m for m in d["maiores"])

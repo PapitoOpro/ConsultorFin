@@ -5,13 +5,14 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from app.dominio import insights
 from app.dominio.categorias import despesas_do_mes, entradas_do_mes
 from app.dominio.dinheiro import formatar_brl, somar_meses
 from app.dominio.lancamentos import ErroLancamento
 from app.dominio.projecao import Vencimentos, projetar, vencimentos
 from app.dominio.recorrentes import gerar_recorrentes
 from app.dominio.saldo import saldo_atual
-from app.repo import contas, painel
+from app.repo import contas, faturas as repo_faturas, painel
 
 MSG_MES = "Mês inválido. Use o formato AAAA-MM."
 SEM_CATEGORIA = "Sem categoria"
@@ -197,19 +198,40 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
     reais = [(c.nome, c.total_centavos) for c in resumo.categorias]
     rosca = [{"nome": n, "valor_centavos": v, "valor_fmt": formatar_brl(v)}
              for n, v in top_com_outros(reais, TOP_ROSCA)]
-    maiores = [{"nome": n, "valor_centavos": v, "valor_fmt": formatar_brl(v)}
-               for n, v in sorted(reais, key=lambda i: -i[1])[:TOP_BARRAS]]
+    top = sorted(reais, key=lambda i: -i[1])[:TOP_BARRAS]
+    total_saidas = sum(v for _, v in reais)
+    maiores = [{"nome": n, "valor_centavos": v, "valor_fmt": formatar_brl(v),
+                "percentual": f"{_pct_texto(round(v * 1000 / total_saidas) / 10)}%" if total_saidas > 0 else "0,0%"}
+               for n, v in top]
     pontos = projetar(con, hoje, horizonte)
     comparativo = comparativo_mensal(con, resumo.ano, resumo.mes)
+    parcelas = [_ponto(p.mes, rotulo_mes(p.mes), p.parcelas_centavos) for p in pontos]
+    saldo = [{**_ponto(p.mes, rotulo_mes(p.mes), p.saldo_final_centavos),
+              "negativo": p.saldo_final_centavos < 0} for p in pontos]
+    cartoes = cartoes_em_aberto(con)
+    anterior = comparativo[0]
     return {
         "mes": resumo.mes_iso, "horizonte": horizonte, "rosca": rosca, "maiores": maiores,
-        "parcelas": [_ponto(p.mes, rotulo_mes(p.mes), p.parcelas_centavos) for p in pontos],
-        "saldo_projetado": [
-            {**_ponto(p.mes, rotulo_mes(p.mes), p.saldo_final_centavos),
-             "negativo": p.saldo_final_centavos < 0} for p in pontos],
+        "parcelas": parcelas, "saldo_projetado": saldo, "cartoes": cartoes,
         "comparativo": comparativo,
         "fluxo": fluxo_caixa(con, resumo.ano, resumo.mes),
+        "insights": {
+            "saldo": insights.saldo_projetado(saldo),
+            "parcelas": insights.parcelas_futuras(parcelas),
+            "maiores": insights.maiores_categorias(top, total_saidas),
+            "cartoes": insights.cartoes_em_aberto(cartoes, resumo.saldo_total_centavos),
+            "gastos": insights.gastos_do_mes(total_saidas, anterior["saidas_centavos"], anterior["rotulo"],
+                                             top[0][0] if top else None),
+        },
     }
+
+
+def cartoes_em_aberto(con: Any) -> list[dict[str, Any]]:
+    """Fatura em aberto por cartão (maior primeiro); cartões sem fatura em aberto ficam de fora."""
+    itens = [(str(c["nome"]), repo_faturas.total_em_aberto(con, int(c["id"])))
+             for c in contas.listar(con) if c["tipo"] == "cartao"]
+    return [{"nome": n, "valor_centavos": v, "valor_fmt": formatar_brl(v)}
+            for n, v in sorted(itens, key=lambda i: -i[1]) if v > 0]
 
 
 def fluxo_caixa(con: Any, ano: int, mes: int, meses: int = 6) -> list[dict[str, Any]]:

@@ -3,8 +3,8 @@
 {% block titulo %}Início{% endblock %}
 {% block cabecalho %}
   {% if not erro and not resumo.vazio %}
-  <script src="/static/js/echarts.min.js" defer></script>
-  <script src="/static/js/graficos.js" defer></script>
+  <script src="/static/js/echarts.min.js?v={{ versao_static }}" defer></script>
+  <script src="/static/js/graficos.js?v={{ versao_static }}" defer></script>
   {% endif %}
 {% endblock %}
 {% block mensagens %}
@@ -123,6 +123,7 @@
         <span class="valor">{{ f.percentual }} · {{ f.valor_fmt }}</span></li>
       {% endfor %}
     </ul>
+    <p class="insight {{ dados.insights.gastos.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.gastos.texto }}</span></p>
     {% else %}
     <div class="vazio vazio-compacto"><span class="vazio-icone">{{ icone("inbox", 20) }}</span><p>Sem gastos neste mês</p></div>
     {% endif %}
@@ -135,16 +136,20 @@
 <div class="grade-3">
   <section class="painel" aria-label="Saldo projetado">
     <div class="painel-cabecalho"><div class="painel-titulo"><h2>Saldo projetado</h2>
-      <p class="subtitulo">A partir de {{ dados.saldo_projetado[0].rotulo }}</p></div></div>
+      <p class="subtitulo">Saldo previsto ao fim de {{ dados.saldo_projetado[-1].rotulo }}</p></div>
+      <strong class="destaque-grafico numero {{ dados.insights.saldo.tom }}">{{ dados.insights.saldo.destaque }}</strong></div>
     <div id="graf-saldo" class="grafico pequeno" role="img" aria-label="Colunas de saldo projetado por mês, a partir de {{ dados.saldo_projetado[0].rotulo }}"></div>
+    <p class="insight {{ dados.insights.saldo.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.saldo.texto }}</span></p>
     <div class="sr-only"><table><caption>Saldo projetado por mês</caption>
       <thead><tr><th>Mês</th><th>Saldo</th></tr></thead>
       <tbody>{% for p in dados.saldo_projetado %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}{{ ' (negativo)' if p.negativo }}</td></tr>{% endfor %}</tbody></table></div>
   </section>
   <section class="painel" aria-label="Parcelas">
     <div class="painel-cabecalho"><div class="painel-titulo"><h2>Parcelas futuras</h2>
-      <p class="subtitulo">Próximos {{ horizonte }} meses</p></div></div>
+      <p class="subtitulo">Total nos próximos {{ horizonte }} meses</p></div>
+      <strong class="destaque-grafico numero {{ dados.insights.parcelas.tom }}">{{ dados.insights.parcelas.destaque }}</strong></div>
     <div id="graf-parcelas" class="grafico pequeno" role="img" aria-label="Colunas de parcelas por mês"></div>
+    <p class="insight {{ dados.insights.parcelas.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.parcelas.texto }}</span></p>
     <div class="sr-only"><table><caption>Parcelas por mês</caption>
       <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
       <tbody>{% for p in dados.parcelas %}<tr><td>{{ p.rotulo }}</td><td>{{ p.valor_fmt }}</td></tr>{% endfor %}</tbody></table></div>
@@ -155,19 +160,25 @@
   <section class="painel" aria-label="Maiores categorias">
     <div class="painel-cabecalho"><div class="painel-titulo"><h2>Maiores categorias</h2>
       <p class="subtitulo">Saídas de {{ ind.mes_rotulo }}</p></div></div>
+    {% if dados.maiores %}<p class="destaque-grafico numero">{{ dados.insights.maiores.destaque }}</p>{% endif %}
     {% if dados.maiores %}<div id="graf-maiores" class="grafico pequeno" role="img" aria-label="Barras das maiores categorias"></div>
     {% else %}<div class="vazio vazio-compacto"><p>Sem gastos neste mês</p></div>{% endif %}
+    {% if dados.maiores %}    <p class="insight {{ dados.insights.maiores.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.maiores.texto }}</span></p>
+    {% endif %}
     <div class="sr-only"><table><caption>Maiores categorias</caption>
       <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
-      <tbody>{% for f in dados.maiores %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }}</td></tr>{% endfor %}</tbody></table></div>
+      <tbody>{% for f in dados.maiores %}<tr><td>{{ f.nome }}</td><td>{{ f.valor_fmt }} ({{ f.percentual }})</td></tr>{% endfor %}</tbody></table></div>
   </section>
-  <section class="painel" aria-label="Entradas e saídas">
-    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Entradas × saídas</h2>
-      <p class="subtitulo">{{ dados.comparativo[0].rotulo }} e {{ dados.comparativo[1].rotulo }}</p></div></div>
-    <div id="graf-comparativo" class="grafico pequeno" role="img" aria-label="Entradas e saídas: {{ dados.comparativo[1].rotulo }} comparado a {{ dados.comparativo[0].rotulo }}"></div>
-    <div class="sr-only"><table><caption>Entradas e saídas por mês</caption>
-      <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th></tr></thead>
-      <tbody>{% for p in dados.comparativo %}<tr><td>{{ p.rotulo }}</td><td>{{ p.entradas_fmt }}</td><td>{{ p.saidas_fmt }}</td></tr>{% endfor %}</tbody></table></div>
+  <section class="painel" aria-label="Faturas de cartão em aberto">
+    <div class="painel-cabecalho"><div class="painel-titulo"><h2>Faturas de cartão em aberto</h2>
+      <p class="subtitulo">O que ainda será cobrado, por cartão</p></div>
+      <strong class="destaque-grafico numero {{ dados.insights.cartoes.tom }}">{{ dados.insights.cartoes.destaque }}</strong></div>
+    {% if dados.cartoes %}<div id="graf-cartoes" class="grafico pequeno" role="img" aria-label="Barras de fatura em aberto por cartão"></div>
+    <p class="insight {{ dados.insights.cartoes.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.cartoes.texto }}</span></p>
+    {% else %}<div class="vazio vazio-compacto"><span class="vazio-icone">{{ icone("check-circle", 20) }}</span><p>Nenhuma fatura de cartão em aberto</p></div>{% endif %}
+    <div class="sr-only"><table><caption>Faturas de cartão em aberto</caption>
+      <thead><tr><th>Cartão</th><th>Valor</th></tr></thead>
+      <tbody>{% for c in dados.cartoes %}<tr><td>{{ c.nome }}</td><td>{{ c.valor_fmt }}</td></tr>{% else %}<tr><td>Nenhuma fatura em aberto</td><td></td></tr>{% endfor %}</tbody></table></div>
   </section>
 </div>
 <script>(function(){var h=new Date().getHours(),e=document.getElementById("saudacao");if(e)e.textContent=h<12?"Bom dia":h<18?"Boa tarde":"Boa noite";})();</script>
