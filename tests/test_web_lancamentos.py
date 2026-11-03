@@ -134,10 +134,9 @@ def test_filtros_conta_tipo_status_categoria_periodo(cliente: TestClient, db: Pa
 
 
 def test_periodo_padrao_e_mes_atual(cliente: TestClient, conta: int) -> None:
-    hoje = date.today()
     r = cliente.get("/lancamentos")
     assert r.status_code == 200
-    assert f'value="{hoje.strftime("%Y-%m")}-01"' in r.text
+    assert 'value="2026-10-01"' in r.text  # mês do hoje_fn injetado pela fixture
 
 
 def test_filtros_invalidos_retornam_400(cliente: TestClient, conta: int) -> None:
