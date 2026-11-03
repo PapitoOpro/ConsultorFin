@@ -195,9 +195,12 @@ def test_item_inexistente_404(cliente: TestClient, db: Path, dir_fila: Path) -> 
     assert cliente.post(f"/faturas/fila/{item}/importar").status_code == 404
 
 
-def test_pdf_sumido_mensagem_clara(cliente: TestClient, db: Path, dir_fila: Path) -> None:
+def test_pdf_sumido_mensagem_clara(cliente: TestClient, db: Path, dir_fila: Path,
+                                   caplog: pytest.LogCaptureFixture) -> None:
     item = _semear(db, dir_fila, escrever=False)
-    r = cliente.post(f"/faturas/fila/{item}/importar")
+    with caplog.at_level("INFO"):
+        r = cliente.post(f"/faturas/fila/{item}/importar")
+    assert f"event=fila_pdf_ausente id={item}" in caplog.text
     assert "O arquivo desta fatura expirou. Busque de novo." in r.text
 
 

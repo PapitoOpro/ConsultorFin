@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Protocol
@@ -24,7 +25,8 @@ _MAGICA = b"%PDF"
 
 
 class ClienteBusca(Protocol):
-    def buscar(self, de: date, ate: date, limite: int = ...) -> list[Mensagem]: ...
+    def buscar(self, de: date, ate: date, limite: int = ...,
+               remetentes_termos: tuple[str, ...] = ...) -> list[Mensagem]: ...
     def baixar_anexo(self, mensagem_id: str, anexo_id: str) -> bytes: ...
 
 
@@ -35,10 +37,33 @@ class ResumoBusca:
     ja_na_fila: int
     ja_importadas: int
     ignoradas: int
+    recuperadas: int = 0
+    faturas: int = 0
+    por_emissor: dict[str, int] = field(default_factory=dict)
+    limite_atingido: bool = False
 
 
 def _caminho(dir_fila: Path, item_id: int) -> Path:
     return dir_fila / f"{int(item_id)}.pdf"
+
+
+def _gravar_pdf(dir_fila: Path, item_id: int, dados: bytes) -> None:
+    alvo = _caminho(dir_fila, item_id)
+    alvo.write_bytes(dados)
+    try:
+        os.chmod(alvo, 0o600)
+    except OSError:  # best-effort (Windows)
+        pass
+
+
+def _preparar_dir(dir_fila: Path) -> None:
+    if dir_fila.exists():
+        return
+    dir_fila.mkdir(parents=True)
+    try:
+        os.chmod(dir_fila, 0o700)
+    except OSError:
+        pass
 
 
 def descartar_pdf(dir_fila: Path, item_id: int) -> None:
@@ -55,11 +80,13 @@ def ja_importada(con: sqlite3.Connection, item: sqlite3.Row) -> bool:
 
 
 def expirar(con: sqlite3.Connection, agora: datetime, dir_fila: Path) -> int:
-    """Pendentes com mais de DIAS_EXPIRACAO_FILA dias viram 'pulada' e perdem o PDF."""
+    """Pendentes com mais de DIAS_EXPIRACAO_FILA dias são apagadas (linha e PDF).
+
+    Assim uma nova busca as reenfileira; as 'puladas' pelo usuário nunca são tocadas."""
     limite = (agora - timedelta(days=config.DIAS_EXPIRACAO_FILA)).isoformat(timespec="seconds")
     itens = repo.expirados(con, limite)
     for item in itens:
-        repo.definir_estado(con, int(item["id"]), "pulada")
+        repo.excluir(con, int(item["id"]))
         descartar_pdf(dir_fila, int(item["id"]))
     con.commit()
     if itens:
@@ -71,18 +98,31 @@ def buscar_para_fila(con: sqlite3.Connection, cliente: ClienteBusca, de: date, a
                      agora: datetime, dir_fila: Path) -> ResumoBusca:
     expirar(con, agora, dir_fila)
     remetentes = carregar_remetentes()
-    mensagens = cliente.buscar(de, ate, config.LIMITE_MENSAGENS_GMAIL)
-    novas = na_fila = importadas = ignoradas = 0
-    dir_fila.mkdir(parents=True, exist_ok=True)
+    termos = tuple(dict.fromkeys(t for r in remetentes for t in r.contem))
+    mensagens = cliente.buscar(de, ate, config.LIMITE_MENSAGENS_GMAIL, remetentes_termos=termos)
+    truncada = bool(getattr(cliente, "ultima_busca_truncada", False))
+    novas = na_fila = importadas = ignoradas = recuperadas = faturas = 0
+    por_emissor: dict[str, int] = {}
+    _preparar_dir(dir_fila)
     for msg in mensagens:
         cand = classificar(msg.de, msg.assunto, msg.trecho, remetentes)
         if cand is None:
             continue
+        faturas += 1
+        por_emissor[cand.emissor] = por_emissor.get(cand.emissor, 0) + 1
         for anexo in msg.anexos:
             if not anexo.nome.lower().endswith(".pdf") or anexo.tamanho > config.LIMITE_PDF_BYTES:
                 ignoradas += 1
                 continue
-            if repo.obter_por_origem(con, msg.id, anexo.id) is not None:
+            existente = repo.obter_por_origem(con, msg.id, anexo.id)
+            if existente is not None:
+                if (existente["estado"] == "pendente"
+                        and not _caminho(dir_fila, int(existente["id"])).exists()):
+                    dados = cliente.baixar_anexo(msg.id, anexo.id)
+                    if dados.startswith(_MAGICA) and len(dados) <= config.LIMITE_PDF_BYTES:
+                        _gravar_pdf(dir_fila, int(existente["id"]), dados)
+                        recuperadas += 1
+                        continue
                 na_fila += 1
                 continue
             dados = cliente.baixar_anexo(msg.id, anexo.id)
@@ -98,7 +138,7 @@ def buscar_para_fila(con: sqlite3.Connection, cliente: ClienteBusca, de: date, a
                 na_fila += 1
                 continue
             try:
-                _caminho(dir_fila, item_id).write_bytes(dados)
+                _gravar_pdf(dir_fila, item_id, dados)
                 con.commit()
             except BaseException:
                 con.rollback()
@@ -111,7 +151,10 @@ def buscar_para_fila(con: sqlite3.Connection, cliente: ClienteBusca, de: date, a
                 importadas += 1
             else:
                 novas += 1
-    resumo = ResumoBusca(len(mensagens), novas, na_fila, importadas, ignoradas)
-    log.info("event=fila_busca encontradas=%d novas=%d ja_na_fila=%d ja_importadas=%d ignoradas=%d",
-             resumo.encontradas, novas, na_fila, importadas, ignoradas)
+    resumo = ResumoBusca(len(mensagens), novas, na_fila, importadas, ignoradas, recuperadas,
+                         faturas, por_emissor, truncada)
+    log.info("event=fila_busca encontradas=%d faturas=%d novas=%d ja_na_fila=%d ja_importadas=%d"
+             " ignoradas=%d recuperadas=%d limite_atingido=%s",
+             resumo.encontradas, faturas, novas, na_fila, importadas, ignoradas, recuperadas,
+             truncada)
     return resumo

@@ -36,6 +36,10 @@ def expirados(con: sqlite3.Connection, limite_iso: str) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def excluir(con: sqlite3.Connection, item_id: int) -> None:
+    con.execute("DELETE FROM fila_faturas WHERE id = ?", (item_id,))
+
+
 def hash_ja_importado(con: sqlite3.Connection, pdf_hash: str) -> bool:
     return con.execute(
         "SELECT 1 FROM faturas WHERE arquivo_hash = ? LIMIT 1", (pdf_hash,)

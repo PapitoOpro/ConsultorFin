@@ -236,4 +236,6 @@ def gmail_buscar(con: Any, hoje: date, mes: str | None, ate_mes: str | None) -> 
     periodo = f"{ano:04d}-{m:02d}" if meses == 1 else f"{ano:04d}-{m:02d} a {ano_f:04d}-{m_f:02d}"
     return {"ok": True, "periodo": periodo, "encontradas": resumo.encontradas,
             "novas": resumo.novas, "ja_na_fila": resumo.ja_na_fila,
-            "ja_importadas": resumo.ja_importadas, "ignoradas": resumo.ignoradas}
+            "ja_importadas": resumo.ja_importadas, "ignoradas": resumo.ignoradas,
+            "recuperadas": resumo.recuperadas, "faturas": resumo.faturas,
+            "por_emissor": resumo.por_emissor, "limite_atingido": resumo.limite_atingido}

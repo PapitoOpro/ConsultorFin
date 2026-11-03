@@ -28,6 +28,7 @@ class Falso:
         self.reqs: list[urllib.request.Request] = []
         self.n = n_msgs
         self.token_erro = token_erro
+        self.next_token = False
 
     def __call__(self, req: urllib.request.Request) -> bytes:
         self.reqs.append(req)
@@ -41,7 +42,10 @@ class Falso:
             dados = base64.urlsafe_b64encode(b"%PDF-fake\xff\xfe").decode().rstrip("=")
             return json.dumps({"data": dados}).encode()
         if "/messages?" in url:
-            return json.dumps({"messages": [{"id": f"m{i}"} for i in range(self.n)]}).encode()
+            corpo = {"messages": [{"id": f"m{i}"} for i in range(self.n)]}
+            if self.next_token:
+                corpo["nextPageToken"] = "tok"
+            return json.dumps(corpo).encode()
         mid = url.split("/messages/")[1].split("?")[0]
         return json.dumps(
             {
@@ -66,10 +70,41 @@ def test_buscar_monta_query_e_limita_a_50(tmp_path: Path) -> None:
     msgs = ClienteGmail(_token(tmp_path), f).buscar(date(2026, 10, 1), date(2026, 11, 1), limite=500)
     lista = [r for r in f.reqs if "/messages?" in r.full_url][0]
     qs = urllib.parse.parse_qs(urllib.parse.urlparse(lista.full_url).query)
-    assert qs["q"] == ["has:attachment filename:pdf after:2026/10/01 before:2026/11/01"]
+    # 2026-10-01 e 2026-11-01 00:00 em America/Sao_Paulo (UTC-3)
+    assert qs["q"] == ["has:attachment filename:pdf after:1790823600 before:1793502000"]
     assert qs["maxResults"] == ["50"]
     assert len(msgs) == 50
     assert msgs[0] == Mensagem("m0", "Banco <a@banco.exemplo.com>", "Fatura", "trecho ficticio", (Anexo("att1", "f.pdf", 123),))
+
+
+def test_query_com_remetentes_e_sanitizacao(tmp_path: Path) -> None:
+    f = Falso()
+    ClienteGmail(_token(tmp_path), f).buscar(
+        date(2026, 10, 1), date(2026, 11, 1), remetentes_termos=("itau", "nu bank)", 'x"y'))
+    lista = [r for r in f.reqs if "/messages?" in r.full_url][0]
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(lista.full_url).query)["q"][0]
+    assert q.endswith(" from:(itau OR nubank OR xy)")
+
+
+def test_truncamento_marca_atributo(tmp_path: Path) -> None:
+    f = Falso(n_msgs=3)
+    c = ClienteGmail(_token(tmp_path), f)
+    c.buscar(date(2026, 10, 1), date(2026, 11, 1))
+    assert c.ultima_busca_truncada is False
+    f.next_token = True
+    c.buscar(date(2026, 10, 1), date(2026, 11, 1))
+    assert c.ultima_busca_truncada is True
+
+
+def test_epoch_sem_tzdata_usa_utc_menos_3(monkeypatch) -> None:
+    from zoneinfo import ZoneInfoNotFoundError
+
+    from app.gmail import cliente as mod
+
+    def falha(nome):
+        raise ZoneInfoNotFoundError(nome)
+    monkeypatch.setattr(mod, "ZoneInfo", falha)
+    assert mod._epoch_meia_noite(date(2026, 10, 1)) == 1790823600
 
 
 def test_baixar_anexo_decodifica_base64url(tmp_path: Path) -> None:

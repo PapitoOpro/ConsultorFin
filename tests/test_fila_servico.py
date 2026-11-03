@@ -20,7 +20,9 @@ class ClienteFalso:
         self.mensagens, self.arquivos = mensagens, arquivos
         self.baixados: list[str] = []
 
-    def buscar(self, de: date, ate: date, limite: int = 50) -> list[Mensagem]:
+    def buscar(self, de: date, ate: date, limite: int = 50,
+               remetentes_termos: tuple[str, ...] = ()) -> list[Mensagem]:
+        self.termos = remetentes_termos
         return self.mensagens
 
     def baixar_anexo(self, mensagem_id: str, anexo_id: str) -> bytes:
@@ -125,12 +127,65 @@ def test_remetente_desconhecido_e_ignorado(con, tmp_path) -> None:
     assert (r.encontradas, r.novas) == (1, 0) and cli.baixados == []
 
 
-def test_expirar_apaga_pdf_e_marca_pulada(con, tmp_path) -> None:
-    _buscar(con, ClienteFalso([_msg()], {"a1": PDF}), tmp_path)
+def test_expirar_apaga_linha_e_pdf_e_nova_busca_reenfileira(con, tmp_path) -> None:
+    cli = ClienteFalso([_msg()], {"a1": PDF})
+    _buscar(con, cli, tmp_path)
     item = repo.listar_pendentes(con)[0]
     assert svc.expirar(con, AGORA + timedelta(days=6), tmp_path) == 0
     assert svc.expirar(con, AGORA + timedelta(days=8), tmp_path) == 1
-    assert repo.obter(con, int(item["id"]))["estado"] == "pulada"
+    assert repo.obter(con, int(item["id"])) is None
+    r = _buscar(con, cli, tmp_path, AGORA + timedelta(days=8))
+    assert r.novas == 1 and len(repo.listar_pendentes(con)) == 1
+
+
+def test_expirar_nao_ressuscita_pulada(con, tmp_path) -> None:
+    cli = ClienteFalso([_msg()], {"a1": PDF})
+    _buscar(con, cli, tmp_path)
+    item = repo.listar_pendentes(con)[0]
+    repo.definir_estado(con, int(item["id"]), "pulada")
+    con.commit()
+    assert svc.expirar(con, AGORA + timedelta(days=30), tmp_path) == 0
+    r = _buscar(con, cli, tmp_path, AGORA + timedelta(days=30))
+    assert r.novas == 0 and repo.obter(con, int(item["id"]))["estado"] == "pulada"
+
+
+def test_pendente_sem_pdf_e_recuperada(con, tmp_path) -> None:
+    cli = ClienteFalso([_msg()], {"a1": PDF})
+    _buscar(con, cli, tmp_path)
+    item = repo.listar_pendentes(con)[0]
+    arq = tmp_path / f"{item['id']}.pdf"
+    arq.unlink()
+    r = _buscar(con, cli, tmp_path)
+    assert (r.recuperadas, r.novas, r.ja_na_fila) == (1, 0, 0)
+    assert arq.read_bytes() == PDF
+    assert _buscar(con, cli, tmp_path).recuperadas == 0
+
+
+def test_resumo_faturas_por_emissor_e_termos(con, tmp_path) -> None:
+    cli = ClienteFalso([_msg(), _msg("m2", de="x@itau.exemplo.com"), _msg("m3", de="x@spam.example")],
+                       {"a1": PDF})
+    r = _buscar(con, cli, tmp_path)
+    assert r.faturas == 2 and r.por_emissor == {"Nubank": 1, "Itaú": 1}
+    assert "nubank" in cli.termos and "itau" in cli.termos
+
+
+def test_limite_atingido_vem_do_cliente(con, tmp_path) -> None:
+    cli = ClienteFalso([_msg()], {"a1": PDF})
+    assert _buscar(con, cli, tmp_path).limite_atingido is False
+    cli.ultima_busca_truncada = True
+    assert _buscar(con, cli, tmp_path).limite_atingido is True
+
+
+def test_pdf_enfileirado_so_dono_le(con, tmp_path) -> None:
+    import os
+    import stat
+    if os.name == "nt":
+        pytest.skip("permissões POSIX")
+    d = tmp_path / "fila"
+    _buscar(con, ClienteFalso([_msg()], {"a1": PDF}), d)
+    item = repo.listar_pendentes(con)[0]
+    assert stat.S_IMODE((d / f"{item['id']}.pdf").stat().st_mode) == 0o600
+    assert stat.S_IMODE(d.stat().st_mode) == 0o700
     assert not (tmp_path / f"{item['id']}.pdf").exists()
     svc.descartar_pdf(tmp_path, int(item["id"]))  # idempotente
 

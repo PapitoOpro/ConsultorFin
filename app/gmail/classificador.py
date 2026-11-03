@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from email.utils import parseaddr
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -50,6 +51,12 @@ def _caminho_padrao() -> Path:
     return config.RAIZ / "data" / "gmail-remetentes.json"
 
 
+def _termos(bruto: object) -> tuple[str, ...]:
+    if not isinstance(bruto, list) or not all(isinstance(t, str) and t.strip() for t in bruto):
+        raise ValueError("contem deve ser lista de textos não vazios")
+    return tuple(t.strip().lower() for t in bruto)
+
+
 def carregar_remetentes(caminho: Path | None = None) -> tuple[Remetente, ...]:
     """Lê o override JSON; ausente ou inválido -> REMETENTES_PADRAO."""
     alvo = caminho if caminho is not None else _caminho_padrao()
@@ -60,11 +67,7 @@ def carregar_remetentes(caminho: Path | None = None) -> tuple[Remetente, ...]:
         if not isinstance(dados, list) or not dados:
             raise ValueError("lista vazia ou formato inesperado")
         lidos = tuple(
-            Remetente(
-                str(item["emissor"]),
-                tuple(str(t).lower() for t in item["contem"]),
-            )
-            for item in dados
+            Remetente(str(item["emissor"]), _termos(item["contem"])) for item in dados
         )
         if any(not r.emissor or not r.contem for r in lidos):
             raise ValueError("emissor/contem vazio")
@@ -89,7 +92,7 @@ def classificar(
     de: str, assunto: str, trecho: str, remetentes: tuple[Remetente, ...]
 ) -> Candidata | None:
     """Candidata se o From casa com algum remetente; senão None."""
-    origem = de.lower()
+    origem = parseaddr(de[:_MAX_TEXTO])[1].lower()  # só o endereço, nunca o nome de exibição
     emissor = next(
         (r.emissor for r in remetentes if any(t in origem for t in r.contem)), None
     )

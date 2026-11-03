@@ -87,6 +87,7 @@ def importar(item_id: int, request: Request, con: Any = Depends(get_con)) -> Res
     try:
         conteudo = (config.DIR_FILA / f"{item_id}.pdf").read_bytes()
     except OSError:
+        log.info("event=fila_pdf_ausente id=%d", item_id)
         return _sem_cache(_pagina_inicial(request, con, fatura={"erro": MSG_EXPIRADO},
                                           status=410))
     nome = f"Fatura {item['emissor'] or 'cartão'}.pdf"

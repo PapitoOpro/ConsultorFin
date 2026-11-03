@@ -13,9 +13,10 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,19 @@ class Mensagem:
     anexos: tuple[Anexo, ...]
 
 
+def _epoch_meia_noite(dia: date) -> int:
+    """Segundos Unix de 00:00 de `dia` em America/Sao_Paulo (sem tzdata: UTC-3 fixo)."""
+    try:
+        fuso: Any = ZoneInfo("America/Sao_Paulo")
+    except ZoneInfoNotFoundError:
+        fuso = timezone(timedelta(hours=-3))
+    return int(datetime(dia.year, dia.month, dia.day, tzinfo=fuso).timestamp())
+
+
+def _termo_seguro(termo: str) -> str:
+    return "".join(c for c in termo.lower() if c.isalnum() or c in "._-")
+
+
 def _transporte_padrao(req: urllib.request.Request) -> bytes:
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:  # noqa: S310 - URLs fixas https
         return resp.read()
@@ -74,6 +88,7 @@ class ClienteGmail:
         self._token_path = token_path
         self._transporte: Transporte = transporte or _transporte_padrao
         self._access: str | None = None
+        self.ultima_busca_truncada = False
 
     # -- autenticação --------------------------------------------------
     def _credenciais(self) -> dict[str, str]:
@@ -147,11 +162,19 @@ class ClienteGmail:
         return dados
 
     # -- API -----------------------------------------------------------
-    def buscar(self, de: date, ate: date, limite: int = _MAX_MENSAGENS) -> list[Mensagem]:
+    def buscar(self, de: date, ate: date, limite: int = _MAX_MENSAGENS,
+               remetentes_termos: tuple[str, ...] = ()) -> list[Mensagem]:
         limite = max(1, min(int(limite), _MAX_MENSAGENS))
-        q = f"has:attachment filename:pdf after:{de:%Y/%m/%d} before:{ate:%Y/%m/%d}"
+        q = (f"has:attachment filename:pdf after:{_epoch_meia_noite(de)}"
+             f" before:{_epoch_meia_noite(ate)}")
+        termos = [t for t in (_termo_seguro(x) for x in remetentes_termos) if t]
+        if termos:
+            q += f" from:({' OR '.join(termos)})"
         qs = urllib.parse.urlencode({"q": q, "maxResults": limite})
-        ids = [str(m["id"]) for m in (self._get(f"{_API}?{qs}").get("messages") or [])][:limite]
+        pagina = self._get(f"{_API}?{qs}")
+        todos = [str(m["id"]) for m in (pagina.get("messages") or [])]
+        ids = todos[:limite]
+        self.ultima_busca_truncada = bool(pagina.get("nextPageToken")) or len(todos) > limite
         resultado: list[Mensagem] = []
         for mid in ids:
             m = self._get(f"{_API}/{urllib.parse.quote(mid, safe='')}?format=full")
@@ -166,7 +189,8 @@ class ClienteGmail:
                     anexos=tuple(_anexos(payload)),
                 )
             )
-        log.info("event=gmail_busca encontradas=%d", len(resultado))
+        log.info("event=gmail_busca encontradas=%d truncada=%s", len(resultado),
+                 self.ultima_busca_truncada)
         return resultado
 
     def baixar_anexo(self, mensagem_id: str, anexo_id: str) -> bytes:

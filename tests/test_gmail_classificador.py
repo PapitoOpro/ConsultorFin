@@ -41,3 +41,16 @@ def test_json_remetentes_invalido_usa_padrao(tmp_path: Path) -> None:
     p.write_text(json.dumps([{"emissor": "X", "contem": ["xis"]}]), encoding="utf-8")
     assert carregar_remetentes(p)[0].emissor == "X"
     assert carregar_remetentes(tmp_path / "nao-existe.json") == REMETENTES_PADRAO
+
+
+def test_display_name_falsificado_nao_classifica() -> None:
+    assert classificar("Nubank <x@evil.example>", "final 1234", "", REMETENTES_PADRAO) is None
+    c = classificar("Qualquer <x@nubank.exemplo.com>", "Fatura", "", REMETENTES_PADRAO)
+    assert c is not None and c.emissor == "Nubank"
+
+
+def test_contem_invalido_cai_no_padrao(tmp_path: Path) -> None:
+    p = tmp_path / "r.json"
+    for contem in ("itau", [""], [], [1], ["ok", "  "]):
+        p.write_text(json.dumps([{"emissor": "X", "contem": contem}]), encoding="utf-8")
+        assert carregar_remetentes(p) == REMETENTES_PADRAO, contem

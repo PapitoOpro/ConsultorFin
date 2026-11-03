@@ -19,7 +19,8 @@ class Falso:
     def __init__(self, erro: Exception | None = None) -> None:
         self.erro = erro
 
-    def buscar(self, de: Any, ate: Any, limite: int = 50) -> list[Mensagem]:
+    def buscar(self, de: Any, ate: Any, limite: int = 50,
+               remetentes_termos: tuple[str, ...] = ()) -> list[Mensagem]:
         if self.erro:
             raise self.erro
         return [Mensagem("m1", "Nubank <a@nubank.com.br>", HOSTIL, HOSTIL,
@@ -81,3 +82,10 @@ def test_intervalo_de_12_meses_ok(db, capsys, monkeypatch) -> None:
     monkeypatch.setattr(operacoes, "_cliente_gmail", lambda: Falso())
     codigo, _, saida = rodar(capsys, db, "gmail-buscar", "--mes", "2025-11", "--ate", "2026-10")
     assert codigo == 0 and saida["periodo"] == "2025-11 a 2026-10"
+
+
+def test_gmail_buscar_json_tem_faturas_por_emissor_e_limite(db, capsys, monkeypatch) -> None:
+    monkeypatch.setattr(operacoes, "_cliente_gmail", lambda: Falso())
+    _, _, saida = rodar(capsys, db, "gmail-buscar", "--mes", "2026-10")
+    assert saida["faturas"] == 1 and saida["por_emissor"] == {"Nubank": 1}
+    assert saida["limite_atingido"] is False and saida["recuperadas"] == 0
