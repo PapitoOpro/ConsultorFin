@@ -87,6 +87,14 @@
       <label for="holerite-arquivo">Arquivo do holerite (.pdf, até 5 MB)</label>
       <input id="holerite-arquivo" name="arquivo" type="file" accept=".pdf,application/pdf" required>
     </div>
+    {% if titulares|length > 1 %}
+    <div class="campo">
+      <label for="holerite-titular">Holerite de</label>
+      <select id="holerite-titular" name="titular_id" required>
+        {% for t in titulares %}<option value="{{ t.id }}"{% if t.id == titular_padrao %} selected{% endif %}>{{ t.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    {% else %}<input type="hidden" name="titular_id" value="{{ titulares[0].id if titulares else 1 }}">{% endif %}
     <div class="campo">
       <label for="holerite-conta">Conta que recebe o crédito</label>
       <select id="holerite-conta" name="conta_id" required>

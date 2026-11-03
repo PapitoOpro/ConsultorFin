@@ -192,9 +192,9 @@ def _situacao(existente: Any | None,
 
 
 def preparar_previa(con: Any, h: HoleriteLido, arquivo_hash: str, conta_id: int,
-                    hoje: date) -> PreviaHolerite:
+                    hoje: date, titular_id: int = 1) -> PreviaHolerite:
     """Nada é gravado: situação, créditos candidatos, data prevista e categorias sugeridas."""
-    existente = repo.por_competencia_tipo(con, h.competencia, h.tipo)
+    existente = repo.por_competencia_tipo(con, h.competencia, h.tipo, titular_id)
     sugeridas = [categorizar(con, i.descricao) for i in h.itens]
     candidatos = _candidatos(con, h, conta_id, existente)
     prevista = data_prevista(con, h.tipo, h.competencia)
@@ -263,13 +263,13 @@ def _ligar_lancamento(con: Any, h: HoleriteLido, conta_id: int, lancamento_id: i
 def importar_holerite(con: Any, h: HoleriteLido, arquivo_hash: str, arquivo_nome: str | None,
                       conta_id: int, hoje: date, categorias: list[int | None],
                       lancamento_id: int | None, substituir: bool = False,
-                      manter_vinculo: bool = True) -> ResumoHolerite:
+                      manter_vinculo: bool = True, titular_id: int = 1) -> ResumoHolerite:
     """Grava holerite, itens e vínculo/entrada prevista — tudo numa transação. Na substituição
     com `lancamento_id=None`, o vínculo anterior é mantido se ainda for válido (mesmo valor,
     janela e conta), salvo `manter_vinculo=False` (força "sem vínculo": cria prevista)."""
     _validar(con, h, conta_id, categorias)
     with _escrita(con):
-        existente = repo.por_competencia_tipo(con, h.competencia, h.tipo)
+        existente = repo.por_competencia_tipo(con, h.competencia, h.tipo, titular_id)
         guardadas: dict[str, deque[int | None]] = {}
         if existente is not None:
             if existente["arquivo_hash"] == arquivo_hash:
@@ -293,7 +293,7 @@ def importar_holerite(con: Any, h: HoleriteLido, arquivo_hash: str, arquivo_nome
                 empresa=h.empresa, total_vencimentos=h.total_vencimentos_centavos,
                 total_descontos=h.total_descontos_centavos, liquido=h.liquido_centavos,
                 arquivo_hash=arquivo_hash, arquivo_nome=arquivo_nome, lancamento_id=lid,
-                criado_em=hoje.isoformat())
+                criado_em=hoje.isoformat(), titular_id=titular_id)
         else:
             hid = int(existente["id"])
             repo.atualizar_cabecalho(
@@ -381,6 +381,8 @@ class LinhaHolerite:
     liquido_centavos: int
     credito: Literal["recebido", "previsto", "sem"]
     credito_data: str | None
+    titular_id: int = 1
+    titular: str = ""
 
 
 def anos_com_holerite(con: Any) -> list[int]:
@@ -388,10 +390,10 @@ def anos_com_holerite(con: Any) -> list[int]:
     return sorted({int(str(h["competencia"])[:4]) for h in repo.listar(con)}, reverse=True)
 
 
-def listar_por_ano(con: Any, ano: int) -> list[LinhaHolerite]:
+def listar_por_ano(con: Any, ano: int, titular_id: int | None = None) -> list[LinhaHolerite]:
     """Holerites da competência-ano com o estado do crédito (recebido no extrato ou previsto)."""
     linhas: list[LinhaHolerite] = []
-    for h in repo.listar(con, ano):
+    for h in repo.listar(con, ano, titular_id):
         lanc = None if h["lancamento_id"] is None else repo_lanc.obter(con, int(h["lancamento_id"]))
         estado: Literal["recebido", "previsto", "sem"] = "sem"
         if lanc is not None:
@@ -399,5 +401,6 @@ def listar_por_ano(con: Any, ano: int) -> list[LinhaHolerite]:
         linhas.append(LinhaHolerite(
             int(h["id"]), str(h["competencia"]), str(h["tipo"]), ROTULO.get(str(h["tipo"]), "—"),
             h["empresa"], int(h["total_vencimentos_centavos"]), int(h["total_descontos_centavos"]),
-            int(h["liquido_centavos"]), estado, None if lanc is None else str(lanc["data"])))
+            int(h["liquido_centavos"]), estado, None if lanc is None else str(lanc["data"]),
+            int(h["titular_id"]), str(h["titular_nome"])))
     return linhas

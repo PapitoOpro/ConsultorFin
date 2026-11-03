@@ -8,10 +8,25 @@
   <a class="botao" href="/importar#holerite">{{ icone("upload", 16) }}Importar holerite</a>
 </div>
 <nav class="abas filtro-periodo" aria-label="Ano dos holerites">
-  {% for a in anos %}<a href="/holerites?ano={{ a }}" class="{{ 'ativa' if a == ano }}"{% if a == ano %} aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}
+  {% for a in anos %}<a href="/holerites?{{ {'ano': a, 'titular': titular_filtro}|urlencode if titular_filtro else {'ano': a}|urlencode }}" class="{{ 'ativa' if a == ano }}"{% if a == ano %} aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}
 </nav>
+{% if varios_titulares %}
+<nav class="abas filtro-periodo" aria-label="Titular dos holerites">
+  <a href="/holerites?ano={{ ano }}" class="{{ 'ativa' if not titular_filtro }}"{% if not titular_filtro %} aria-current="true"{% endif %}>Todos</a>
+  {% for t in titulares %}<a href="/holerites?{{ {'ano': ano, 'titular': t.id}|urlencode }}" class="{{ 'ativa' if t.id == titular_filtro }}"{% if t.id == titular_filtro %} aria-current="true"{% endif %}>{{ t.nome }}</a>{% endfor %}
+</nav>
+{% endif %}
 {% endblock %}
 {% block conteudo %}
+{% if varios_titulares %}
+<section class="grade-kpi" aria-label="Líquido do ano por titular">
+  {% for t in totais %}
+  <div class="kpi"><div class="rotulo">{{ t.nome }} · líquido em {{ ano }}</div>
+    <div class="valor numero entrada">{{ t.liquido | brl }}</div>
+    <span class="kpi-variacao">{{ t.n }} holerite{{ 's' if t.n != 1 }}</span></div>
+  {% endfor %}
+</section>
+{% endif %}
 <section class="painel" aria-label="Holerites de {{ ano }}">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Competências de {{ ano }}</h2><p class="subtitulo">Expanda uma linha para ver e categorizar os itens.</p></div></div>
   {% if linhas %}
@@ -22,7 +37,7 @@
       {% set cred = ("recebido em " ~ (l.credito_data | data_br)[:5]) if l.credito == "recebido" else (("previsto para " ~ (l.credito_data | data_br)[:5]) if l.credito == "previsto" else "sem crédito no extrato") %}
       <tr class="linha linha-fatura" id="holerite-{{ l.id }}">
         <td class="col-marcar"><button type="button" class="botao-expandir" data-fatura-toggle aria-expanded="false" aria-controls="itens-holerite-{{ l.id }}" aria-label="Itens do holerite {{ l.rotulo }} {{ l.competencia[5:7] }}/{{ l.competencia[:4] }}" hx-get="/holerites/{{ l.id }}/itens" hx-target="#itens-holerite-{{ l.id }}-corpo" hx-trigger="click once">{{ icone("chevron-down", 16) }}</button></td>
-        <td class="desc"><span class="fatura-titulo">{{ icone("file-text", 16) }}{{ l.rotulo }} · {{ l.competencia[5:7] }}/{{ l.competencia[:4] }}</span>
+        <td class="desc"><span class="fatura-titulo">{{ icone("file-text", 16) }}{{ l.rotulo }} · {{ l.competencia[5:7] }}/{{ l.competencia[:4] }}</span>{% if varios_titulares and not titular_filtro %} <span class="selo neutro">{{ l.titular }}</span>{% endif %}
           <span class="mob-info">Bruto {{ l.bruto_centavos | brl }} · Descontos {{ l.descontos_centavos | brl }}<br>{{ cred }}</span></td>
         <td class="valor sec">{{ l.bruto_centavos | brl }}</td>
         <td class="valor sec saida">{{ l.descontos_centavos | brl }}</td>

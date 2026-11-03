@@ -15,7 +15,7 @@
 <div class="arquivo-info">
   <span>{{ icone("file-text", 18) }}</span>
   <span>Arquivo PDF enviado</span>
-  <span>{{ rotulo }} · {{ competencia }}{% if h.empresa %} · {{ h.empresa }}{% endif %}</span>
+  <span>{{ rotulo }} · {{ competencia }}{% if h.empresa %} · {{ h.empresa }}{% endif %}{% if varios_titulares and titular %} · de {{ titular.nome }}{% endif %}</span>
 </div>
 
 <div class="grade-kpi">

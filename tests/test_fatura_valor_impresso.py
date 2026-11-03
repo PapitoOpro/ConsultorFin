@@ -123,7 +123,7 @@ def test_migracao_11_corrige_faturas_existentes() -> None:
     c.commit()
     del f
     migrar(c)
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 11
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRACOES)
     assert repo_lanc.obter(c, lid)["valor_centavos"] == -48000
     assert repo_lanc.obter(c, lid2)["valor_centavos"] == -30000
     c.close()

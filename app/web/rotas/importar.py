@@ -18,7 +18,7 @@ from app.importacao.servico import (
     ArquivoJaImportado, ImportacaoNaoEncontrada, LancamentosAnterioresAoSaldoInicial, conta_detectada,
     desfazer_importacao, importar, propostas_com_detalhes, simular_importacao,
 )
-from app.repo import contas, importacoes
+from app.repo import contas, importacoes, titulares
 from app.web.deps import get_con
 from app.web.uploads import Envio
 
@@ -55,7 +55,8 @@ def _pagina_inicial(request: Request, con: Any, erro: str | None = None, aviso: 
         "contas": contas.listar(con), "historico": importacoes.listar_com_conta(con),
         "desfaziveis": importacoes.ids_ultimas_ativas(con),
         "tipos": TIPOS_CONTA, "erro": erro, "aviso": aviso, "fatura": fatura or {},
-        "holerite": holerite or {}}, status)
+        "holerite": holerite or {}, "titulares": titulares.listar(con),
+        "titular_padrao": titulares.ultimo_usado(con)}, status)
 
 
 def _ler_upload(arquivo: UploadFile) -> tuple[str, bytes]:

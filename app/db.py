@@ -415,9 +415,66 @@ def _migracao_11(con: sqlite3.Connection) -> None:
         "  WHERE lancamento_id IS NOT NULL AND pagamento_lancamento_id IS NOT NULL)")
 
 
+def _migracao_12(con: sqlite3.Connection) -> None:
+    """Titular do holerite (quem recebeu). Só a tela Holerites separa por titular; extrato, saldo e
+    painel seguem juntos. A unicidade passa a ser (titular, competência, tipo). Os holerites
+    existentes ficam com o titular 1 ('Eu'; o dono renomeia no banco, nenhum nome vai ao código).
+    A tabela é recriada preservando os ids; os itens são copiados antes (o DROP do pai dispararia
+    o ON DELETE CASCADE)."""
+    con.execute("CREATE TABLE titulares (id INTEGER PRIMARY KEY, nome TEXT NOT NULL UNIQUE)")
+    con.execute("INSERT INTO titulares (id, nome) VALUES (1, 'Eu')")
+    con.execute("CREATE TEMP TABLE holerite_itens_bak AS SELECT * FROM holerite_itens")
+    con.execute("DROP TABLE holerite_itens")
+    con.execute("ALTER TABLE holerites RENAME TO holerites_old")
+    con.execute(
+        "CREATE TABLE holerites ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " conta_id INTEGER NOT NULL REFERENCES contas(id),"
+        " titular_id INTEGER NOT NULL DEFAULT 1 REFERENCES titulares(id),"
+        " competencia TEXT NOT NULL,"
+        " tipo TEXT NOT NULL CHECK (tipo IN ('adiantamento','mensal')),"
+        " empresa TEXT,"
+        " total_vencimentos_centavos INTEGER NOT NULL,"
+        " total_descontos_centavos INTEGER NOT NULL,"
+        " liquido_centavos INTEGER NOT NULL,"
+        " arquivo_hash TEXT NOT NULL,"
+        " arquivo_nome TEXT,"
+        " lancamento_id INTEGER REFERENCES lancamentos(id),"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (titular_id, competencia, tipo))"
+    )
+    con.execute(
+        "INSERT INTO holerites (id, uuid, conta_id, titular_id, competencia, tipo, empresa,"
+        " total_vencimentos_centavos, total_descontos_centavos, liquido_centavos, arquivo_hash,"
+        " arquivo_nome, lancamento_id, criado_em)"
+        " SELECT id, uuid, conta_id, 1, competencia, tipo, empresa, total_vencimentos_centavos,"
+        " total_descontos_centavos, liquido_centavos, arquivo_hash, arquivo_nome, lancamento_id,"
+        " criado_em FROM holerites_old")
+    con.execute("DROP TABLE holerites_old")
+    con.execute("CREATE UNIQUE INDEX ux_holerites_lancamento ON holerites(lancamento_id)"
+                " WHERE lancamento_id IS NOT NULL")
+    con.execute(
+        "CREATE TABLE holerite_itens ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " holerite_id INTEGER NOT NULL REFERENCES holerites(id) ON DELETE CASCADE,"
+        " ordem INTEGER NOT NULL,"
+        " codigo TEXT,"
+        " descricao TEXT NOT NULL,"
+        " referencia TEXT,"
+        " natureza TEXT NOT NULL CHECK (natureza IN ('provento','desconto')),"
+        " valor_centavos INTEGER NOT NULL,"
+        " categoria_id INTEGER REFERENCES categorias(id))"
+    )
+    con.execute("INSERT INTO holerite_itens SELECT * FROM holerite_itens_bak")
+    con.execute("DROP TABLE holerite_itens_bak")
+    con.execute("CREATE INDEX idx_holerite_itens_holerite ON holerite_itens(holerite_id)")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
-    _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11,
+    _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
 ]
 
 

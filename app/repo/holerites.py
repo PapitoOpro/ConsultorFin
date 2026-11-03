@@ -6,13 +6,13 @@ import uuid
 def criar(con: sqlite3.Connection, *, conta_id: int, competencia: str, tipo: str,
           empresa: str | None, total_vencimentos: int, total_descontos: int, liquido: int,
           arquivo_hash: str, arquivo_nome: str | None, lancamento_id: int | None,
-          criado_em: str) -> int:
+          criado_em: str, titular_id: int = 1) -> int:
     cur = con.execute(
-        "INSERT INTO holerites (uuid, conta_id, competencia, tipo, empresa,"
+        "INSERT INTO holerites (uuid, conta_id, titular_id, competencia, tipo, empresa,"
         " total_vencimentos_centavos, total_descontos_centavos, liquido_centavos,"
         " arquivo_hash, arquivo_nome, lancamento_id, criado_em)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (str(uuid.uuid4()), conta_id, competencia, tipo, empresa, total_vencimentos,
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (str(uuid.uuid4()), conta_id, titular_id, competencia, tipo, empresa, total_vencimentos,
          total_descontos, liquido, arquivo_hash, arquivo_nome, lancamento_id, criado_em),
     )
     return int(cur.lastrowid)
@@ -22,22 +22,37 @@ def obter(con: sqlite3.Connection, holerite_id: int) -> sqlite3.Row | None:
     return con.execute("SELECT * FROM holerites WHERE id = ?", (holerite_id,)).fetchone()
 
 
-def por_competencia_tipo(con: sqlite3.Connection, competencia: str,
-                         tipo: str) -> sqlite3.Row | None:
+def por_competencia_tipo(con: sqlite3.Connection, competencia: str, tipo: str,
+                         titular_id: int = 1) -> sqlite3.Row | None:
     return con.execute(
-        "SELECT * FROM holerites WHERE competencia = ? AND tipo = ?", (competencia, tipo)
+        "SELECT * FROM holerites WHERE titular_id = ? AND competencia = ? AND tipo = ?",
+        (titular_id, competencia, tipo)
     ).fetchone()
 
 
-def listar(con: sqlite3.Connection, ano: int | None = None) -> list[sqlite3.Row]:
-    if ano is None:
-        return con.execute(
-            "SELECT * FROM holerites ORDER BY competencia DESC, tipo, id").fetchall()
+def listar(con: sqlite3.Connection, ano: int | None = None,
+           titular_id: int | None = None) -> list[sqlite3.Row]:
+    """Holerites (com `titular_nome`), mais recentes primeiro; filtros opcionais por ano e titular."""
+    filtros, params = [], []
+    if ano is not None:
+        filtros.append("substr(h.competencia, 1, 4) = ?")
+        params.append(f"{ano:04d}")
+    if titular_id is not None:
+        filtros.append("h.titular_id = ?")
+        params.append(titular_id)
+    onde = f" WHERE {' AND '.join(filtros)}" if filtros else ""
     return con.execute(
-        "SELECT * FROM holerites WHERE substr(competencia, 1, 4) = ?"
-        " ORDER BY competencia DESC, tipo, id",
-        (f"{ano:04d}",),
-    ).fetchall()
+        "SELECT h.*, t.nome AS titular_nome FROM holerites h JOIN titulares t ON t.id = h.titular_id"
+        + onde + " ORDER BY h.competencia DESC, h.tipo, h.id", params).fetchall()
+
+
+def liquido_por_titular(con: sqlite3.Connection, ano: int) -> list[sqlite3.Row]:
+    """Líquido e quantidade de holerites do ano por titular (todos os titulares, mesmo sem holerite)."""
+    return con.execute(
+        "SELECT t.id, t.nome, COALESCE(SUM(h.liquido_centavos), 0) AS liquido, COUNT(h.id) AS n"
+        " FROM titulares t LEFT JOIN holerites h"
+        " ON h.titular_id = t.id AND substr(h.competencia, 1, 4) = ?"
+        " GROUP BY t.id ORDER BY t.id", (f"{ano:04d}",)).fetchall()
 
 
 def atualizar_cabecalho(con: sqlite3.Connection, holerite_id: int, *, conta_id: int,

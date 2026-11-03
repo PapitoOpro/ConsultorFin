@@ -45,6 +45,7 @@ class HoleritePendente:
     holerite: HoleriteLido
     conta_id: int
     criado_em: float
+    titular_id: int = 1
 
 
 class _ComData(Protocol):
@@ -94,6 +95,7 @@ class ArmazemFaturas(_Armazem[FaturaPendente]):
 
 
 class ArmazemHolerites(_Armazem[HoleritePendente]):
-    def guardar(self, arquivo_hash: str, holerite: HoleriteLido, conta_id: int) -> str:
+    def guardar(self, arquivo_hash: str, holerite: HoleriteLido, conta_id: int,
+                titular_id: int = 1) -> str:
         return self._guardar(
-            HoleritePendente(arquivo_hash, holerite, conta_id, time.monotonic()))
+            HoleritePendente(arquivo_hash, holerite, conta_id, time.monotonic(), titular_id))
