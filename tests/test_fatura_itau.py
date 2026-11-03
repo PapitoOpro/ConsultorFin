@@ -33,6 +33,12 @@ def test_detectar_nao_confunde_porto_com_itau() -> None:
     assert detectar(paginas).emissor == "porto"
 
 
+def test_reconhece_fatura_so_com_itau_cartoes_no_texto() -> None:
+    paginas = [PaginaTexto(1, "Itaú Cartões\nFatura do cartão Visa\n", "", "")]
+    assert ParserItau().reconhece(paginas)
+    assert not ParserItau().reconhece([PaginaTexto(1, "Banco Itaú 341-7\nBoleto\n", "", "")])
+
+
 def test_detectar_emissor_desconhecido() -> None:
     with pytest.raises(EmissorNaoSuportado):
         detectar([PaginaTexto(1, "texto qualquer", "", "")])

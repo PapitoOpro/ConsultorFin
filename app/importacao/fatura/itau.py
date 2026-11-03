@@ -64,7 +64,7 @@ class ParserItau:
 
     def reconhece(self, paginas: list[PaginaTexto]) -> bool:
         txt = _sem_acento("\n".join(p.texto for p in paginas))
-        return "banco itau s.a." in txt and "itau cartoes" in txt
+        return "itau cartoes" in txt  # nem toda fatura traz "Banco Itaú S.A."
 
     def ler(self, paginas: list[PaginaTexto]) -> FaturaLida:
         p1 = paginas[0].texto
