@@ -140,7 +140,7 @@ def test_importar_tem_secao_de_fatura_separada(cliente: TestClient) -> None:
     assert 'action="/faturas/previa"' in r.text
     assert "Importar fatura do cartão (PDF)" in r.text
     campo = re.search(r'<input[^>]*name="senha"[^>]*>', r.text)
-    assert campo and 'type="password"' in campo.group(0) and 'autocomplete="off"' in campo.group(0)
+    assert campo and 'type="password"' in campo.group(0) and 'autocomplete="new-password"' in campo.group(0)
     assert "value=" not in campo.group(0)
 
 

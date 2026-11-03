@@ -71,7 +71,7 @@
     {% endif %}
     <div class="campo">
       <label for="fatura-senha">Senha do PDF{% if not fatura.pedir_senha %} (se tiver){% endif %}</label>
-      <input id="fatura-senha" name="senha" type="password" autocomplete="off" spellcheck="false"{% if fatura.pedir_senha %} required autofocus{% endif %}>
+      <input id="fatura-senha" name="senha" type="password" autocomplete="new-password" spellcheck="false"{% if fatura.pedir_senha %} required autofocus{% endif %}>
       <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:normal"><input type="checkbox" name="lembrar" value="1"> Lembrar a senha deste cartão</label>
     </div>
   </div>

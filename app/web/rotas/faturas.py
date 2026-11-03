@@ -126,16 +126,26 @@ def _exigia_senha(conteudo: bytes) -> bool:
     return False
 
 
-def _lembrar_senha(con: Any, fatura: FaturaLida, conteudo: bytes, senha: str) -> None:
-    """Guarda a senha (já validada: o PDF abriu com ela) do cartão da fatura lida."""
+MSG_CHAVE_PERDIDA = ("Não foi possível guardar a senha: as senhas já guardadas não podem ser lidas "
+                     "(chave ausente ou inválida). Use “Esquecer” nas senhas antigas para "
+                     "guardar novas.")
+
+
+def _lembrar_senha(con: Any, fatura: FaturaLida, conteudo: bytes, senha: str) -> str | None:
+    """Guarda a senha (já validada: o PDF abriu com ela) do cartão da fatura lida.
+
+    Devolve um aviso em português se não foi possível guardar por perda da chave."""
     if not (senha and fatura.emissor and fatura.final_cartao and _exigia_senha(conteudo)):
-        return
+        return None
     try:
-        cofre_senhas.guardar(con, fatura.emissor, fatura.final_cartao, senha)
+        guardou = cofre_senhas.guardar(con, fatura.emissor, fatura.final_cartao, senha)
     except Exception as exc:  # noqa: BLE001 - a importação segue; nunca loga a senha
         log.error("event=senha_pdf_nao_guardada erro=%s", type(exc).__name__)
-        return
+        return None
+    if not guardou:
+        return MSG_CHAVE_PERDIDA
     log.info("event=senha_pdf_guardada emissor=%s", fatura.emissor)
+    return None
 
 
 # Erros de regra da importação com mensagem própria; outro erro vira MSG_FALHA (loga só o tipo).
@@ -168,15 +178,14 @@ def previa_de_upload(request: Request, con: Any, arquivo: UploadFile | None, tok
         else:
             raise ErroImportacao("Selecione a fatura em PDF para importar.")
         fatura = _abrir(request, con, nome, conteudo, senha, token)
-        if lembrar:
-            _lembrar_senha(con, fatura, conteudo, senha)
+        aviso = _lembrar_senha(con, fatura, conteudo, senha) if lembrar else None
         if token:
             request.app.state.uploads.descartar(token)
         arquivo_hash = hashlib.sha256(conteudo).hexdigest()
         previa = _previa_segura(con, fatura, arquivo_hash)
         novo = request.app.state.faturas.guardar(nome, arquivo_hash, fatura)
         return _render_previa(request, con, novo, FaturaPendente(nome, arquivo_hash, fatura, 0.0),
-                              previa)
+                              previa, erro=aviso)
     except ErroImportacao as e:
         return _inicial(request, con, e)
 

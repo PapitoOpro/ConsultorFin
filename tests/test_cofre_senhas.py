@@ -106,3 +106,44 @@ def test_migracao_14_e_senha_nao_aparece_no_arquivo_do_banco(tmp_path: Path, cha
     assert SENHA.encode() not in db.read_bytes()
     assert config.caminho_chave_senhas() == chave
     assert os.path.exists(chave)
+
+
+def test_emissor_normalizado_na_prioridade(con: sqlite3.Connection, chave: Path) -> None:
+    cofre.guardar(con, "itau", "1111", "outro")
+    cofre.guardar(con, "itau", "1234", "exato")
+    cofre.guardar(con, "mercadopago", "1234", "mp")
+    assert cofre.candidatas(con, "Itaú", "1234") == ["exato", "outro", "mp"]
+    assert cofre.candidatas(con, "Mercado Pago", "1234")[0] == "mp"
+
+
+def test_nome_exibicao() -> None:
+    assert cofre.nome_exibicao("itau") == "Itaú"
+    assert cofre.nome_exibicao("mercadopago") == "Mercado Pago"
+    assert cofre.nome_exibicao("porto") == "Porto"
+    assert cofre.nome_exibicao("xyz") == "xyz"
+
+
+def test_chave_ausente_com_linhas_nao_cria_nem_grava(con: sqlite3.Connection, chave: Path,
+                                                      caplog: pytest.LogCaptureFixture) -> None:
+    cofre.guardar(con, "itau", "1234", SENHA)
+    chave.unlink()
+    with caplog.at_level(logging.INFO):
+        assert cofre.guardar(con, "porto", "1", "nova") is False
+    assert not chave.exists() and len(cofre.listar(con)) == 1
+    assert "event=senhas_chave_ausente" in caplog.text and "nova" not in caplog.text
+    for item in cofre.listar(con):
+        cofre.esquecer(con, int(item["id"]))
+    assert cofre.guardar(con, "porto", "1", "nova") is True
+    assert chave.exists() and cofre.candidatas(con, "porto", "1") == ["nova"]
+
+
+def test_chave_invalida_tem_evento_proprio(con: sqlite3.Connection, chave: Path,
+                                           caplog: pytest.LogCaptureFixture) -> None:
+    cofre.guardar(con, "itau", "1234", SENHA)
+    chave.write_bytes(b"curta")
+    with caplog.at_level(logging.INFO):
+        assert cofre.candidatas(con, "itau", "1234") == []
+        assert cofre.guardar(con, "porto", "1", "x") is False
+    assert "event=senhas_chave_invalida" in caplog.text
+    assert "senhas_chave_ausente" not in caplog.text
+    assert chave.read_bytes() == b"curta"

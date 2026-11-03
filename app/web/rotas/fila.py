@@ -94,7 +94,7 @@ def importar(item_id: int, request: Request, con: Any = Depends(get_con)) -> Res
     nome = f"Fatura {item['emissor'] or 'cartão'}.pdf"
     emissor, final = item["emissor"], item["cartao_final"]
     token = request.app.state.uploads.guardar(nome, conteudo, emissor, final)
-    if cofre_senhas.candidatas(con, emissor, final):  # senha guardada: tenta sem pedir
+    if cofre_senhas.listar(con):  # senha guardada: tenta sem pedir
         from app.web.rotas.faturas import previa_de_upload  # import local: evita ciclo
         return previa_de_upload(request, con, None, token, "")
     return _sem_cache(_pagina_inicial(

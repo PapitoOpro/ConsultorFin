@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.db import conectar
 from app.dominio import cofre_senhas as cofre
+from app.web.rotas import faturas
 from tests.test_web_fila import (  # noqa: F401 - fixtures reutilizadas
     _ParserFalso, _pdf_criptografado, _pdf_minimo, _semear, cliente, db, dir_fila,
 )
@@ -81,13 +82,22 @@ def test_pdf_sem_senha_com_lembrar_nao_guarda(cliente: TestClient, db: Path) -> 
     assert "LOJA FICTICIA" in r.text and _linhas(db) == 0
 
 
-def test_fila_passa_dica_e_prioriza_o_cartao(cliente: TestClient, db: Path,
-                                             dir_fila: Path) -> None:
-    _guardar(db, "do-porto", "Porto", "1111")
-    _guardar(db, SENHA)
-    item = _semear(db, dir_fila, _pdf_criptografado(SENHA))
+def test_fila_passa_dica_e_prioriza_o_cartao(cliente: TestClient, db: Path, dir_fila: Path,
+                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    _guardar(db, "errada-1234", "itau", "1234")
+    _guardar(db, SENHA, "itau", "9999")
+    item = _semear(db, dir_fila, _pdf_criptografado(SENHA), emissor="Itaú", final="9999")
+    tentativas: list[str | None] = []
+    real = faturas.ler_fatura
+
+    def espiao(conteudo: bytes, senha: str | None = None):  # type: ignore[no-untyped-def]
+        tentativas.append(senha)
+        return real(conteudo, senha)
+
+    monkeypatch.setattr(faturas, "ler_fatura", espiao)
     r = cliente.post(f"/faturas/fila/{item}/importar")
     assert "LOJA FICTICIA" in r.text
+    assert tentativas == [None, SENHA]
 
 
 def test_fila_sem_senha_guardada_mostra_formulario_com_lembrar(cliente: TestClient, db: Path,
@@ -126,3 +136,24 @@ def test_log_nao_tem_a_senha(cliente: TestClient, db: Path, dir_fila: Path,
         _enviar(cliente, pdf, senha=SENHA, lembrar="1")
         _enviar(cliente, pdf)
     assert SENHA not in caplog.text and "errada-xyz" not in caplog.text
+
+
+def test_lista_mostra_nome_amigavel(cliente: TestClient, db: Path) -> None:
+    _guardar(db, SENHA, "itau", "1234")
+    r = cliente.get("/importar")
+    assert "Itaú · final 1234" in r.text and "itau · final" not in r.text
+
+
+def test_chave_ausente_com_linhas_avisa_e_importacao_segue(cliente: TestClient, db: Path,
+                                                           monkeypatch: pytest.MonkeyPatch,
+                                                           tmp_path: Path) -> None:
+    _guardar(db, "antiga", "porto", "1")
+    from app import config
+    config.caminho_chave_senhas().unlink()
+    r = _enviar(cliente, _pdf_criptografado(SENHA), senha=SENHA, lembrar="1")
+    assert "LOJA FICTICIA" in r.text and "Esquecer" in r.text
+    assert not config.caminho_chave_senhas().exists() and _linhas(db) == 1
+
+
+def test_campo_senha_new_password(cliente: TestClient) -> None:
+    assert 'name="senha" type="password" autocomplete="new-password"' in cliente.get("/importar").text
