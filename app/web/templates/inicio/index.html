@@ -117,6 +117,7 @@
       <p class="subtitulo">Saídas de {{ resumo.nome_mes }}</p></div></div>
     {% if dados.rosca %}
     <div id="graf-rosca" class="grafico rosca" role="img" aria-label="Rosca de gastos por categoria"></div>
+    <div id="detalhe-rosca" class="detalhe-grafico" role="region" aria-live="polite" hidden></div>
     <ul class="legenda-rosca">
       {% for f in ind.legenda_rosca %}
       <li><span class="legenda-nome"><span class="amostra c{{ loop.index0 }}" aria-hidden="true"></span>{{ f.nome }}</span>
@@ -162,6 +163,7 @@
       <p class="subtitulo">Saídas de {{ ind.mes_rotulo }}</p></div></div>
     {% if dados.maiores %}<p class="destaque-grafico numero">{{ dados.insights.maiores.destaque }}</p>{% endif %}
     {% if dados.maiores %}<div id="graf-maiores" class="grafico pequeno" role="img" aria-label="Barras das maiores categorias"></div>
+    <div id="detalhe-maiores" class="detalhe-grafico" role="region" aria-live="polite" hidden></div>
     {% else %}<div class="vazio vazio-compacto"><p>Sem gastos neste mês</p></div>{% endif %}
     {% if dados.maiores %}    <p class="insight {{ dados.insights.maiores.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.maiores.texto }}</span></p>
     {% endif %}
@@ -174,6 +176,7 @@
       <p class="subtitulo">O que ainda será cobrado, por cartão</p></div>
       <strong class="destaque-grafico numero {{ dados.insights.cartoes.tom }}">{{ dados.insights.cartoes.destaque }}</strong></div>
     {% if dados.cartoes %}<div id="graf-cartoes" class="grafico pequeno" role="img" aria-label="Barras de fatura em aberto por cartão"></div>
+    <div id="detalhe-cartoes" class="detalhe-grafico" role="region" aria-live="polite" hidden></div>
     <p class="insight {{ dados.insights.cartoes.tom }}">{{ icone("lightbulb", 16) }}<span>{{ dados.insights.cartoes.texto }}</span></p>
     {% else %}<div class="vazio vazio-compacto"><span class="vazio-icone">{{ icone("check-circle", 20) }}</span><p>Nenhuma fatura de cartão em aberto</p></div>{% endif %}
     <div class="sr-only"><table><caption>Faturas de cartão em aberto</caption>

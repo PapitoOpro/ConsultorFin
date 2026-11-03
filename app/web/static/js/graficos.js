@@ -34,6 +34,68 @@
   }
 
   var tip = T.textoTooltip;
+  var detalhes = { maiores: {}, rosca: {}, cartoes: {} };
+
+  function el(tag, classe, texto) {
+    var e = document.createElement(tag);
+    if (classe) { e.className = classe; }
+    if (texto !== undefined) { e.textContent = texto; }
+    return e;
+  }
+
+  /* Painel com a origem do valor clicado. Só textContent: nada de HTML montado a partir de dados. */
+  function mostrarDetalhe(chave, nome) {
+    var painel = document.getElementById("detalhe-" + chave);
+    var d = (detalhes[chave] || {})[nome];
+    if (!painel || !d) { return; }
+    if (!painel.hidden && painel.dataset.nome === nome) { painel.hidden = true; return; }  // 2º clique fecha
+    painel.dataset.nome = nome;
+    painel.textContent = "";
+    var topo = el("div", "detalhe-topo");
+    var tit = el("div");
+    tit.appendChild(el("h3", "", d.titulo + " · " + d.total_fmt));
+    tit.appendChild(el("span", "secundario", d.n + (d.n === 1 ? " item" : " itens") + " compõem este valor"));
+    var fechar = el("button", "detalhe-fechar", "×");
+    fechar.type = "button";
+    fechar.setAttribute("aria-label", "Fechar detalhe");
+    fechar.addEventListener("click", function () { painel.hidden = true; });
+    topo.appendChild(tit);
+    topo.appendChild(fechar);
+    painel.appendChild(topo);
+    if (d.nota) { painel.appendChild(el("p", "detalhe-nota", d.nota)); }
+    var lista = el("ul", "detalhe-lista");
+    d.linhas.forEach(function (l) {
+      var li = el("li");
+      li.appendChild(el("span", "desc", l.descricao));
+      li.appendChild(el("span", "valor", l.valor_fmt));
+      li.appendChild(el("span", "meta", [l.data, l.origem, l.conta, l.categoria].filter(Boolean).join(" · ")));
+      lista.appendChild(li);
+    });
+    painel.appendChild(lista);
+    var rodape = el("p", "detalhe-rodape");
+    rodape.appendChild(el("span", "", d.restantes > 0 ? "+" + d.restantes + " itens menores não listados" : "Todos os itens listados"));
+    if (d.link) {
+      var a = el("a", "", d.link_rotulo || "Ver no extrato");
+      a.href = d.link;
+      rodape.appendChild(a);
+    }
+    painel.appendChild(rodape);
+    painel.hidden = false;
+    painel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") { return; }
+    document.querySelectorAll(".detalhe-grafico:not([hidden])").forEach(function (p) { p.hidden = true; });
+  });
+
+  function aoClicar(g, chave) {
+    if (g) {
+      g.on("click", function (p) {
+        mostrarDetalhe(chave, p.componentType === "yAxis" ? p.value : p.name);  // barra/fatia ou nome no eixo
+      });
+    }
+  }
 
   function reais(centavos) {
     var n = Math.round(Math.abs(centavos) / 100);
@@ -65,7 +127,7 @@
   function rosca(fatias) {
     var paleta = T.paleta(C);
     var total = fatias.reduce(function (t, f) { return t + f.valor_centavos; }, 0);
-    criar("graf-rosca", {
+    aoClicar(criar("graf-rosca", {
       color: paleta,
       tooltip: T.tooltip(C, {
         confine: true,
@@ -92,7 +154,7 @@
                    itemStyle: { color: paleta[i % paleta.length] } };
         })
       }]
-    });
+    }), "rosca");
   }
 
   function compacto(centavos) {
@@ -144,21 +206,21 @@
 
   function larguraRotulo(id) {
     var el = document.getElementById(id);
-    return Math.max(70, Math.min(170, Math.round((el ? el.clientWidth : 300) * 0.4)));
+    return Math.max(70, Math.min(150, Math.round((el ? el.clientWidth : 300) * 0.32)));
   }
 
-  function barras(id, itens, cor, rotuloExtra) {
+  function barras(id, chave, itens, cor, rotuloExtra) {
     var ord = itens.slice().reverse();  // maior no topo
-    criar(id, {
+    aoClicar(criar(id, {
       grid: { left: 4, right: 96, top: 4, bottom: 4, containLabel: true },
       xAxis: { type: "value", show: false },
       yAxis: {
         type: "category", data: ord.map(function (i) { return i.nome; }),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: C.texto, fontSize: 11, width: larguraRotulo(id), overflow: "break" }
+        axisLabel: { color: C.texto, fontSize: 11, width: larguraRotulo(id), overflow: "break" }, triggerEvent: true
       },
       series: [{
-        type: "bar", barMaxWidth: 12,
+        type: "bar", barMaxWidth: 22,
         label: {
           show: true, position: "right", color: C.texto, fontSize: 11, fontFamily: C.fonte,
           formatter: function (p) { return p.data.fmt + (rotuloExtra ? "  " + p.data[rotuloExtra] : ""); }
@@ -168,7 +230,7 @@
                    itemStyle: { color: cor, borderRadius: [0, 3, 3, 0] } };
         })
       }]
-    });
+    }), chave);
   }
 
   function aviso(texto) {
@@ -183,12 +245,13 @@
       return r.json();
     })
     .then(function (d) {
+      detalhes = d.detalhes || detalhes;
       fluxo(d.fluxo);
       if (d.rosca.length) { rosca(d.rosca); }
       colunas("graf-parcelas", d.parcelas, function () { return C.primaria; });
       colunas("graf-saldo", d.saldo_projetado, function (p) { return p.negativo ? C.saida : C.primaria; });
-      if (d.maiores.length) { barras("graf-maiores", d.maiores, C.primaria, "pct"); }
-      if (d.cartoes.length) { barras("graf-cartoes", d.cartoes, C.saida); }
+      if (d.maiores.length) { barras("graf-maiores", "maiores", d.maiores, C.primaria, "pct"); }
+      if (d.cartoes.length) { barras("graf-cartoes", "cartoes", d.cartoes, C.saida); }
     })
     .catch(function () {
       aviso("Não foi possível carregar os gráficos. Os números estão na tabela de apoio.");

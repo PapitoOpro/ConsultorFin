@@ -1,13 +1,14 @@
 """Agregações da tela Início: resumo do mês, gastos por categoria, comparativo e gráficos."""
 import calendar
 import re
+from urllib.parse import urlencode
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
 from app.dominio import insights
 from app.dominio.categorias import despesas_do_mes, entradas_do_mes
-from app.dominio.dinheiro import formatar_brl, somar_meses
+from app.dominio.dinheiro import formatar_brl, iso_para_br, somar_meses
 from app.dominio.lancamentos import ErroLancamento
 from app.dominio.projecao import Vencimentos, projetar, vencimentos
 from app.dominio.recorrentes import gerar_recorrentes
@@ -19,6 +20,7 @@ SEM_CATEGORIA = "Sem categoria"
 TOP_ROSCA = 5
 TOP_BARRAS = 5
 LIMITE_LANCAMENTOS = 50
+LIMITE_DETALHE = 15
 _MES = re.compile(r"[0-9]{4}-[0-9]{2}")
 _MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
           "setembro", "outubro", "novembro", "dezembro")
@@ -60,6 +62,8 @@ class LinhaLanc:
     data: str
     descricao: str
     valor_centavos: int
+    conta: str = ""
+    origem: str = ""  # 'lancamento' | 'fatura_item'
 
 
 @dataclass
@@ -69,6 +73,7 @@ class Sub:
     total_centavos: int = 0
     n: int = 0
     lancamentos: list[LinhaLanc] = field(default_factory=list)
+    maiores: list[LinhaLanc] = field(default_factory=list)  # até LIMITE_DETALHE, maior valor primeiro
 
 
 @dataclass
@@ -103,11 +108,17 @@ def gastos_por_categoria(con: Any, ano: int, mes: int) -> list[Categoria]:
         cat.total_centavos += v
         sub.total_centavos += v
         sub.n += 1
+        linha = LinhaLanc(str(r["data"]), str(r["descricao"]), v, str(r["conta_nome"]), str(r["origem"]))
         if len(sub.lancamentos) < LIMITE_LANCAMENTOS:
-            sub.lancamentos.append(LinhaLanc(str(r["data"]), str(r["descricao"]), v))
+            sub.lancamentos.append(linha)
+        sub.maiores.append(linha)
+        if len(sub.maiores) > 4 * LIMITE_DETALHE:
+            sub.maiores = sorted(sub.maiores, key=lambda x: -x.valor_centavos)[:LIMITE_DETALHE]
     saida = sorted(raizes.values(), key=lambda c: (-c.total_centavos, c.nome))
     for c in saida:
         c.subs.sort(key=lambda s: (-s.total_centavos, s.nome))
+        for s in c.subs:
+            s.maiores = sorted(s.maiores, key=lambda x: -x.valor_centavos)[:LIMITE_DETALHE]
     return saida
 
 
@@ -210,11 +221,20 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
               "negativo": p.saldo_final_centavos < 0} for p in pontos]
     cartoes = cartoes_em_aberto(con)
     anterior = comparativo[0]
+    por_nome = {c.nome: c for c in resumo.categorias}
+    top_rosca = {n for n, _ in top_com_outros(reais, TOP_ROSCA) if n.casefold() != "outros"}
+    detalhes = {
+        "maiores": {n: detalhe_categorias([por_nome[n]], n, resumo, _link_categoria(por_nome[n], resumo))
+                    for n, _ in top},
+        "rosca": {f["nome"]: _detalhe_rosca(f["nome"], por_nome, top_rosca, resumo) for f in rosca},
+        "cartoes": detalhe_cartoes(con),
+    }
     return {
         "mes": resumo.mes_iso, "horizonte": horizonte, "rosca": rosca, "maiores": maiores,
         "parcelas": parcelas, "saldo_projetado": saldo, "cartoes": cartoes,
         "comparativo": comparativo,
         "fluxo": fluxo_caixa(con, resumo.ano, resumo.mes),
+        "detalhes": detalhes,
         "insights": {
             "saldo": insights.saldo_projetado(saldo),
             "parcelas": insights.parcelas_futuras(parcelas),
@@ -224,6 +244,66 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
                                              top[0][0] if top else None),
         },
     }
+
+
+def _link_categoria(cat: Categoria, resumo: Resumo) -> str:
+    """Extrato filtrado por período e categoria (aproximado: o painel usa a data da compra)."""
+    return "/lancamentos?" + urlencode({
+        "de": resumo.de_iso, "ate": resumo.ate_iso, "categoria_id": "sem" if cat.id is None else cat.id,
+        "tipo": "saida", "status": "compensados"})
+
+
+def _detalhe_rosca(nome: str, por_nome: dict[str, Categoria], top_rosca: set[str],
+                   resumo: Resumo) -> dict[str, Any]:
+    if nome in por_nome and nome in top_rosca:
+        return detalhe_categorias([por_nome[nome]], nome, resumo, _link_categoria(por_nome[nome], resumo))
+    resto = [c for n, c in por_nome.items() if n not in top_rosca]  # fatia "Outros"
+    return detalhe_categorias(resto, "Outros (categorias menores)", resumo, None)
+
+
+def detalhe_categorias(cats: list[Categoria], titulo: str, resumo: Resumo,
+                       link: str | None) -> dict[str, Any]:
+    """Origem do valor de uma categoria: os maiores lançamentos/itens de fatura que a compõem,
+    com conta, tipo de origem e subcategoria (mesma base de `gastos_por_categoria`)."""
+    linhas = sorted(((c.nome, s.nome, l) for c in cats for s in c.subs for l in s.maiores),
+                    key=lambda t: -t[2].valor_centavos)[:LIMITE_DETALHE]
+    n = sum(s.n for c in cats for s in c.subs)
+    return {
+        "titulo": titulo, "total_fmt": formatar_brl(sum(c.total_centavos for c in cats)),
+        "n": n, "restantes": n - len(linhas), "link": link, "link_rotulo": "Ver no extrato", "nota": "",
+        "linhas": [{
+            "data": iso_para_br(l.data), "descricao": l.descricao, "valor_fmt": formatar_brl(l.valor_centavos),
+            "conta": l.conta,
+            "origem": "Compra no cartão" if l.origem == "fatura_item" else "Lançamento na conta",
+            "categoria": cat if sub_.startswith("(") else f"{cat} › {sub_}"} for cat, sub_, l in linhas],
+    }
+
+
+def detalhe_cartoes(con: Any) -> dict[str, Any]:
+    """Origem do valor em aberto de cada cartão: vencimento, total impresso e maiores compras."""
+    saida: dict[str, Any] = {}
+    for c in contas.listar(con):
+        if c["tipo"] != "cartao":
+            continue
+        faturas = repo_faturas.abertas_da_conta(con, int(c["id"]))
+        if not faturas:
+            continue
+        itens = [(f, i) for f in faturas for i in repo_faturas.itens(con, int(f["id"]))]
+        top = sorted(itens, key=lambda t: int(t[1]["valor_centavos"]))[:LIMITE_DETALHE]  # compras são negativas
+        total = sum(int(f["total_impresso_centavos"]) for f in faturas)
+        nota = "; ".join(f"vence em {iso_para_br(str(f['data_vencimento']))} · total impresso "
+                         f"{formatar_brl(int(f['total_impresso_centavos']))}" for f in faturas)
+        saida[str(c["nome"])] = {
+            "titulo": str(c["nome"]), "total_fmt": formatar_brl(total), "n": len(itens),
+            "restantes": len(itens) - len(top), "link": "/contas-a-pagar", "link_rotulo": "Ver em Contas a pagar",
+            "nota": f"Fatura em aberto: {nota}. O total impresso pode incluir saldo anterior e encargos.",
+            "linhas": [{
+                "data": iso_para_br(str(i["data"])), "descricao": str(i["descricao"]) + (
+                    f" ({i['parcela_atual']}/{i['parcela_total']})" if i["parcela_atual"] else ""),
+                "valor_fmt": formatar_brl(-int(i["valor_centavos"])), "conta": str(c["nome"]),
+                "origem": "Compra no cartão", "categoria": ""} for _, i in top],
+        }
+    return saida
 
 
 def cartoes_em_aberto(con: Any) -> list[dict[str, Any]]:

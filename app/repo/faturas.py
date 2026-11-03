@@ -119,6 +119,15 @@ def total_em_aberto(con: sqlite3.Connection, conta_id: int) -> int:
     return int(row[0])
 
 
+def abertas_da_conta(con: sqlite3.Connection, conta_id: int) -> list[sqlite3.Row]:
+    """Faturas da conta ainda não pagas (lançamento pendente), por vencimento."""
+    return con.execute(
+        "SELECT f.id, f.data_vencimento, f.total_impresso_centavos FROM faturas f"
+        " JOIN lancamentos l ON l.id = f.lancamento_id"
+        " WHERE f.conta_id = ? AND l.compensado = 0 ORDER BY f.data_vencimento, f.id",
+        (conta_id,)).fetchall()
+
+
 def marcar_pagamento(con: sqlite3.Connection, fatura_id: int,
                      lancamento_id: int | None) -> None:
     con.execute("UPDATE faturas SET pagamento_lancamento_id = ? WHERE id = ?",

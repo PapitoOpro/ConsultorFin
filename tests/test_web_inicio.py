@@ -602,3 +602,32 @@ def test_cada_grafico_traz_numero_e_insight(cliente: TestClient, conta: int) -> 
     assert set(d["insights"]) == {"saldo", "parcelas", "maiores", "cartoes", "gastos"}
     assert all({"destaque", "texto", "tom"} <= set(i) for i in d["insights"].values())
     assert all("percentual" in m for m in d["maiores"])
+
+
+def test_detalhe_da_barra_traz_origem_e_bate_com_o_valor(cliente: TestClient, conta: int, db: Path) -> None:
+    _manual(db, conta, date(2026, 10, 2), "Aluguel", -150000, True, _cat(db, "Moradia"))
+    _manual(db, conta, date(2026, 10, 3), "Condomínio", -50000, True, _cat(db, "Moradia"))
+    d = cliente.get("/inicio/dados.json?mes=2026-10").json()
+    barra = next(m for m in d["maiores"] if m["nome"] == "Moradia")
+    det = d["detalhes"]["maiores"]["Moradia"]
+    assert det["total_fmt"] == barra["valor_fmt"] and det["n"] == 2 and det["restantes"] == 0
+    assert [l["descricao"] for l in det["linhas"]] == ["Aluguel", "Condomínio"]  # maior primeiro
+    assert det["linhas"][0]["origem"] == "Lançamento na conta" and det["linhas"][0]["conta"]
+    assert det["link"].startswith("/lancamentos?") and "categoria_id" in det["link"]
+
+
+def test_detalhe_limita_a_quinze_e_conta_o_resto(cliente: TestClient, conta: int, db: Path) -> None:
+    for i in range(20):
+        _manual(db, conta, date(2026, 10, 2), f"Item {i:02d}", -(1000 + i), True, _cat(db, "Moradia"))
+    det = cliente.get("/inicio/dados.json?mes=2026-10").json()["detalhes"]["maiores"]["Moradia"]
+    assert len(det["linhas"]) == 15 and det["n"] == 20 and det["restantes"] == 5
+    assert det["linhas"][0]["descricao"] == "Item 19"  # o maior valor vem primeiro
+
+
+def test_detalhe_da_fatia_outros_junta_as_categorias_menores(cliente: TestClient, conta: int, db: Path) -> None:
+    nomes = ["Moradia", "Alimentação", "Transporte e Veículo", "Saúde", "Lazer e Entretenimento", "Assinaturas e Serviços Digitais", "Educação"]
+    for i, n in enumerate(nomes):
+        _manual(db, conta, date(2026, 10, 2), f"x{i}", -(100000 + i * 1000), True, _cat(db, n))
+    det = cliente.get("/inicio/dados.json?mes=2026-10").json()["detalhes"]["rosca"]["Outros"]
+    assert det["n"] >= 2 and det["link"] is None and det["titulo"].startswith("Outros")  # categorias menores juntas
+    assert set(cliente.get("/inicio/dados.json?mes=2026-10").json()["detalhes"]["rosca"]) >= {"Outros", "Educação"}
