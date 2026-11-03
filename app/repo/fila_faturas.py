@@ -48,3 +48,10 @@ def fatura_existente(con: sqlite3.Connection, cartao_final: str, vencimento: str
         " WHERE c.final_numero = ? AND f.data_vencimento = ? LIMIT 1",
         (cartao_final, vencimento),
     ).fetchone() is not None
+
+
+def obter_por_origem(con: sqlite3.Connection, gmail_msg_id: str, anexo_id: str) -> sqlite3.Row | None:
+    return con.execute(
+        "SELECT * FROM fila_faturas WHERE gmail_msg_id = ? AND anexo_id = ?",
+        (gmail_msg_id, anexo_id),
+    ).fetchone()

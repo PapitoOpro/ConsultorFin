@@ -1,11 +1,16 @@
 """Operações de escrita do consultor. Mesmas validações das telas (reusam o domínio)."""
 import logging
-from datetime import date
+import sqlite3
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from app import config
 from app.consultor.consultas import data, dinheiro
-from app.dominio.dinheiro import iso_para_br
+from app.gmail.cliente import ClienteGmail, ErroGmail
+from app.dominio.dinheiro import iso_para_br, somar_meses
+from app.dominio.fila_faturas import buscar_para_fila
+from app.dominio.painel import interpretar_mes
 from app.dominio import contas_pagar_acoes as acoes
 from app.dominio.casamento import confirmar_casamento, propostas_com_detalhes
 from app.dominio.lancamentos import (
@@ -198,3 +203,37 @@ def criar_conta(con: Any, nome: str, tipo: str, saldo_inicial: str,
         "id": int(nova["id"]), "nome": nova["nome"], "tipo": nova["tipo"],
         **dinheiro("saldo_inicial", int(nova["saldo_inicial_centavos"])),
         **data("data_saldo_inicial", nova["data_saldo_inicial"])}}
+
+
+MSG_GMAIL_LEITURA = "Não foi possível ler as mensagens do Gmail."
+MSG_INTERVALO = "O período deve ter no máximo 12 meses e o fim não pode ser antes do início."
+MAX_MESES_GMAIL = 12
+
+
+def _cliente_gmail() -> ClienteGmail:
+    return ClienteGmail(config.caminho_token_gmail())
+
+
+def gmail_buscar(con: Any, hoje: date, mes: str | None, ate_mes: str | None) -> dict[str, Any]:
+    """Busca faturas no Gmail e enfileira os PDFs. Saída só com contagens e período."""
+    ano, m = interpretar_mes(mes, hoje)
+    ano_f, m_f = interpretar_mes(ate_mes, hoje) if ate_mes else (ano, m)
+    meses = (ano_f - ano) * 12 + (m_f - m) + 1
+    if not 1 <= meses <= MAX_MESES_GMAIL:
+        raise ErroLancamento(MSG_INTERVALO)
+    inicio = date(ano, m, 1)
+    fim = somar_meses(date(ano_f, m_f, 1), 1)  # exclusivo (before: do Gmail)
+    try:
+        resumo = buscar_para_fila(con, _cliente_gmail(), inicio, fim, datetime.now(),
+                                  config.DIR_FILA)
+    except ErroGmail as exc:
+        raise ErroLancamento(str(exc)) from None
+    except (sqlite3.Error, OSError):
+        raise
+    except Exception as exc:  # noqa: BLE001 - resposta malformada: sem texto de exceção/e-mail
+        log.warning("event=gmail_buscar_falhou erro=%s", type(exc).__name__)
+        raise ErroLancamento(MSG_GMAIL_LEITURA) from None
+    periodo = f"{ano:04d}-{m:02d}" if meses == 1 else f"{ano:04d}-{m:02d} a {ano_f:04d}-{m_f:02d}"
+    return {"ok": True, "periodo": periodo, "encontradas": resumo.encontradas,
+            "novas": resumo.novas, "ja_na_fila": resumo.ja_na_fila,
+            "ja_importadas": resumo.ja_importadas, "ignoradas": resumo.ignoradas}

@@ -22,3 +22,9 @@ def caminho_token_gmail() -> Path:
     """JSON do token OAuth do Gmail (env CONSULTORFIN_GMAIL_TOKEN; padrão data/gmail-token.json)."""
     valor = os.environ.get("CONSULTORFIN_GMAIL_TOKEN", "").strip()
     return Path(valor) if valor else RAIZ / "data" / "gmail-token.json"
+
+
+DIR_FILA: Path = RAIZ / "data" / "fila"
+LIMITE_MENSAGENS_GMAIL: int = 50
+DIAS_EXPIRACAO_FILA: int = 7
+LIMITE_PDF_BYTES: int = 5 * 1024 * 1024

@@ -403,7 +403,7 @@ def test_parser_expoe_subcomandos() -> None:
     assert set(sub.choices) == {"saldos", "resumo", "vencimentos", "projecao", "gastos",
                                 "lancamentos", "faturas", "holerites", "contas", "categorias", "importar",
                                 "casar",
-                                "categorizar", "regra", "pagar", "criar-conta"}
+                                "categorizar", "regra", "pagar", "criar-conta", "gmail-buscar"}
 
 
 def test_erros_de_argparse_em_portugues(db_cheio: Path, capsys: pytest.CaptureFixture[str]) -> None:

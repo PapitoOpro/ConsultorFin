@@ -134,6 +134,9 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--tipo", required=True)
     s.add_argument("--saldo-inicial", required=True)
     s.add_argument("--data-saldo", required=True)
+    s = sub.add_parser("gmail-buscar", help="Busca faturas de cartão no Gmail e enfileira os PDFs.")
+    s.add_argument("--mes", default=None)
+    s.add_argument("--ate", default=None)
     return p
 
 
@@ -192,6 +195,7 @@ ESCRITAS: dict[str, Comando] = {
         con, hoje, _id(a.lancamento, "Lançamento"), a.valor, a.data),
     "criar-conta": lambda con, hoje, a: operacoes.criar_conta(
         con, a.nome, a.tipo, a.saldo_inicial, a.data_saldo),
+    "gmail-buscar": lambda con, hoje, a: operacoes.gmail_buscar(con, hoje, a.mes, a.ate),
 }
 
 
