@@ -141,6 +141,53 @@ class SaldoConta:
 
 
 @dataclass(frozen=True)
+class Fechamento:
+    """Projeção de caixa do mês: saldo inicial + entradas previstas - despesas (realizadas e a
+    vencer). Pendentes (inclusive estimados e de cartão) como em `projetar`; os vencidos de
+    meses anteriores entram no mês corrente."""
+    saldo_inicial_centavos: int
+    entradas_recebidas_centavos: int
+    entradas_a_receber_centavos: int
+    saidas_realizadas_centavos: int
+    saidas_a_vencer_centavos: int
+
+    @property
+    def entradas_previstas_centavos(self) -> int:
+        return self.entradas_recebidas_centavos + self.entradas_a_receber_centavos
+
+    @property
+    def saldo_projetado_centavos(self) -> int:
+        return (self.saldo_inicial_centavos + self.entradas_previstas_centavos
+                - self.saidas_realizadas_centavos - self.saidas_a_vencer_centavos)
+
+    @property
+    def comprometimento_pct(self) -> int | None:
+        """Quanto do saldo inicial + entradas previstas as despesas já consomem (None sem base)."""
+        base = self.saldo_inicial_centavos + self.entradas_previstas_centavos
+        if base <= 0:
+            return None
+        return (self.saidas_realizadas_centavos + self.saidas_a_vencer_centavos) * 100 // base
+
+
+def fechamento_do_mes(con: Any, hoje: date, ano: int, mes: int) -> Fechamento:
+    ini, _, ultimo = _limites(ano, mes)
+    anterior = date.fromisoformat(ini) - timedelta(days=1)
+    inicial = sum(saldo_atual(con, c, anterior) for c in contas.ids_nao_cartao(con))
+    corrente = (hoje.year, hoje.month) == (ano, mes)
+    a_receber = a_vencer = 0
+    for r in repo_lanc.pendentes_ate(con, ultimo):
+        if str(r["data"]) < ini and not corrente:
+            continue
+        v = int(r["valor_centavos"])
+        if v > 0:
+            a_receber += v
+        else:
+            a_vencer -= v
+    return Fechamento(inicial, entradas_do_mes(con, ano, mes), a_receber,
+                      despesas_do_mes(con, ano, mes), a_vencer)
+
+
+@dataclass(frozen=True)
 class Resumo:
     vazio: bool
     contas: list[SaldoConta]
@@ -154,6 +201,7 @@ class Resumo:
     a_pagar_centavos: int = 0  # saídas pendentes vencidas + a vencer na janela (magnitude)
     a_pagar_vencidas_centavos: int = 0  # parte do total acima que já venceu
     a_pagar_qtd: int = 0
+    fechamento: Fechamento | None = None
 
     @property
     def sobra_centavos(self) -> int:
@@ -193,7 +241,8 @@ def resumo_inicio(con: Any, hoje: date, ano: int, mes: int, horizonte: int,
         vazio=not lista or painel.total_lancamentos(con) == 0, contas=lista,
         saldo_total_centavos=total, entradas_centavos=entradas_do_mes(con, ano, mes),
         saidas_centavos=despesas_do_mes(con, ano, mes), venc=vencimentos(con, hoje, janela_dias),
-        categorias=gastos_por_categoria(con, ano, mes), ano=ano, mes=mes)
+        categorias=gastos_por_categoria(con, ano, mes), ano=ano, mes=mes,
+        fechamento=fechamento_do_mes(con, hoje, ano, mes))
 
 
 def _ponto(chave: str, rotulo: str, centavos: int) -> dict[str, Any]:

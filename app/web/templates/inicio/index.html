@@ -54,15 +54,13 @@
 {% else %}
 <div id="inicio" class="dashboard" data-mes="{{ mes_iso }}" data-horizonte="{{ horizonte }}">
 
-<section class="hero" aria-label="Resumo">
+<section class="hero" aria-label="Resumo financeiro">
+  {% set fe = resumo.fechamento %}
   <div>
-    {% if resumo.entradas_centavos or resumo.saidas_centavos %}
-    <h2>{% if resumo.sobra_centavos >= 0 %}Sobraram{% else %}Faltaram{% endif %} <span class="numero {{ classe(resumo.sobra_centavos) }}">{{ resumo.sobra_centavos|abs|brl }}</span></h2>
-    <p>Em {{ resumo.nome_mes }}, até agora</p>
-    {% else %}
-    <h2>Sem movimento</h2>
-    <p>Em {{ resumo.nome_mes }}, até agora</p>
-    {% endif %}
+    <p class="hero-rotulo">Saldo projetado no fechamento de {{ resumo.nome_mes }}</p>
+    <h2><span class="numero {{ classe(fe.saldo_projetado_centavos) }}">{{ fe.saldo_projetado_centavos|brl }}</span>
+      <span class="selo {{ 'entrada' if fe.saldo_projetado_centavos >= 0 else 'saida' }}">{{ "Saldo positivo" if fe.saldo_projetado_centavos >= 0 else "Saldo negativo" }}</span></h2>
+    <p>Saldo inicial, entradas e despesas previstas</p>
     {% set nv = resumo.venc.vencidas|length %}{% set na = resumo.venc.a_vencer|length %}
     <div class="hero-chips">
       {% if nv %}<a class="chip alerta-chip" href="/contas-a-pagar#vencidas">{{ icone("alert-triangle", 16) }} {{ nv }} vencida{{ 's' if nv != 1 }}</a>{% endif %}
@@ -70,13 +68,21 @@
       {% if not nv and not na %}<span class="chip ok">{{ icone("check-circle", 16) }} Nenhuma conta vencida ou a vencer</span>{% endif %}
     </div>
   </div>
-  {% if resumo.entradas_centavos > 0 %}
-  {% set pct = (resumo.saidas_centavos * 100 // resumo.entradas_centavos) %}
-  <div class="consumo {{ 'estouro' if pct > 100 else 'atencao' if pct >= 80 else '' }}" style="--pct: {{ [pct, 100]|min }}" role="img" aria-label="Saídas equivalem a {{ pct }}% das entradas do mês">
-    <div class="consumo-texto"><span>Das entradas, já saiu</span><strong>{{ pct }}%</strong></div>
-    <div class="consumo-barra"></div>
+  <div class="fechamento">
+    <dl class="fechamento-grade">
+      <div><dt>Saldo inicial</dt><dd class="numero">{{ fe.saldo_inicial_centavos|brl }}</dd></div>
+      <div><dt>Entradas previstas</dt><dd class="numero entrada">+ {{ fe.entradas_previstas_centavos|brl }}</dd></div>
+      <div><dt>Despesas realizadas</dt><dd class="numero saida">&minus; {{ fe.saidas_realizadas_centavos|brl }}</dd></div>
+      <div><dt>Despesas a vencer</dt><dd class="numero">&minus; {{ fe.saidas_a_vencer_centavos|brl }}</dd></div>
+    </dl>
+    {% set pct = fe.comprometimento_pct %}
+    {% if pct is not none %}
+    <div class="consumo {{ 'estouro' if pct > 100 else 'atencao' if pct >= 80 else '' }}" style="--pct: {{ [pct, 100]|min }}" role="img" aria-label="Despesas comprometem {{ pct }}% do saldo inicial mais as entradas previstas">
+      <div class="consumo-texto"><span>Comprometimento do saldo</span><strong>{{ pct }}%</strong></div>
+      <div class="consumo-barra"></div>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
 </section>
 
 <section class="grade-kpi" aria-label="Resumo do mês">
