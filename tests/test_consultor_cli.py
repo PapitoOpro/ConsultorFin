@@ -401,7 +401,7 @@ def test_excecao_inesperada_vira_json(db_cheio: Path, capsys: pytest.CaptureFixt
 def test_parser_expoe_subcomandos() -> None:
     sub = next(a for a in cli.construir_parser()._actions if a.dest == "comando")
     assert set(sub.choices) == {"saldos", "resumo", "vencimentos", "projecao", "gastos",
-                                "lancamentos", "faturas", "holerites", "contas", "categorias", "importar",
+                                "lancamentos", "faturas", "holerites", "relatorio", "contas", "categorias", "importar",
                                 "casar",
                                 "categorizar", "regra", "pagar", "criar-conta", "gmail-buscar"}
 
@@ -466,3 +466,13 @@ def test_importar_ofx_todas_as_linhas_depois_do_dtasof_sem_estimativa(tmp_path: 
     codigo, r = rodar(capsys, banco, "importar", "--arquivo", str(arq), "--conta", "1")
     assert codigo == 0 and r["novos"] == 12
     assert r.get("saldo_inicial_estimado") is None
+
+
+@pytest.mark.parametrize("argv", [
+    ["saldos", "--d", "x.db"], ["saldos", "--d=x.db"], ["--d", "x.db", "saldos"],
+    ["resumo", "--ho=2030-01-01"], ["resumo", "--h", "2030-01-01"],
+    ["categorizar", "--lanc", "1", "--categoria", "5"],
+])
+def test_opcoes_abreviadas_sao_recusadas(argv: list[str]) -> None:
+    with pytest.raises(cli.ErroLancamento):
+        cli.construir_parser().parse_args(argv)

@@ -52,8 +52,28 @@
       </main>
     </div>
   </div>
-  {% if url_terminal %}
+  {% if chat_ativo or url_terminal %}
   <button type="button" id="consultor-balao" class="consultor-balao" aria-expanded="false" aria-controls="consultor-painel" aria-label="Abrir o Consultor">{{ icone("message-circle", 24) }}</button>
+  {% if chat_ativo %}
+  <section id="consultor-painel" class="consultor-painel" role="dialog" aria-label="Consultor" data-modo="chat" hidden>
+    <header class="consultor-topo">
+      <strong>Consultor</strong>
+      <button type="button" id="chat-nova" class="consultor-nova">Nova conversa</button>
+      <button type="button" id="consultor-fechar" class="consultor-acao" aria-label="Minimizar o Consultor">{{ icone("x", 16) }}</button>
+    </header>
+    <div class="consultor-corpo chat-corpo">
+      <div id="chat-mensagens" class="chat-mensagens" role="log" aria-live="polite" aria-label="Conversa com o Consultor" tabindex="0"></div>
+      <form id="chat-form" class="chat-form" autocomplete="off">
+        <textarea id="chat-entrada" class="chat-entrada" rows="1" maxlength="2000" placeholder="Pergunte sobre suas finanças" aria-label="Mensagem para o Consultor"></textarea>
+        <button type="submit" id="chat-enviar" class="chat-enviar" aria-label="Enviar">{{ icone("send", 18) }}</button>
+      </form>
+    </div>
+    {% if url_terminal %}<p class="consultor-rodape"><a href="{{ url_terminal }}" target="_blank" rel="noopener">Abrir terminal em nova aba</a></p>{% endif %}
+    <div id="consultor-alca" class="consultor-alca" aria-hidden="true"></div>
+  </section>
+  <script src="/static/js/chat-markdown.js?v={{ versao_static }}" defer></script>
+  <script src="/static/js/consultor-chat.js?v={{ versao_static }}" defer></script>
+  {% else %}
   <section id="consultor-painel" class="consultor-painel" role="dialog" aria-label="Consultor" data-url="{{ url_terminal }}" hidden>
     <header class="consultor-topo">
       <strong>Consultor</strong>
@@ -64,6 +84,7 @@
     <p class="consultor-rodape">Não carregou? <a href="{{ url_terminal }}" target="_blank" rel="noopener">Abrir terminal em nova aba</a></p>
     <div id="consultor-alca" class="consultor-alca" aria-hidden="true"></div>
   </section>
+  {% endif %}
   <script src="/static/js/consultor-balao.js?v={{ versao_static }}" defer></script>
   {% endif %}
   <script>

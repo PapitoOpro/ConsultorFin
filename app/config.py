@@ -34,3 +34,22 @@ def caminho_chave_senhas() -> Path:
     """Chave AES das senhas de PDF (env CONSULTORFIN_SENHAS_KEY; padrão data/senhas.key)."""
     valor = os.environ.get("CONSULTORFIN_SENHAS_KEY", "").strip()
     return Path(valor) if valor else RAIZ / "data" / "senhas.key"
+
+
+def chat_ativo() -> bool:
+    """Chat próprio do consultor no painel (env CONSULTORFIN_CHAT=1); sem isso vale o balão do terminal."""
+    return os.environ.get("CONSULTORFIN_CHAT", "").strip() == "1"
+
+
+def caminho_claude() -> str:
+    """Executável do Claude Code usado pelo chat (env CONSULTORFIN_CLAUDE_BIN; padrão `claude` no PATH)."""
+    return os.environ.get("CONSULTORFIN_CLAUDE_BIN", "").strip() or "claude"
+
+
+MODELO_CHAT: str = "sonnet"
+TIMEOUT_CHAT_S: int = 180
+LIMITE_MENSAGEM_CHAT: int = 2000
+
+LIMITE_LINHAS_RELATORIO: int = 2000
+DIAS_EXPIRACAO_RELATORIO: int = 30
+DIR_RELATORIOS: Path = RAIZ / "data" / "relatorios"
