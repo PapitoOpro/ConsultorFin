@@ -272,9 +272,10 @@
           formatter: function (p) { return p.data.fmt + (rotuloExtra ? "  " + p.data[rotuloExtra] : ""); }
         },
         data: ord.map(function (i, idx) {
-          var lider = idx === ord.length - 1;  // maior item (último após inverter) leva o acento
+          var cores = T.paleta(C);  // mesma ordem/cor da rosca: posição original (antes de inverter)
+          var pos = ord.length - 1 - idx;
           return { value: i.valor_centavos, fmt: i.valor_fmt, pct: i.percentual, name: i.nome,
-                   itemStyle: { color: lider ? C.primaria : cor, borderRadius: 8 } };
+                   itemStyle: { color: pos < cores.length ? cores[pos] : cor, borderRadius: 8 } };
         })
       }]
     }), chave);
