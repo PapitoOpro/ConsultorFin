@@ -155,9 +155,30 @@ def validar_espec(bruto: object) -> Espec:
     )
 
 
-_DESPESA_FROM = (
+# Consumo (mesma regra de `consumo_do_mes`/`despesas_detalhadas`): saídas e pagamentos de fatura
+# não casados de contas que não são cartão (pela data de compensação) + itens de fatura pela data
+# da compra (crédito abate). A linha única da fatura NÃO entra. Datas ilustrativas: troque pelo período.
+_CONSUMO = (
+    "(SELECT l.data_compensacao AS data, l.descricao AS descricao, -l.valor_centavos AS valor,"
+    " cat.nome AS cat_nome, pai.nome AS pai_nome"
+    " FROM lancamentos l JOIN contas c ON c.id = l.conta_id"
+    " LEFT JOIN categorias cat ON cat.id = l.categoria_id"
+    " LEFT JOIN categorias pai ON pai.id = cat.pai_id"
+    " WHERE l.compensado = 1 AND c.tipo != 'cartao' AND l.tipo IN ('saida', 'pagamento_fatura')"
+    " AND l.data_compensacao >= '2026-10-01' AND l.data_compensacao < '2026-11-01'"
+    " AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
+    " UNION ALL"
+    " SELECT i.data AS data, i.descricao AS descricao, -i.valor_centavos AS valor,"
+    " cat.nome AS cat_nome, pai.nome AS pai_nome"
+    " FROM fatura_itens i"
+    " LEFT JOIN categorias cat ON cat.id = i.categoria_id"
+    " LEFT JOIN categorias pai ON pai.id = cat.pai_id"
+    " WHERE i.data >= '2026-10-01' AND i.data < '2026-11-01')"
+)
+
+# Caixa: o que saiu das contas (cartão conta pela linha da fatura, na data do pagamento).
+_CAIXA = (
     "FROM lancamentos l JOIN contas c ON c.id = l.conta_id "
-    "LEFT JOIN categorias cat ON cat.id = l.categoria_id "
     "WHERE l.compensado = 1 AND (c.tipo != 'cartao' OR l.tipo = 'fatura') "
     "AND l.tipo IN ('saida', 'pagamento_fatura', 'fatura') "
     "AND l.data_compensacao >= '2026-10-01' AND l.data_compensacao < '2026-11-01' "
@@ -167,12 +188,17 @@ _DESPESA_FROM = (
 ESPEC_EXEMPLO: dict[str, Any] = {
     "titulo": "Gastos por categoria",
     "periodo": {"de": "2026-10-01", "ate": "2026-10-31"},
-    "observacao": "Resumo dos gastos do mês e das maiores categorias.",
+    "observacao": "Quanto foi consumido no mês, por categoria (subcategorias somadas na categoria-pai).",
     "kpis": [
         {
-            "rotulo": "Total gasto",
+            "rotulo": "Total consumido",
             "formato": "moeda",
-            "sql": f"SELECT -SUM(l.valor_centavos) AS total {_DESPESA_FROM}",
+            "sql": f"SELECT SUM(valor) AS total FROM {_CONSUMO}",
+        },
+        {
+            "rotulo": "Saiu das contas",
+            "formato": "moeda",
+            "sql": f"SELECT -SUM(l.valor_centavos) AS total {_CAIXA}",
         },
     ],
     "graficos": [
@@ -181,15 +207,14 @@ ESPEC_EXEMPLO: dict[str, Any] = {
             "titulo": "Top categorias",
             "formato": "moeda",
             "largura": "cheia",
-            "sql": "SELECT COALESCE(cat.nome, 'Sem categoria') AS categoria, "
-                   f"-SUM(l.valor_centavos) AS valor {_DESPESA_FROM} "
+            "sql": "SELECT COALESCE(pai_nome, cat_nome, 'Sem categoria') AS categoria, "
+                   f"SUM(valor) AS valor FROM {_CONSUMO} "
                    "GROUP BY categoria ORDER BY valor DESC LIMIT 10",
         },
     ],
     "tabela": {
         "titulo": "Maiores gastos",
-        "formatos": ["texto", "texto", "moeda"],  # moeda = centavos inteiros
-        "sql": "SELECT l.data_compensacao AS data, l.descricao AS descricao, "
-               f"-l.valor_centavos AS valor {_DESPESA_FROM} ORDER BY valor DESC LIMIT 20",
+        "sql": "SELECT data, descricao, COALESCE(cat_nome, 'Sem categoria') AS categoria, valor "
+               f"FROM {_CONSUMO} ORDER BY valor DESC LIMIT 20",
     },
 }

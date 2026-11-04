@@ -82,3 +82,55 @@ def test_sem_spec_e_arquivo_inexistente(db: Path, tmp_path: Path,
     assert rodar(capsys, db, "relatorio")[0] == 1
     codigo, r = rodar(capsys, db, "relatorio", "--spec", str(tmp_path / "nao.json"))
     assert codigo == 1 and "erro" in r
+
+
+def _semear_saude(db: Path) -> None:
+    from app.db import conectar
+    con = conectar(db)
+    try:
+        cartao = con.execute(
+            "INSERT INTO contas (uuid, nome, tipo, saldo_inicial_centavos, data_saldo_inicial)"
+            " VALUES ('u-cartao', 'Cartão', 'cartao', 0, '2026-07-24')").lastrowid
+        cat = {r["nome"]: r["id"] for r in con.execute("SELECT id, nome FROM categorias")}
+        fatura = con.execute(
+            "INSERT INTO faturas (uuid, conta_id, competencia, data_vencimento,"
+            " total_impresso_centavos, total_calculado_centavos, arquivo_hash, criado_em)"
+            " VALUES ('f1', ?, '2026-10', '2026-10-25', 15000, 15000, 'h', '2026-10-20')",
+            (cartao,)).lastrowid
+        for ordem, (data, valor, nome) in enumerate(
+                [("2026-10-10", -20000, "Consultas médicas"), ("2026-10-12", 5000, "Consultas médicas")]):
+            con.execute(
+                "INSERT INTO fatura_itens (uuid, fatura_id, ordem, data, descricao, valor_centavos,"
+                " tipo, categoria_id) VALUES (?, ?, ?, ?, 'ITEM', ?, 'compra', ?)",
+                (f"i{ordem}", fatura, ordem, data, valor, cat[nome]))
+        con.execute(
+            "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+            " categoria_id, chave_deduplicacao, origem, data_compensacao, compensado)"
+            " VALUES ('l-saude', 1, '2026-10-15', 'FARMACIA', -10000, 'saida', ?, 'k-saude',"
+            " 'manual', '2026-10-15', 1)", (cat["Medicamentos"],))
+        con.commit()
+    finally:
+        con.close()
+
+
+def test_exemplo_usa_consumo_e_agrupa_subcategorias(db: Path, pasta: Path, tmp_path: Path,
+                                                    capsys: pytest.CaptureFixture[str]) -> None:
+    from app.db import conectar
+    from app.dominio.categorias import consumo_do_mes
+    _semear_saude(db)
+    _, ex = rodar(capsys, db, "relatorio", "exemplo")
+    arq = tmp_path / "ex.json"
+    arq.write_text(json.dumps(ex), encoding="utf-8")
+    codigo, r = rodar(capsys, db, "relatorio", "--spec", str(arq))
+    assert codigo == 0, r
+    ret = json.loads((pasta / f"{r['relatorio_id']}.json").read_text(encoding="utf-8"))
+    con = conectar(db)
+    try:
+        esperado = consumo_do_mes(con, 2026, 10)
+    finally:
+        con.close()
+    assert ret["kpis"][0]["valor"] == esperado
+    por_nome = {linha["nome"]: linha["valor"] for linha in ret["graficos"][0]["linhas"]}
+    assert por_nome["Saúde"] == 25000  # cartão (20000 - 5000 de crédito) + farmácia (10000)
+    assert "Consultas médicas" not in por_nome and "Medicamentos" not in por_nome
+    assert sum(por_nome.values()) == esperado
