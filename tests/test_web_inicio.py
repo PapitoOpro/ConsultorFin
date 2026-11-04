@@ -397,7 +397,7 @@ def test_tabela_expansivel_categoria_subcategoria_lancamentos(
     assert "<details" in tab and "Alimentação" in tab and "Feira" in tab
     assert "Feira do Zé" in tab and "09/10/2026" in tab and "R$ 100,00" in tab
     assert "Sem categoria" in tab
-    assert re.search(r'Total</td>\s*<td class="valor saida">R\$ 3\.333,29<', tab)
+    assert re.search(r'Total por categoria</td>\s*<td class="valor saida">R\$ 3\.333,29<', tab)
     assert "filtro aproximado por data e categoria; pode diferir do painel" in tab
     hrefs = [unescape(h) for h in re.findall(r'href="(/lancamentos\?[^"]+)"', tab)]
     qs = next(parse_qs(urlparse(h).query) for h in hrefs if f"categoria_id={sub}&" in h)
@@ -437,7 +437,7 @@ def test_cartao_nao_altera_saidas_rosca_nem_tabela(cliente: TestClient, conta: i
     con.close()
     resumo, tab, d = _saidas_e_tabela(cliente)
     assert "R$ 3.233,29" in resumo and "Gasto cartão" not in tab
-    assert re.search(r'Total</td>\s*<td class="valor saida">R\$ 3\.233,29<', tab)
+    assert re.search(r'Total por categoria</td>\s*<td class="valor saida">R\$ 3\.233,29<', tab)
     assert sum(f["valor_centavos"] for f in d["rosca"]) == 323329
     assert d["comparativo"][1]["saidas_centavos"] == 323329
 
