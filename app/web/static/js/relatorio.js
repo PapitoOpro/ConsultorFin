@@ -177,9 +177,16 @@
       if (typeof v === "number" && numerica[c]) { return formatar(v, formatos[c]); }
       return String(v);
     }
+    var detalhes = t.detalhes && typeof t.detalhes === "object" ? t.detalhes : {};
     var linhas = t.linhas.map(function (l) {
       var txt = l.map(texto);
-      return { cel: l, txt: txt, busca: txt.join(" ").toLowerCase() };
+      var subs = Object.prototype.hasOwnProperty.call(detalhes, String(l[0])) && Array.isArray(detalhes[String(l[0])])
+        ? detalhes[String(l[0])] : [];
+      var filhos = subs.map(function (s) {
+        var st = s.map(texto);
+        return { txt: st, busca: st.join(" ").toLowerCase() };
+      });
+      return { cel: l, txt: txt, busca: txt.join(" ").toLowerCase(), filhos: filhos, aberto: false };
     });
 
     var barra = el("div", "relatorio-busca");
@@ -248,13 +255,34 @@
       corpo.textContent = "";
       var n = 0;
       linhas.forEach(function (l) {
-        if (q && l.busca.indexOf(q) < 0) { return; }
+        var porFilho = q && l.filhos.some(function (f) { return f.busca.indexOf(q) >= 0; });
+        if (q && l.busca.indexOf(q) < 0 && !porFilho) { return; }
         n += 1;
         var tr = el("tr");
         l.txt.forEach(function (s, c) {
-          tr.appendChild(el("td", numerica[c] ? "valor" : "", s));
+          var td = el("td", numerica[c] ? "valor" : "");
+          if (c === 0 && l.filhos.length) {
+            var aberto = l.aberto || porFilho;
+            var b = el("button", "relatorio-expandir", s);
+            b.type = "button";
+            b.setAttribute("aria-expanded", aberto ? "true" : "false");
+            b.addEventListener("click", function () { l.aberto = !aberto; desenhar(); });
+            td.appendChild(b);
+          } else {
+            td.textContent = s;
+          }
+          tr.appendChild(td);
         });
         corpo.appendChild(tr);
+        if (l.aberto || porFilho) {
+          l.filhos.forEach(function (f) {
+            var trf = el("tr", "relatorio-sub");
+            f.txt.forEach(function (s, c) {
+              trf.appendChild(el("td", numerica[c] ? "valor" : "", s));
+            });
+            corpo.appendChild(trf);
+          });
+        }
       });
       contagem.textContent = n === 1 ? "1 linha" : n + " linhas";
       if (n === 0) {

@@ -846,4 +846,11 @@ p.destaque-grafico { margin: 0 0 4px; font-size: 20px; font-weight: 500; }
 th[aria-sort="ascending"] .relatorio-ordenar::after { content: " ▲"; }
 th[aria-sort="descending"] .relatorio-ordenar::after { content: " ▼"; }
 .relatorio-pagina td { overflow-wrap: anywhere; }
+.relatorio-expandir { font: inherit; color: inherit; background: transparent; border: 0; padding: 0; min-height: 0; cursor: pointer; text-align: left; }
+.relatorio-expandir::before { content: "B8"; display: inline-block; width: 1.2em; color: var(--texto-secundario); }
+.relatorio-expandir[aria-expanded="true"]::before { content: "BE"; }
+.relatorio-expandir:hover { color: var(--texto); background: transparent; filter: none; }
+.relatorio-expandir:focus-visible { outline: 2px solid var(--primaria); outline-offset: 2px; }
+.relatorio-sub td { color: var(--texto-secundario); background: var(--superficie-2); }
+.relatorio-sub td:first-child { padding-left: 36px; }
 .relatorio-rodape { font-size: 12px; }

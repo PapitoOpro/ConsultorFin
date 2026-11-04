@@ -93,7 +93,7 @@ def test_claude_md_tem_modos_e_regra_de_credenciais() -> None:
     assert re.search(r"^#+ .*Modo desenvolvimento", texto, re.M)
     assert texto.index("Modo consultor") < texto.index("Modo desenvolvimento")
     assert REGRA_CREDENCIAIS in [p.strip() for p in re.split(r"\n\s*\n", texto)]
-    assert "## 12. Ordem de trabalho da v0.1" in texto
+    assert "## 11. Fluxo de trabalho" in texto
 
 
 @pytest.mark.parametrize("arq", _arquivos_texto(), ids=lambda p: p.name)

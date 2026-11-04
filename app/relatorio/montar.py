@@ -112,8 +112,24 @@ def _montar_tabela(caminho_db: Path, t: Tabela) -> dict[str, Any]:
     formatos = list(t.formatos) if t.formatos is not None else ["texto"] * len(res.colunas)
     if len(formatos) != len(res.colunas):
         raise ErroRelatorio("tabela: a lista de formatos da tabela deve ter uma entrada por coluna.")
-    return {"titulo": t.titulo, "colunas": list(res.colunas), "formatos": formatos,
-            "linhas": [[_celula(c) for c in r] for r in res.linhas], "truncado": res.truncado}
+    retrato: dict[str, Any] = {"titulo": t.titulo, "colunas": list(res.colunas), "formatos": formatos,
+                               "linhas": [[_celula(c) for c in r] for r in res.linhas],
+                               "truncado": res.truncado}
+    if t.detalhe_sql:
+        retrato["detalhes"] = _montar_detalhes(caminho_db, t, len(res.colunas), retrato)
+    return retrato
+
+
+def _montar_detalhes(caminho_db: Path, t: Tabela, n_colunas: int, retrato: dict[str, Any]) -> dict[str, list[list[Any]]]:
+    """Subitens por linha-pai: {texto da 1ª coluna: [[nome, demais colunas...], ...]}."""
+    res = executar_select(caminho_db, t.detalhe_sql or "")
+    if len(res.colunas) != n_colunas + 1:
+        raise ErroRelatorio("tabela: detalhe_sql deve ter uma coluna a mais que a tabela (a categoria-pai antes das colunas da tabela).")
+    detalhes: dict[str, list[list[Any]]] = {}
+    for r in res.linhas:
+        detalhes.setdefault(str(_celula(r[0])), []).append([_celula(c) for c in r[1:]])
+    retrato["truncado"] = bool(retrato["truncado"] or res.truncado)
+    return detalhes
 
 
 def _escrever_atomico(pasta: Path, rid: str, retrato: dict[str, Any]) -> None:

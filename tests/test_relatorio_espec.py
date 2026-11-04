@@ -115,3 +115,11 @@ def test_tabela_formatos_invalidos(ruim: Any) -> None:
 
 def test_exemplo_declara_moeda_na_tabela() -> None:
     assert "moeda" in (validar_espec(ESPEC_EXEMPLO).tabela.formatos or ())  # type: ignore[union-attr]
+
+
+def test_tabela_detalhe_sql_opcional() -> None:
+    assert validar_espec(_com_tabela()).tabela.detalhe_sql is None  # type: ignore[union-attr]
+    e = validar_espec(_com_tabela(detalhe_sql="select 1 as a, 2 as b"))
+    assert e.tabela.detalhe_sql == "select 1 as a, 2 as b"  # type: ignore[union-attr]
+    with pytest.raises(ErroRelatorio):
+        validar_espec(_com_tabela(detalhe_sql=""))

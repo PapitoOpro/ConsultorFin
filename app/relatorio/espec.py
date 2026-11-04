@@ -41,6 +41,7 @@ class Tabela:
     titulo: str
     sql: str
     formatos: tuple[str, ...] | None = None  # um por coluna; None = tudo texto
+    detalhe_sql: str | None = None  # 1ª coluna = valor da 1ª coluna da tabela (pai); 2ª em diante = colunas da tabela
 
 
 @dataclass(frozen=True)
@@ -113,13 +114,15 @@ def _grafico(bruto: object, i: int) -> Grafico:
 
 
 def _tabela(bruto: object) -> Tabela:
-    d = _objeto(bruto, "tabela", {"titulo", "sql", "formatos"}, {"titulo", "sql"})
+    d = _objeto(bruto, "tabela", {"titulo", "sql", "formatos", "detalhe_sql"}, {"titulo", "sql"})
+    detalhe = d.get("detalhe_sql")
     bruto_fmt = d.get("formatos")
     formatos = None if bruto_fmt is None else tuple(
         _escolha(f, "tabela", "formatos", FORMATOS_TABELA)
         for f in _lista(bruto_fmt, "tabela", "formatos", MAX_COLUNAS))
     return Tabela(titulo=_texto(d["titulo"], "tabela", "titulo", MAX_TITULO),
-                  sql=_texto(d["sql"], "tabela", "sql", MAX_SQL), formatos=formatos)
+                  sql=_texto(d["sql"], "tabela", "sql", MAX_SQL), formatos=formatos,
+                  detalhe_sql=None if detalhe is None else _texto(detalhe, "tabela", "detalhe_sql", MAX_SQL))
 
 
 def _data_iso(valor: object, campo: str) -> str:
@@ -213,9 +216,15 @@ ESPEC_EXEMPLO: dict[str, Any] = {
         },
     ],
     "tabela": {
-        "titulo": "Maiores gastos",
-        "formatos": ["texto", "texto", "texto", "moeda"],  # moeda = centavos inteiros
-        "sql": "SELECT data, descricao, COALESCE(cat_nome, 'Sem categoria') AS categoria, valor "
-               f"FROM {_CONSUMO} ORDER BY valor DESC LIMIT 20",
+        "titulo": "Detalhe por categoria",
+        "formatos": ["texto", "moeda", "inteiro"],  # moeda = centavos inteiros
+        "sql": "SELECT COALESCE(pai_nome, cat_nome, 'Sem categoria') AS categoria, "
+               f"SUM(valor) AS total, COUNT(*) AS qtd FROM {_CONSUMO} GROUP BY categoria ORDER BY total DESC",
+        # Opcional: subcategorias, abertas ao clicar na categoria. 1ª coluna = categoria (igual à da
+        # tabela), 2ª = subcategoria, demais = as colunas da tabela depois da 1ª.
+        "detalhe_sql": "SELECT COALESCE(pai_nome, cat_nome, 'Sem categoria') AS categoria, "
+                       "COALESCE(CASE WHEN pai_nome IS NOT NULL THEN cat_nome END, 'Sem subcategoria') AS subcategoria, "
+                       f"SUM(valor) AS total, COUNT(*) AS qtd FROM {_CONSUMO} GROUP BY categoria, subcategoria "
+                       "ORDER BY total DESC",
     },
 }

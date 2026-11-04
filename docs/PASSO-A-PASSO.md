@@ -213,6 +213,7 @@ Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o
 ### Relatórios com gráfico
 Peça um gráfico ou relatório ("faz um relatório dos últimos 6 meses", "para onde vai meu dinheiro?"). O chat mostra um cartão **Abrir relatório**; clique para abrir em nova aba. A página traz um resumo de uma frase, indicadores (com comparação ao período anterior), gráficos de barras, linha e rosca, e uma tabela com busca e ordenação.
 
+- Quando a tabela é por categoria, clique no nome da categoria (seta ▸) para abrir as subcategorias com total e quantidade. Para ver os lançamentos de uma subcategoria, peça ao consultor.
 - É um **retrato do momento da pergunta**: não atualiza sozinho. Peça de novo para atualizar.
 - Gasto por categoria segue a data da compra (itens da fatura); "quanto saiu da conta" segue a data do pagamento. Perguntas sobre uma categoria incluem as subcategorias.
 - Os relatórios ficam em `data/relatorios/` e são apagados depois de 30 dias (a limpeza roda quando o app reinicia). Não há tela de lista: use o cartão do chat.

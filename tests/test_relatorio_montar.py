@@ -255,3 +255,24 @@ def test_tabela_formatos_tamanho_errado(db: Path, tmp_path: Path) -> None:
 def test_tabela_moeda_com_celula_nao_numerica(db: Path, tmp_path: Path) -> None:
     t = _tab(db, tmp_path, "SELECT 'abc' AS a", ("moeda",))
     assert t["linhas"] == [["abc"]]
+
+
+def _tab_detalhe(db: Path, tmp_path: Path, sql: str, detalhe: str) -> dict[str, Any]:
+    pasta = tmp_path / "r"
+    r = gerar_relatorio(db, _espec(tabela=Tabela("T", sql, None, detalhe)), pasta, AGORA)
+    return json.loads((pasta / f"{r['id']}.json").read_text(encoding="utf-8"))["tabela"]
+
+
+def test_tabela_detalhes_agrupados_por_pai(db: Path, tmp_path: Path) -> None:
+    t = _tab_detalhe(db, tmp_path, "SELECT 'A' AS c, 30 AS total",
+                     "SELECT 'A' AS c, 'a1' AS s, 10 AS t UNION ALL SELECT 'A', 'a2', 20")
+    assert t["detalhes"] == {"A": [["a1", 10], ["a2", 20]]}
+
+
+def test_tabela_sem_detalhe_nao_tem_chave(db: Path, tmp_path: Path) -> None:
+    assert "detalhes" not in _tab(db, tmp_path, "SELECT 'A' AS c, 30 AS total", None)
+
+
+def test_tabela_detalhe_com_colunas_erradas(db: Path, tmp_path: Path) -> None:
+    with pytest.raises(ErroRelatorio, match="uma coluna a mais"):
+        _tab_detalhe(db, tmp_path, "SELECT 'A' AS c, 30 AS total", "SELECT 'A' AS c, 10 AS t")
