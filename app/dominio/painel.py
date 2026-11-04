@@ -3,7 +3,7 @@ import calendar
 import re
 from urllib.parse import urlencode
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from app.dominio import insights
@@ -13,7 +13,7 @@ from app.dominio.lancamentos import ErroLancamento
 from app.dominio.projecao import Vencimentos, pendentes_por_mes, projetar, vencimentos
 from app.dominio.recorrentes import gerar_recorrentes
 from app.dominio.saldo import saldo_atual
-from app.repo import contas, faturas as repo_faturas, painel
+from app.repo import contas, faturas as repo_faturas, lancamentos as repo_lanc, painel
 
 MSG_MES = "Mês inválido. Use o formato AAAA-MM."
 SEM_CATEGORIA = "Sem categoria"
@@ -150,6 +150,9 @@ class Resumo:
     categorias: list[Categoria]
     ano: int
     mes: int
+    a_pagar_centavos: int = 0  # saídas pendentes vencidas + a vencer na janela (magnitude)
+    a_pagar_vencidas_centavos: int = 0  # parte do total acima que já venceu
+    a_pagar_qtd: int = 0
 
     @property
     def sobra_centavos(self) -> int:
@@ -179,7 +182,13 @@ def resumo_inicio(con: Any, hoje: date, ano: int, mes: int, horizonte: int,
     lista = [SaldoConta(int(c["id"]), str(c["nome"]), str(c["tipo"]),
                         saldo_atual(con, int(c["id"]), hoje)) for c in contas.listar(con)]
     total = sum(c.saldo_centavos for c in lista if c.tipo != "cartao")
+    pend = repo_lanc.saidas_pendentes_entre(
+        con, None, (hoje + timedelta(days=JANELA_A_PAGAR_DIAS)).isoformat())
     return Resumo(
+        a_pagar_centavos=-sum(int(r["valor_centavos"]) for r in pend),
+        a_pagar_vencidas_centavos=-sum(int(r["valor_centavos"]) for r in pend
+                                       if str(r["data"]) < hoje.isoformat()),
+        a_pagar_qtd=len(pend),
         vazio=not lista or painel.total_lancamentos(con) == 0, contas=lista,
         saldo_total_centavos=total, entradas_centavos=entradas_do_mes(con, ano, mes),
         saidas_centavos=despesas_do_mes(con, ano, mes), venc=vencimentos(con, hoje, janela_dias),
@@ -415,6 +424,7 @@ MAX_VENCIDAS_INICIO = 3
 MAX_A_VENCER_INICIO = 5
 TOTAL_VENCIMENTOS_INICIO = 6
 JANELA_A_VENCER_DIAS = 7
+JANELA_A_PAGAR_DIAS = 30
 
 
 def selecionar_vencimentos(

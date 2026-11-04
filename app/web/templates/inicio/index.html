@@ -89,12 +89,10 @@
   <div class="kpi"><div class="rotulo">Saídas do mês</div>
     <div class="valor numero saida">{{ resumo.saidas_centavos|brl }}</div>
     {{ variacao(ind.var_saidas, ind.mes_anterior, ind.aviso_saidas) }}</div>
-  <div class="kpi"><div class="rotulo">Resultado do mês</div>
-    <div class="valor numero {{ classe(resumo.sobra_centavos) }}">{{ resumo.sobra_centavos|brl }}</div>
-    {% if resumo.sobra_centavos > 0 %}<span class="kpi-variacao sobe">superávit</span>
-    {% elif resumo.sobra_centavos < 0 %}<span class="kpi-variacao desce">déficit</span>
-    {% elif resumo.entradas_centavos or resumo.saidas_centavos %}<span class="kpi-variacao">equilibrado</span>
-    {% else %}<span class="kpi-variacao">sem movimento</span>{% endif %}</div>
+  <div class="kpi"><div class="rotulo">A pagar em 30 dias</div>
+    <div class="valor numero {{ 'saida' if resumo.a_pagar_centavos }}">{{ resumo.a_pagar_centavos|brl }}</div>
+    {% if resumo.a_pagar_qtd %}<span class="kpi-variacao">{{ resumo.a_pagar_qtd }} conta{{ 's' if resumo.a_pagar_qtd != 1 }}{% if resumo.a_pagar_vencidas_centavos %} · inclui {{ resumo.a_pagar_vencidas_centavos|brl }} vencidas{% endif %}</span>
+    {% else %}<span class="kpi-variacao">nada pendente</span>{% endif %}</div>
 </section>
 
 <div class="grade-paineis analise">

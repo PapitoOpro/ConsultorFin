@@ -1,6 +1,6 @@
 import re
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 from html import unescape
@@ -119,28 +119,33 @@ def test_cartao_negativo_com_classe_saida_e_fora_do_total(
                      _bloco(html, "Resumo do mês"))  # cartão fora do total
 
 
-def test_cartoes_entradas_saidas_resultado_de_outubro(cliente: TestClient, conta: int) -> None:
+def test_cartoes_entradas_e_saidas_de_outubro(cliente: TestClient, conta: int) -> None:
     resumo = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
     assert re.search(r'Entradas do mês</div>\s*<div class="valor numero entrada">R\$ 400,00<', resumo)
     assert re.search(r'Saídas do mês</div>\s*<div class="valor numero saida">R\$ 3\.233,29<', resumo)
-    assert re.search(r'Resultado do mês</div>\s*<div class="valor numero saida">- R\$ 2\.833,29<', resumo)
-    assert "déficit" in resumo
+    assert "Resultado do mês" not in resumo
 
 
-def test_resultado_positivo_em_verde_com_superavit(cliente: TestClient, conta: int) -> None:
-    resumo = _bloco(cliente.get("/?mes=2026-09").text, "Resumo do mês")
-    assert re.search(r'Resultado do mês</div>\s*<div class="valor numero entrada">R\$ 2\.906,20<', resumo)
-    assert "superávit" in resumo
+def test_a_pagar_30_dias_soma_vencidas_e_janela(cliente: TestClient, conta: int, db: Path) -> None:
+    base = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
+    assert "A pagar em 30 dias" in base
+    _manual(db, conta, HOJE - timedelta(days=3), "Atrasada", -10000, False)
+    _manual(db, conta, HOJE + timedelta(days=10), "Dentro", -20000, False)
+    _manual(db, conta, HOJE + timedelta(days=45), "Fora", -50000, False)
+    card = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
+    novo = card[card.index("A pagar em 30 dias"):]
+    antes = base[base.index("A pagar em 30 dias"):]
+    assert novo != antes and "R$ 500,00" not in novo and "inclui" in novo
 
 
 def test_variacao_percentual_vs_mes_anterior(cliente: TestClient, conta: int) -> None:
     resumo = _bloco(cliente.get("/?mes=2026-10").text, "Resumo do mês")
     ent = resumo[resumo.index("Entradas do mês"):resumo.index("Saídas do mês")]
-    sai = resumo[resumo.index("Saídas do mês"):resumo.index("Resultado do mês")]
+    sai = resumo[resumo.index("Saídas do mês"):resumo.index("A pagar em 30 dias")]
     assert "-87,5%" in ent and "desce" in ent and "vs set/26" in ent  # menos entrada: ruim
     assert "+1.000,5%" in sai and "desce" in sai and "subiu" in sai  # mais gasto: ruim
     assert "icone" in ent and "icone" in sai  # seta, não só cor
-    assert "%" not in resumo[resumo.index("Resultado do mês"):]
+    assert "%" not in resumo[resumo.index("A pagar em 30 dias"):]
     assert "%" not in resumo[:resumo.index("Entradas do mês")]
 
 
@@ -153,7 +158,7 @@ def test_variacao_boa_usa_classe_sobe(cliente: TestClient, conta: int, db: Path)
         con.close()
     assert esperado.startswith("-")
     resumo = _bloco(cliente.get("/?mes=2026-09").text, "Resumo do mês")
-    sai = resumo[resumo.index("Saídas do mês"):resumo.index("Resultado do mês")]
+    sai = resumo[resumo.index("Saídas do mês"):resumo.index("A pagar em 30 dias")]
     assert esperado in sai and "caiu" in sai and "sobe" in sai  # gastou menos que ago/26: bom
 
 
@@ -200,7 +205,7 @@ def test_vencimentos_vazio(cliente: TestClient, conta: int) -> None:
 
 def test_blocos_novos_do_dashboard_com_dados_reais(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/?mes=2026-10").text
-    for titulo in ("Saldo total", "Entradas do mês", "Saídas do mês", "Resultado do mês",
+    for titulo in ("Saldo total", "Entradas do mês", "Saídas do mês", "A pagar em 30 dias",
                    "Fluxo de caixa", "Gastos por categoria", "Lançamentos recentes",
                    "Próximos vencimentos"):
         assert titulo in html, titulo
@@ -580,15 +585,6 @@ def test_vencimentos_mais_de_cinco_a_vencer_mostra_link(cliente: TestClient, con
     assert venc.count("Prox") == 5
     assert '<a href="/contas-a-pagar#a-vencer">+2 a vencer</a>' in venc
     assert "vencidas</a>" not in venc and "vencida</a>" not in venc
-
-
-def test_resultado_zero_nao_diz_superavit(cliente: TestClient, conta: int, db: Path) -> None:
-    sem = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
-    assert "sem movimento" in sem and "superávit" not in sem and "déficit" not in sem
-    _manual(db, conta, date(2026, 12, 5), "Entra", 5000, True)
-    _manual(db, conta, date(2026, 12, 6), "Sai", -5000, True)
-    eq = _bloco(cliente.get("/?mes=2026-12").text, "Resumo do mês")
-    assert "equilibrado" in eq and "superávit" not in eq
 
 
 def test_cada_grafico_traz_numero_e_insight(cliente: TestClient, conta: int) -> None:
