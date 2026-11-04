@@ -193,3 +193,40 @@ def test_sql_recusado_propaga_erro_relatorio(db: Path, tmp_path: Path) -> None:
     with pytest.raises(ErroRelatorio):
         gerar_relatorio(db, espec, tmp_path / "r", AGORA)
     assert not (tmp_path / "r").exists() or not list((tmp_path / "r").glob("*.json"))
+
+
+def _estrito(txt: str) -> Any:
+    def recusa(c: str) -> None:
+        raise AssertionError(f"constante não-JSON: {c}")
+    return json.loads(txt, parse_constant=recusa)
+
+
+@pytest.mark.parametrize("sql", ["SELECT 1e999", "SELECT -1e999"])
+def test_kpi_infinito_gera_erro(db: Path, tmp_path: Path, sql: str) -> None:
+    with pytest.raises(ErroRelatorio, match="numérico"):
+        gerar_relatorio(db, _espec(kpis=(Kpi("K", "moeda", sql, None),)), tmp_path / "r", AGORA)
+    with pytest.raises(ErroRelatorio, match="numérico"):
+        gerar_relatorio(db, _espec(kpis=(Kpi("K", "moeda", "SELECT 1", sql),)), tmp_path / "r", AGORA)
+
+
+def test_grafico_infinito_gera_erro(db: Path, tmp_path: Path) -> None:
+    with pytest.raises(ErroRelatorio, match="numérico"):
+        gerar_relatorio(db, _espec(graficos=(_graf("SELECT 'a', 1e999"),)), tmp_path / "r", AGORA)
+
+
+def test_tabela_celulas_infinito_e_binario(db: Path, tmp_path: Path) -> None:
+    pasta = tmp_path / "r"
+    espec = _espec(tabela=Tabela("T", "SELECT 1e999 AS a, -1e999 AS b, x'ff' AS c, 5 AS d"))
+    r = gerar_relatorio(db, espec, pasta, AGORA)
+    assert _estrito((pasta / f"{r['id']}.json").read_text(encoding="utf-8"))["tabela"]["linhas"] == [
+        [None, None, "<binário>", 5]]
+
+
+def test_falha_de_serializacao_nao_deixa_arquivo(db: Path, tmp_path: Path,
+                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    def quebra(*a: Any, **k: Any) -> str:
+        raise TypeError("x")
+    monkeypatch.setattr(montar.json, "dumps", quebra)
+    with pytest.raises(ErroRelatorio):
+        gerar_relatorio(db, _espec(), tmp_path / "r", AGORA)
+    assert not list((tmp_path / "r").glob("*"))

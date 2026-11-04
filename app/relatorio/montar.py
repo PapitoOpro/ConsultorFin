@@ -5,6 +5,7 @@ Dinheiro fica em centavos inteiros; a página formata depois. Só os nomes
 AAAA-MM -> "setembro de 2026". Nada financeiro vai para logs.
 """
 import json
+import math
 import os
 import re
 import uuid
@@ -45,7 +46,17 @@ def _numero(valor: Any, onde: str) -> int:
     """Inteiro (centavos/contagem). Float é arredondado; qualquer outra coisa é erro."""
     if isinstance(valor, bool) or not isinstance(valor, (int, float)):
         raise ErroRelatorio(f"{onde}: o valor retornado pela consulta deve ser numérico.")
+    if not math.isfinite(valor):
+        raise ErroRelatorio(f"{onde}: o valor retornado pela consulta deve ser numérico finito.")
     return int(round(valor))
+
+
+def _celula(valor: Any) -> Any:
+    if isinstance(valor, (bytes, bytearray, memoryview)):
+        return "<binário>"
+    if isinstance(valor, float) and not math.isfinite(valor):
+        return None
+    return valor
 
 
 def _valor_unico(res: Resultado, onde: str) -> int | None:
@@ -99,7 +110,7 @@ def _montar_grafico(caminho_db: Path, g: Grafico) -> dict[str, Any]:
 def _montar_tabela(caminho_db: Path, t: Tabela) -> dict[str, Any]:
     res = executar_select(caminho_db, t.sql)
     return {"titulo": t.titulo, "colunas": list(res.colunas),
-            "linhas": [list(r) for r in res.linhas], "truncado": res.truncado}
+            "linhas": [[_celula(c) for c in r] for r in res.linhas], "truncado": res.truncado}
 
 
 def _escrever_atomico(pasta: Path, rid: str, retrato: dict[str, Any]) -> None:
@@ -107,7 +118,11 @@ def _escrever_atomico(pasta: Path, rid: str, retrato: dict[str, Any]) -> None:
     destino = pasta / f"{rid}.json"
     temporario = pasta / f"{rid}.json.tmp"
     try:
-        temporario.write_text(json.dumps(retrato, ensure_ascii=False), encoding="utf-8")
+        texto = json.dumps(retrato, ensure_ascii=False, allow_nan=False)
+    except (ValueError, TypeError):
+        raise ErroRelatorio("O relatório contém valores que não podem ser salvos.") from None
+    try:
+        temporario.write_text(texto, encoding="utf-8")
         os.replace(temporario, destino)
     except OSError:
         temporario.unlink(missing_ok=True)
