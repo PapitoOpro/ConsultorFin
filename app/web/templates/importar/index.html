@@ -7,9 +7,18 @@
   {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% endblock %}
 {% block cabecalho_pagina %}
-<div class="cabecalho-titulo"><h1>Importar extrato</h1><p class="subtitulo">Envie um arquivo OFX, CSV ou Excel para lançar as movimentações.</p></div>
+<div class="cabecalho-titulo"><h1>Importar</h1><p class="subtitulo">Extratos, faturas de cartão e holerites.</p></div>
 {% endblock %}
 {% block conteudo %}
+{% set aba_inicial = "faturas" if (fatura.erro or fatura.token) else "holerites" if holerite.erro else "extratos" %}
+<nav class="abas" role="tablist" aria-label="Tipos de importação">
+  <button type="button" role="tab" data-aba="extratos">Extratos</button>
+  <button type="button" role="tab" data-aba="faturas">Faturas</button>
+  <button type="button" role="tab" data-aba="holerites">Holerites</button>
+  <button type="button" role="tab" data-aba="historico">Histórico</button>
+</nav>
+
+<div data-painel-aba="extratos">
 {{ etapas(1) }}
 <form method="post" action="/importar/previa" enctype="multipart/form-data" class="painel" data-carregando>
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Enviar arquivo</h2><p class="subtitulo">Nada é gravado agora: você confere uma prévia antes de confirmar.</p></div></div>
@@ -54,6 +63,9 @@
   })();
 </script>
 
+</div>
+
+<div data-painel-aba="faturas" hidden>
 <div id="fila-faturas" hx-get="/faturas/fila" hx-trigger="load, every 5s" hx-swap="innerHTML" hx-include="#fila-versao" aria-live="polite"></div>
 
 <form method="post" action="/faturas/previa" enctype="multipart/form-data" class="painel" id="fatura" data-carregando>
@@ -95,6 +107,9 @@
 </section>
 {% endif %}
 
+</div>
+
+<div data-painel-aba="holerites" hidden>
 <form method="post" action="/holerites/previa" enctype="multipart/form-data" class="painel" id="holerite" data-carregando>
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar holerite (PDF)</h2><p class="subtitulo">Adiantamento ou folha mensal em PDF. Nada é gravado agora: você confere uma prévia antes de confirmar.</p></div></div>
   {% if holerite.erro %}{% call alerta("erro") %}{{ holerite.erro }}{% endcall %}{% endif %}
@@ -125,12 +140,17 @@
   </div>
 </form>
 
+</div>
+
+<div data-painel-aba="extratos" hidden>
 {% set token = none %}{% set sugestao = none %}
 <div class="grade-forms">
 {% include "importar/_form_conta.html" %}
 {% if contas %}{% include "importar/_form_saldo.html" %}{% endif %}
 </div>
+</div>
 
+<div data-painel-aba="historico" hidden>
 <section class="painel" aria-label="Histórico de importações">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Histórico de importações</h2><p class="subtitulo">Importações anteriores; desfazer remove os lançamentos criados por ela.</p></div></div>
   {% if historico %}
@@ -156,4 +176,24 @@
   {{ estado_vazio("Nenhuma importação ainda.", "upload") }}
   {% endif %}
 </section>
+</div>
+<script>
+  (function () {
+    var botoes = document.querySelectorAll("[data-aba]");
+    var paineis = document.querySelectorAll("[data-painel-aba]");
+    var inicial = "{{ aba_inicial }}";
+    function mostrar(nome) {
+      paineis.forEach(function (p) { p.hidden = p.getAttribute("data-painel-aba") !== nome; });
+      botoes.forEach(function (b) {
+        var ativa = b.getAttribute("data-aba") === nome;
+        b.classList.toggle("ativa", ativa);
+        b.setAttribute("aria-selected", ativa ? "true" : "false");
+      });
+    }
+    botoes.forEach(function (b) { b.addEventListener("click", function () { mostrar(b.getAttribute("data-aba")); }); });
+    var hash = location.hash.replace("#", "");
+    var porHash = { fatura: "faturas", "fila-faturas": "faturas", "senhas-guardadas": "faturas", holerite: "holerites" };
+    mostrar(porHash[hash] || inicial);
+  })();
+</script>
 {% endblock %}

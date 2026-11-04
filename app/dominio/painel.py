@@ -419,6 +419,7 @@ def _vencimento(r: Any, hoje: date) -> dict[str, Any]:
     return {
         "id": int(r["id"]), "data": str(r["data"]), "descricao": str(r["descricao"]),
         "conta": str(r["conta_nome"]), "conta_tipo": str(r["conta_tipo"]),
+        "conta_id": int(r["conta_id"]), "origem": str(r["origem"]),
         "valor_centavos": -int(r["valor_centavos"]),
         "estimado": bool(r["estimado"]), "dias": (date.fromisoformat(str(r["data"])) - hoje).days,
         "situacao": _situacao(str(r["data"]), hoje),
@@ -430,7 +431,27 @@ def _vencimento(r: Any, hoje: date) -> dict[str, Any]:
 def proximos_vencimentos_com_resto(con: Any, hoje: date) -> tuple[list[dict[str, Any]], int, int]:
     """Saídas pendentes para a lista do Início (regra de `selecionar_vencimentos`) e quantas
     vencidas / a vencer ficaram de fora."""
-    return selecionar_vencimentos([_vencimento(r, hoje) for r in painel.saidas_pendentes_proximas(con, 1000)])
+    return selecionar_vencimentos(_agrupar_faturas_previstas(
+        [_vencimento(r, hoje) for r in painel.saidas_pendentes_proximas(con, 1000)]))
+
+
+def _agrupar_faturas_previstas(itens: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Junta os itens da fatura prevista (origem 'fatura_prevista') de mesma conta e data em
+    uma linha única; lançamentos avulsos e faturas importadas passam como estão (ordem por data)."""
+    grupos: dict[tuple[str, str], dict[str, Any]] = {}
+    saida: list[dict[str, Any]] = []
+    for i in itens:
+        if i["origem"] != "fatura_prevista":
+            saida.append(i)
+            continue
+        g = grupos.get((i["conta"], i["data"]))
+        if g is None:
+            g = grupos[(i["conta"], i["data"])] = {
+                **i, "id": f"fatura-{i['conta_id']}-{i['data']}",
+                "descricao": f"Fatura prevista · {i['conta']}", "valor_centavos": 0, "estimado": True}
+            saida.append(g)
+        g["valor_centavos"] += i["valor_centavos"]
+    return sorted(saida, key=lambda x: x["data"])
 
 
 def proximos_vencimentos(con: Any, hoje: date, limite: int = 6) -> list[dict[str, Any]]:
