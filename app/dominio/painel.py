@@ -84,14 +84,15 @@ class Categoria:
     subs: list[Sub] = field(default_factory=list)
 
 
-def gastos_por_categoria(con: Any, ano: int, mes: int) -> list[Categoria]:
+def gastos_por_categoria(con: Any, ano: int, mes: int, por_pagamento: bool = True) -> list[Categoria]:
     """Despesas do mês agrupadas Categoria > Subcategoria > lançamentos (até 50 por
     subcategoria), maiores primeiro. Subcategorias somam na categoria-pai; lançamento direto
-    na categoria vai para a linha '(sem subcategoria)'. A soma dos totais = consumo_do_mes
-    (itens de fatura pela data da compra; não é o caixa de `despesas_do_mes`)."""
+    na categoria vai para a linha '(sem subcategoria)'. Critério de caixa: itens de fatura
+    entram no mês do pagamento da fatura (a soma dos totais ≈ `despesas_do_mes`);
+    `por_pagamento=False` usa a data da compra (= `consumo_do_mes`)."""
     ini, fim, _ = _limites(ano, mes)
     raizes: dict[int | None, Categoria] = {}
-    for r in painel.despesas_detalhadas(con, ini, fim):
+    for r in painel.despesas_detalhadas(con, ini, fim, por_pagamento):
         if r["cat_id"] is None:
             raiz_id, raiz_nome, sub_id, sub_nome = None, SEM_CATEGORIA, None, ""
         elif r["pai_id"] is None:

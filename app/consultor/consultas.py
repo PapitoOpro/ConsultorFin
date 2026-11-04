@@ -152,7 +152,7 @@ def gastos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any]:
             {"id": c.id, "nome": c.nome, **dinheiro("total", c.total_centavos),
              "subcategorias": [{"id": s.id, "nome": s.nome, **dinheiro("total", s.total_centavos),
                                 "n_lancamentos": s.n} for s in c.subs]}
-            for c in painel.gastos_por_categoria(con, ano, m)]}
+            for c in painel.gastos_por_categoria(con, ano, m, por_pagamento=False)]}
 
 
 def lancamentos(con: Any, hoje: date, *, de: str | None = None, ate: str | None = None,

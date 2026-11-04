@@ -2,12 +2,16 @@
 import sqlite3
 
 
-def despesas_detalhadas(con: sqlite3.Connection, inicio_iso: str, fim_iso: str) -> list[sqlite3.Row]:
-    """Consumo — mesmo critério de `consumo_do_mes` (não é o caixa de `despesas_do_mes`):
-    saídas e pagamentos de fatura não casados,
-    compensados, de contas não-cartão, com data_compensacao em [inicio, fim); mais os itens de
-    fatura pela data da compra (crédito com valor negativo, abate). `origem`: 'lancamento' ou
+def despesas_detalhadas(con: sqlite3.Connection, inicio_iso: str, fim_iso: str,
+                        por_pagamento: bool = True) -> list[sqlite3.Row]:
+    """Caixa por categoria (`por_pagamento=False`: consumo, itens pela data da compra):
+    saídas e pagamentos de fatura não casados, compensados, de contas não-cartão, com data_compensacao em [inicio, fim); mais os itens de
+    fatura cuja fatura foi paga (linha da fatura compensada) em [inicio, fim) — o item entra
+    no mês do pagamento (crédito com valor negativo, abate). `origem`: 'lancamento' ou
     'fatura_item' (os ids são de tabelas diferentes). Categoria e categoria-pai (NULL = sem)."""
+    filtro_itens = (
+        " WHERE fl.compensado = 1 AND fl.data_compensacao >= :ini AND fl.data_compensacao < :fim"
+        if por_pagamento else " WHERE i.data >= :ini AND i.data < :fim")
     return con.execute(
         "SELECT l.id AS id, 'lancamento' AS origem, l.data_compensacao AS data, l.descricao,"
         " -l.valor_centavos AS valor, c.nome AS conta_nome,"
@@ -25,9 +29,10 @@ def despesas_detalhadas(con: sqlite3.Connection, inicio_iso: str, fim_iso: str) 
         " cat.id AS cat_id, cat.nome AS cat_nome, pai.id AS pai_id, pai.nome AS pai_nome"
         " FROM fatura_itens i"
         " JOIN faturas fa ON fa.id = i.fatura_id JOIN contas fc ON fc.id = fa.conta_id"
+        " LEFT JOIN lancamentos fl ON fl.id = fa.lancamento_id"
         " LEFT JOIN categorias cat ON cat.id = i.categoria_id"
         " LEFT JOIN categorias pai ON pai.id = cat.pai_id"
-        " WHERE i.data >= :ini AND i.data < :fim"
+        + filtro_itens +
         " ORDER BY data, origem, id",
         {"ini": inicio_iso, "fim": fim_iso},
     ).fetchall()

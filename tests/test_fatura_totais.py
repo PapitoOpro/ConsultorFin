@@ -95,7 +95,10 @@ def test_painel_exclui_pagamento_casado_e_mostra_fatura_pendente(con: sqlite3.Co
         con, "2026-10-01", "2026-11-01")]
     pag.confirmar_pagamento(con, ids["fatura"], lid)
     assert ids["linha"] not in [int(r["id"]) for r in repo_painel.saidas_pendentes_proximas(con, 50)]
-    assert repo_painel.despesas_detalhadas(con, "2026-10-01", "2026-11-01") == []
+    # pagamento casado sai; os itens da fatura entram no mês do pagamento (caixa)
+    linhas = repo_painel.despesas_detalhadas(con, "2026-10-01", "2026-11-01")
+    assert {str(r["origem"]) for r in linhas} == {"fatura_item"} and len(linhas) == 3
+    assert repo_painel.despesas_detalhadas(con, "2026-09-01", "2026-10-01") == []
     r = resumo_inicio(con, date(2026, 10, 27), 2026, 10, 3)
     assert r.saidas_centavos == 30000 and r.saldo_total_centavos == 70000  # caixa: a fatura
     assert entradas_do_mes(con, 2026, 10) == 0
@@ -137,12 +140,16 @@ def test_consumo_do_mes_soma_itens_pela_data_da_compra(con: sqlite3.Connection) 
     assert (consumo_do_mes(con, 2026, 9), consumo_do_mes(con, 2026, 10)) == (30000, 0)
 
 
-def test_categorias_usam_itens_e_sem_categoria(con: sqlite3.Connection) -> None:
+def test_categorias_usam_itens_da_fatura_paga_no_mes_do_pagamento(con: sqlite3.Connection) -> None:
     ids = _setup(con)
-    g = gastos_por_categoria(con, 2026, 9)
+    assert gastos_por_categoria(con, 2026, 10) == []  # fatura ainda não paga
+    lid = _pagto(con, ids["cc"], "2026-10-09")
+    pag.confirmar_pagamento(con, ids["fatura"], lid)
+    assert gastos_por_categoria(con, 2026, 9) == []  # mês da compra não conta
+    g = gastos_por_categoria(con, 2026, 10)
     totais = {c.nome: c.total_centavos for c in g}
     assert totais == {"Loja Inventada": 20000, SEM_CATEGORIA: 10000}
-    assert sum(c.total_centavos for c in g) == consumo_do_mes(con, 2026, 9)
+    assert sum(c.total_centavos for c in g) == despesas_do_mes(con, 2026, 10)
     assert ids["cat"] in [c.id for c in g]
 
 
