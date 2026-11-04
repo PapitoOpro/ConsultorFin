@@ -120,6 +120,16 @@ def listar(con: sqlite3.Connection, conta_id: int | None = None) -> list[sqlite3
     ).fetchall()
 
 
+def listar_importadas(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Faturas importadas com nome da conta, nº de itens e se já têm pagamento casado."""
+    return con.execute(
+        "SELECT f.id, f.competencia, f.data_vencimento, f.total_impresso_centavos,"
+        " f.pagamento_lancamento_id IS NOT NULL AS paga, c.nome AS conta_nome,"
+        " (SELECT COUNT(*) FROM fatura_itens i WHERE i.fatura_id = f.id) AS n_itens"
+        " FROM faturas f JOIN contas c ON c.id = f.conta_id"
+        " ORDER BY f.data_vencimento DESC, f.id DESC").fetchall()
+
+
 def total_em_aberto(con: sqlite3.Connection, conta_id: int) -> int:
     """Soma (centavos, positivo) do total impresso das faturas da conta ainda não pagas
     (lançamento pendente). O impresso é o que o banco cobra (inclui saldo anterior/financiado)."""

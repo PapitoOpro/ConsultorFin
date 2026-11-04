@@ -94,6 +94,20 @@
   </div>
 </form>
 
+{% if faturas_importadas %}
+<section class="painel" id="faturas-importadas" aria-label="Faturas já importadas">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Faturas já importadas</h2><p class="subtitulo">Por vencimento, da mais recente para a mais antiga.</p></div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
+    <thead><tr><th>Vencimento</th><th>Cartão</th><th>Itens</th><th>Situação</th><th class="num">Total</th></tr></thead>
+    <tbody>
+    {% for f in faturas_importadas %}
+      <tr><td class="data-linha">{{ f.data_vencimento | data_br }}</td><td>{{ f.conta_nome }}</td><td class="sec">{{ f.n_itens }}</td><td>{{ "Paga" if f.paga else "A pagar" }}</td><td class="num valor">{{ f.total_impresso_centavos | brl }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
 {% if senhas_guardadas %}
 <section class="painel" id="senhas-guardadas" aria-label="Senhas guardadas">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Senhas guardadas</h2><p class="subtitulo">Senhas de PDF lembradas por cartão (cifradas; nunca exibidas). Esquecer faz o sistema voltar a pedir a senha.</p></div></div>
