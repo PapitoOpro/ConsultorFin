@@ -5,7 +5,7 @@ Execução (fábrica preguiçosa; importar este módulo não cria nem toca `data
 """
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from app import config
 from app.db import conectar, migrar
 from app.dominio.dinheiro import fim_do_mes_iso, formatar_brl, iso_para_br
+from app.relatorio.montar import limpar_expirados
 from app.web.rotas import routers
 from app.web.seguranca import ProtecaoOrigemHost
 from app.web.uploads import ArmazemFaturas, ArmazemHolerites, ArmazemUploads
@@ -26,16 +27,18 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     destino = config.DB_PATH if caminho_db is None else caminho_db
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
         con = conectar(destino)
         try:
             migrar(con)
         finally:
             con.close()
+        limpar_expirados(app_.state.dir_relatorios, datetime.now())
         yield
 
     app = FastAPI(title="ConsultorFin", lifespan=lifespan)
     app.state.caminho_db = destino
+    app.state.dir_relatorios = config.DIR_RELATORIOS  # testes sobrescrevem
     templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
     templates.env.filters["brl"] = formatar_brl
     templates.env.filters["data_br"] = iso_para_br

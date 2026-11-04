@@ -1,0 +1,43 @@
+{% from "_macros.html" import estado_vazio %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{ dados.titulo }} · ConsultorFin</title>
+  <link rel="stylesheet" href="/static/css/tema.css?v={{ versao_static }}">
+</head>
+<body class="relatorio">
+  <main class="relatorio-pagina" id="conteudo">
+    <header class="relatorio-topo">
+      <h1>{{ dados.titulo }}</h1>
+      {% if periodo %}<p class="secundario relatorio-periodo">Período: {{ periodo }}</p>{% endif %}
+      {% if dados.observacao %}<p class="relatorio-observacao">{{ dados.observacao }}</p>{% endif %}
+    </header>
+    {% if kpis %}
+    <section class="relatorio-kpis" aria-label="Indicadores">
+      {% for k in kpis %}
+      <div class="kpi">
+        <span class="rotulo">{{ k.rotulo }}</span>
+        {% if k.sem_valor %}<span class="numero">—</span><span class="kpi-variacao">Sem dados no período</span>
+        {% else %}<span class="numero relatorio-numero">{{ k.texto }}</span>
+        {% if k.delta %}<span class="kpi-variacao {{ 'sobe' if k.sobe else 'desce' }}"><span aria-hidden="true">{{ '▲' if k.sobe else '▼' }}</span> {{ k.delta }} vs período anterior</span>{% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+    <section class="relatorio-graficos" id="relatorio-graficos" aria-label="Gráficos"{% if not tem_graficos %} hidden{% endif %}></section>
+    <section class="painel relatorio-tabela" id="relatorio-tabela" aria-label="Tabela"{% if not tem_tabela %} hidden{% endif %}></section>
+    {% if not kpis and not tem_graficos and not tem_tabela %}
+    <div class="painel">{{ estado_vazio("Este relatório não tem dados para mostrar.") }}</div>
+    {% endif %}
+    <footer class="relatorio-rodape secundario">Retrato gerado em {{ gerado_em }}</footer>
+  </main>
+  <script type="application/json" id="dados-relatorio">{{ dados | tojson }}</script>
+  <script src="/static/js/echarts.min.js?v={{ versao_static }}"></script>
+  <script src="/static/js/graficos-tema.js?v={{ versao_static }}"></script>
+  <script src="/static/js/relatorio.js?v={{ versao_static }}"></script>
+</body>
+</html>
