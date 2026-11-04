@@ -5,7 +5,7 @@ import re
 import shutil
 import sys
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -14,6 +14,8 @@ from app.consultor import consultas, operacoes
 from app.db import MIGRACOES, conectar, migrar
 from app.dominio.lancamentos import ErroLancamento, interpretar_data, interpretar_id
 from app.importacao.servico import ArquivoJaImportado
+from app.relatorio.espec import ESPEC_EXEMPLO, ErroRelatorio, validar_espec
+from app.relatorio.montar import gerar_relatorio
 
 MSG_SEM_BANCO = ("Banco de dados não encontrado ({caminho}). Crie a conta com o comando "
                  "criar-conta e importe o primeiro extrato com o comando importar.")
@@ -110,6 +112,9 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("id", nargs="?", default=None)
     s.add_argument("--ano", default=None)
     s.add_argument("--item", default=None)
+    s = sub.add_parser("relatorio", help="Gera um relatório com gráficos (somente leitura).")
+    s.add_argument("acao", nargs="?", choices=["exemplo"], default=None)
+    s.add_argument("--spec", default=None, help="Arquivo da especificação, ou - para ler da entrada.")
     sub.add_parser("contas", help="Contas cadastradas.")
     sub.add_parser("categorias", help="Categorias e subcategorias.")
     s = sub.add_parser("importar", help="Importa um extrato (simula sem --confirmar).")
@@ -170,6 +175,28 @@ def _holerites(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
     return consultas.holerites(con, hoje, ano, a.item)
 
 
+def _ler_spec(origem: str) -> object:
+    try:
+        texto = sys.stdin.read() if origem == "-" else Path(origem).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        raise ErroRelatorio("Não foi possível ler a especificação do relatório.") from None
+    try:
+        return json.loads(texto)
+    except ValueError:
+        raise ErroRelatorio("A especificação do relatório não é um JSON válido.") from None
+
+
+def _relatorio(con: Any, hoje: date, a: argparse.Namespace) -> dict[str, Any]:
+    if a.acao == "exemplo":
+        return ESPEC_EXEMPLO
+    if not a.spec:
+        raise ErroRelatorio("Use: relatorio --spec ARQUIVO (ou - para ler da entrada) ou relatorio exemplo.")
+    espec = validar_espec(_ler_spec(a.spec))
+    caminho = Path(a.db) if a.db else config.DB_PATH
+    r = gerar_relatorio(caminho, espec, config.DIR_RELATORIOS, datetime.now())
+    return {"relatorio_id": r["id"], "titulo": r["titulo"], "url": r["url"]}
+
+
 COMANDOS: dict[str, Comando] = {
     "saldos": lambda con, hoje, a: consultas.saldos(con, hoje),
     "resumo": lambda con, hoje, a: consultas.resumo(con, hoje, a.mes),
@@ -179,6 +206,7 @@ COMANDOS: dict[str, Comando] = {
     "lancamentos": _lancamentos,
     "faturas": _faturas,
     "holerites": _holerites,
+    "relatorio": _relatorio,
     "contas": lambda con, hoje, a: consultas.contas(con, hoje),
     "categorias": lambda con, hoje, a: consultas.categorias(con, hoje),
 }

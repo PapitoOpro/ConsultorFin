@@ -21,7 +21,8 @@ Padrão: vale sempre que o usuário perguntar ou pedir algo sobre as próprias f
 - Faturas de cartão: `faturas [--conta ID]` lista e `faturas ver ID` mostra os itens (somente leitura). Fatura em PDF só se importa pelo painel (tela Importar): a senha do PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`. A linha da fatura nunca é "marcada como paga": o `pagar` recusa; ela fica paga casando o pagamento do banco no painel (Lançamentos). Na lista, `divergencia_sentido` (`acima`/`abaixo`/`zero`) diz se o total impresso ficou acima ou abaixo da soma dos itens. Em `gastos`, se `consumo` diferir de `saidas`, explique com `nota_totais` (categorias por data da compra; saídas por data do pagamento).
 - Holerites: `holerites [--ano AAAA] [--item TERMO]` e `holerites ver ID` (somente leitura). Holerite em PDF só se importa pelo painel (Importar → Holerite): o PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`.
 - `resumo`, `vencimentos` e `projecao` também criam, uma única vez, os lançamentos estimados das contas fixas do período. Mencione isso só se o usuário perguntar.
-- Skills disponíveis: saldo, holerite, vencimentos, projecao, gastos, importar, categorizar, painel, faturas-gmail.
+- Relatórios com gráfico são pedidos ao consultor (skill `relatorio`) e abrem em nova aba.
+- Skills disponíveis: saldo, holerite, vencimentos, projecao, gastos, importar, categorizar, painel, faturas-gmail, relatorio.
 
 ## Segurança
 

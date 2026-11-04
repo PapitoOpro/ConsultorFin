@@ -148,15 +148,24 @@ def validar_espec(bruto: object) -> Espec:
     )
 
 
+_DESPESA_FROM = (
+    "FROM lancamentos l JOIN contas c ON c.id = l.conta_id "
+    "LEFT JOIN categorias cat ON cat.id = l.categoria_id "
+    "WHERE l.compensado = 1 AND (c.tipo != 'cartao' OR l.tipo = 'fatura') "
+    "AND l.tipo IN ('saida', 'pagamento_fatura', 'fatura') "
+    "AND l.data_compensacao >= '2026-10-01' AND l.data_compensacao < '2026-11-01' "
+    "AND NOT EXISTS (SELECT 1 FROM faturas f WHERE f.pagamento_lancamento_id = l.id)"
+)
+
 ESPEC_EXEMPLO: dict[str, Any] = {
     "titulo": "Gastos por categoria",
-    "periodo": {"de": "2026-01-01", "ate": "2026-01-31"},
+    "periodo": {"de": "2026-10-01", "ate": "2026-10-31"},
     "observacao": "Resumo dos gastos do mês e das maiores categorias.",
     "kpis": [
         {
             "rotulo": "Total gasto",
             "formato": "moeda",
-            "sql": "SELECT -SUM(valor_centavos) FROM lancamentos WHERE valor_centavos < 0",
+            "sql": f"SELECT -SUM(l.valor_centavos) AS total {_DESPESA_FROM}",
         },
     ],
     "graficos": [
@@ -165,13 +174,14 @@ ESPEC_EXEMPLO: dict[str, Any] = {
             "titulo": "Top categorias",
             "formato": "moeda",
             "largura": "cheia",
-            "sql": "SELECT categoria, -SUM(valor_centavos) AS valor FROM lancamentos "
-                   "WHERE valor_centavos < 0 GROUP BY categoria ORDER BY valor DESC LIMIT 10",
+            "sql": "SELECT COALESCE(cat.nome, 'Sem categoria') AS categoria, "
+                   f"-SUM(l.valor_centavos) AS valor {_DESPESA_FROM} "
+                   "GROUP BY categoria ORDER BY valor DESC LIMIT 10",
         },
     ],
     "tabela": {
         "titulo": "Maiores gastos",
-        "sql": "SELECT data, descricao, valor_centavos FROM lancamentos "
-               "WHERE valor_centavos < 0 ORDER BY valor_centavos LIMIT 20",
+        "sql": "SELECT l.data_compensacao AS data, l.descricao AS descricao, "
+               f"-l.valor_centavos AS valor {_DESPESA_FROM} ORDER BY valor DESC LIMIT 20",
     },
 }

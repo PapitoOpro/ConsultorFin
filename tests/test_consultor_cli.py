@@ -401,7 +401,7 @@ def test_excecao_inesperada_vira_json(db_cheio: Path, capsys: pytest.CaptureFixt
 def test_parser_expoe_subcomandos() -> None:
     sub = next(a for a in cli.construir_parser()._actions if a.dest == "comando")
     assert set(sub.choices) == {"saldos", "resumo", "vencimentos", "projecao", "gastos",
-                                "lancamentos", "faturas", "holerites", "contas", "categorias", "importar",
+                                "lancamentos", "faturas", "holerites", "relatorio", "contas", "categorias", "importar",
                                 "casar",
                                 "categorizar", "regra", "pagar", "criar-conta", "gmail-buscar"}
 
