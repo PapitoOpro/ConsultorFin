@@ -4,7 +4,7 @@ import re
 import pytest
 
 from app.chat import guarda
-from app.chat.argv import CONSULTAS_PERMITIDAS, montar_argv, sessao_valida
+from app.chat.argv import CONSULTAS_PERMITIDAS, comando_hook, montar_argv, sessao_valida
 
 SESSAO = "5b1f6a8e-2c3d-4e5f-8a9b-0c1d2e3f4a5b"
 ESCRITA = ".venv/Scripts/python -m app.consultor categorizar --lancamento 1 --categoria 5"
@@ -29,16 +29,18 @@ def test_flags_do_modo_nao_interativo() -> None:
     assert _par(argv, "--model") == "sonnet"
     assert _par(argv, "--permission-prompts") == "none"
     assert _par(argv, "--tools") == "Bash"
-    assert _par(argv, "--setting-sources") == "project,local"
+    assert _par(argv, "--setting-sources") == "project"  # settings.local.json não vale no chat
     assert "--strict-mcp-config" in argv
     assert "--no-session-persistence" not in argv  # --resume precisa da sessão gravada
 
 
-def test_settings_liga_o_porteiro_em_todo_bash() -> None:
+def test_settings_liga_o_porteiro_em_toda_ferramenta() -> None:
     cfg = json.loads(_par(montar_argv(sessao=None), "--settings"))
+    assert set(cfg) == {"hooks"}
     ganchos = cfg["hooks"]["PreToolUse"]
-    assert ganchos[0]["matcher"] == "Bash"
+    assert len(ganchos) == 1 and ganchos[0]["matcher"] == "*"
     comando = ganchos[0]["hooks"][0]["command"]
+    assert comando == comando_hook()
     assert guarda.CAMINHO.as_posix() in comando
     assert "\\" not in comando
 
@@ -66,19 +68,11 @@ def test_sessao_invalida_nao_chega_ao_argv(sessao: str) -> None:
         montar_argv(sessao=sessao)
 
 
-def test_extra_permitido_vira_regra_exata() -> None:
-    regras = _regras(montar_argv(sessao=SESSAO, extras_permitidos=[ESCRITA]))
-    assert f"Bash({ESCRITA})" in regras
-    assert f"Bash({ESCRITA}:*)" not in regras
-
-
-@pytest.mark.parametrize("extra", [
-    ESCRITA + " *", ESCRITA + ")", "Bash(x) " + ESCRITA, ESCRITA + "\nrm x", "rm -rf ./x",
-    ESCRITA + "; cat data/senhas.key", ".venv/Scripts/python -m app.consultor saldos",
-])
-def test_extra_fora_do_formato_de_escrita_e_recusado(extra: str) -> None:
-    with pytest.raises(ValueError):
-        montar_argv(sessao=SESSAO, extras_permitidos=[extra])
+def test_escrita_nunca_entra_nas_regras() -> None:
+    argv = montar_argv(sessao=SESSAO)
+    assert not any("categorizar" in a for a in argv)
+    with pytest.raises(TypeError):
+        montar_argv(sessao=SESSAO, extras_permitidos=[ESCRITA])  # type: ignore[call-arg]
 
 
 def test_caminho_do_claude_configuravel(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -49,6 +49,5 @@ async def confirmar(request: Request, corpo: Confirmacao) -> Response:
         estado.liberar(corpo.sessao)
         return JSONResponse({"erro": MSG_TOKEN}, status_code=404)
     entrada = ENTRADA_CONFIRMADO if corpo.aceitar else ENTRADA_CANCELADO
-    extras = [comando] if corpo.aceitar else []
     return _stream(rodar_turno(estado, request.app.state.claude_fn, sessao=corpo.sessao, entrada=entrada,
-                               extras_permitidos=extras))
+                               confirmado=comando if corpo.aceitar else None))

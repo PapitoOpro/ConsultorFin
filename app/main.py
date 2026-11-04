@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from app import config
 from app.chat.estado import EstadoChat
 from app.chat.processo import executar_claude
+from app.chat.verificacao import chat_pode_iniciar
 from app.db import conectar, migrar
 from app.dominio.dinheiro import fim_do_mes_iso, formatar_brl, iso_para_br
 from app.relatorio.montar import limpar_expirados
@@ -59,6 +60,6 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     app.state.claude_fn = executar_claude  # testes trocam por um gerador falso
     for r in routers:
         app.include_router(r)
-    if config.chat_ativo():
+    if config.chat_ativo() and chat_pode_iniciar():  # sem porteiro, sem chat
         app.include_router(router_chat)
     return app

@@ -4,14 +4,16 @@ import logging
 import os
 import signal
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 
 from app import config
+from app.chat.guarda import VAR_CONFIRMADO
 
 log = logging.getLogger(__name__)
 
 LIMITE_LINHA_BYTES: int = 16 * 1024 * 1024  # resultado de ferramenta grande vem numa linha só
 _POSIX = sys.platform != "win32"
+PREFIXO_CONFIRMACAO = VAR_CONFIRMADO  # cobre também ..._MARCA
 
 
 def _matar(proc: asyncio.subprocess.Process) -> None:
@@ -24,14 +26,21 @@ def _matar(proc: asyncio.subprocess.Process) -> None:
         pass
 
 
-async def executar_claude(argv: list[str], entrada: str) -> AsyncIterator[str]:
+def _ambiente(extra: Mapping[str, str] | None) -> dict[str, str]:
+    """Ambiente do processo: o do servidor sem confirmação herdada, mais a do turno (se houver)."""
+    base = {k: v for k, v in os.environ.items() if not k.startswith(PREFIXO_CONFIRMACAO)}
+    return base | dict(extra or {})
+
+
+async def executar_claude(argv: list[str], entrada: str,
+                          ambiente: Mapping[str, str] | None = None) -> AsyncIterator[str]:
     """Produz as linhas do stdout. TimeoutError após `config.TIMEOUT_CHAT_S` (processo morto)."""
     loop = asyncio.get_running_loop()
     prazo = loop.time() + config.TIMEOUT_CHAT_S
     proc = await asyncio.create_subprocess_exec(
         *argv, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL, cwd=config.RAIZ, limit=LIMITE_LINHA_BYTES,
-        start_new_session=_POSIX)
+        start_new_session=_POSIX, env=_ambiente(ambiente))
     try:
         assert proc.stdin is not None and proc.stdout is not None
         try:

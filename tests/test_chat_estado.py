@@ -66,7 +66,7 @@ def test_turno_cancelado_fecha_o_processo_e_libera_a_sessao() -> None:
     e = EstadoChat()
     assert e.reservar(A)
 
-    async def claude_preso(argv: list[str], entrada: str) -> AsyncIterator[str]:
+    async def claude_preso(argv: list[str], entrada: str, ambiente: dict[str, str]) -> AsyncIterator[str]:
         try:
             yield '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"oi"}}}'
             await anyio.sleep(60)
@@ -98,6 +98,19 @@ def test_executar_claude_passa_entrada_por_stdin() -> None:
            "    sys.stdout.buffer.write(l.decode('utf-8').strip().upper().encode('utf-8') + b'\\n')\n"
            "    sys.stdout.flush()")
     assert asyncio.run(_coletar([sys.executable, "-c", eco], "olá\nmundo")) == ["OLÁ", "MUNDO"]
+
+
+def test_executar_claude_passa_so_o_ambiente_do_turno(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CONSULTORFIN_CONFIRMADO", "herdado")
+    monkeypatch.setenv("CONSULTORFIN_CONFIRMADO_MARCA", "herdado")
+    mostra = ("import os; print(os.environ.get('CONSULTORFIN_CONFIRMADO', '-'), "
+              "os.environ.get('CONSULTORFIN_CONFIRMADO_MARCA', '-'), flush=True)")
+
+    async def rodar(amb: dict[str, str] | None) -> list[str]:
+        return [linha async for linha in processo.executar_claude([sys.executable, "-c", mostra], "", amb)]
+
+    assert asyncio.run(rodar({})) == ["- -"]
+    assert asyncio.run(rodar({"CONSULTORFIN_CONFIRMADO": "cmd", "CONSULTORFIN_CONFIRMADO_MARCA": "m"})) == ["cmd m"]
 
 
 def test_executar_claude_mata_no_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

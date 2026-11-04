@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.chat.guarda import VAR_CONFIRMADO, VAR_MARCA
 from app.main import create_app
 
 FIXTURE = Path(__file__).parent / "fixtures" / "stream_claude.jsonl"
@@ -19,11 +20,16 @@ MSG_ERRO = "Não consegui responder agora. Tente de novo."
 class FalsoClaude:
     def __init__(self) -> None:
         self.chamadas: list[tuple[list[str], str]] = []
+        self.ambientes: list[dict[str, str]] = []
+        self.marca_existia: list[bool] = []
         self.linhas = FIXTURE.read_text(encoding="utf-8").splitlines()
         self.falha: Exception | None = None
 
-    async def __call__(self, argv: list[str], entrada: str) -> AsyncIterator[str]:
+    async def __call__(self, argv: list[str], entrada: str, ambiente: dict[str, str]) -> AsyncIterator[str]:
         self.chamadas.append((argv, entrada))
+        self.ambientes.append(dict(ambiente))
+        marca = ambiente.get(VAR_MARCA)
+        self.marca_existia.append(bool(marca) and Path(str(marca)).parent.is_dir())
         for i, linha in enumerate(self.linhas):
             if self.falha is not None and i == 5:
                 raise self.falha
@@ -67,6 +73,7 @@ def test_stream_de_eventos(cliente: TestClient, falso: FalsoClaude) -> None:
     assert entrada == "qual meu saldo?"
     assert not any("qual meu saldo" in a for a in argv)
     assert "--resume" not in argv
+    assert falso.ambientes[0] == {}
 
 
 def test_sessao_existente_vai_no_resume(cliente: TestClient, falso: FalsoClaude) -> None:
@@ -86,9 +93,13 @@ def test_confirmar_executa_com_o_comando_negado_liberado(cliente: TestClient, fa
     assert r.status_code == 200
     assert _eventos(r.text)[-1]["tipo"] == "fim"
     argv, entrada = falso.chamadas[-1]
-    assert f"Bash({CATEGORIZAR})" in argv
+    assert not any("categorizar" in a for a in argv)  # nada de regra para o turno inteiro
     assert argv[argv.index("--resume") + 1] == SESSAO
     assert entrada == "Confirmado. Execute agora a ação que foi bloqueada e conte o resultado."
+    ambiente = falso.ambientes[-1]
+    assert ambiente[VAR_CONFIRMADO] == CATEGORIZAR  # aprovação única, feita pelo porteiro
+    assert falso.marca_existia[-1]
+    assert not Path(ambiente[VAR_MARCA]).parent.exists()  # pasta do turno apagada no fim
 
 
 def test_token_reutilizado_da_404(cliente: TestClient) -> None:
@@ -116,6 +127,7 @@ def test_cancelar_nao_libera_comando(cliente: TestClient, falso: FalsoClaude) ->
     argv, entrada = falso.chamadas[-1]
     assert entrada == "Cancelado. Não faça essa alteração."
     assert not any("categorizar" in a for a in argv)
+    assert falso.ambientes[-1] == {}
 
 
 @pytest.mark.parametrize("corpo", [
@@ -202,3 +214,54 @@ def test_chat_desativado_da_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("CONSULTORFIN_CHAT", "true")
     with TestClient(create_app(tmp_path / "t.db")) as c:
         assert c.post("/consultor/mensagem", json={"texto": "oi"}).status_code == 404
+
+
+def _cliente_sobe_com_chat(tmp_path: Path) -> int:
+    with TestClient(create_app(tmp_path / "t.db")) as c:
+        return c.post("/consultor/mensagem", json={"texto": "oi"}).status_code
+
+
+def test_porteiro_quebrado_desliga_o_chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                          caplog: pytest.LogCaptureFixture) -> None:
+    from app.chat import argv as argv_mod
+    monkeypatch.setenv("CONSULTORFIN_CHAT", "1")
+    monkeypatch.setattr(argv_mod, "PYTHON_HOOK", tmp_path / "nao-existe" / "python.exe")
+    assert _cliente_sobe_com_chat(tmp_path) == 404
+    assert "event=chat_porteiro_indisponivel" in caplog.text
+
+
+@pytest.mark.parametrize("conteudo", [
+    {"permissions": {"allow": ["Bash(.venv/Scripts/python -m app.consultor pagar:*)"]}},
+    {"permissions": {"defaultMode": "bypassPermissions"}},
+    {"hooks": {"PreToolUse": []}},
+    "isto não é json",
+])
+def test_settings_do_projeto_que_ampliam_permissao_desligam_o_chat(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, conteudo: Any) -> None:
+    from app import config
+    raiz = tmp_path / "raiz"
+    (raiz / ".claude").mkdir(parents=True)
+    texto = conteudo if isinstance(conteudo, str) else json.dumps(conteudo)
+    (raiz / ".claude" / "settings.local.json").write_text(texto, encoding="utf-8")
+    monkeypatch.setattr(config, "RAIZ", raiz)
+    monkeypatch.setenv("CONSULTORFIN_CHAT", "1")
+    assert _cliente_sobe_com_chat(tmp_path) == 404
+    assert "event=chat_settings_inseguros" in caplog.text
+
+
+def test_settings_neutros_mantem_o_chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import config
+    raiz = tmp_path / "raiz"
+    (raiz / ".claude").mkdir(parents=True)
+    (raiz / ".claude" / "settings.json").write_text(json.dumps({"permissions": {"deny": ["Read"]}}),
+                                                    encoding="utf-8")
+    monkeypatch.setattr(config, "RAIZ", raiz)
+    monkeypatch.setenv("CONSULTORFIN_CHAT", "1")
+    with TestClient(create_app(tmp_path / "t.db")) as c:
+        c.app.state.claude_fn = FalsoClaude()  # type: ignore[attr-defined]
+        assert c.post("/consultor/mensagem", json={"texto": "oi"}).status_code == 200
+
+
+def test_settings_reais_do_repositorio_sao_seguros() -> None:
+    from app.chat.verificacao import settings_do_projeto_seguros
+    assert settings_do_projeto_seguros()
