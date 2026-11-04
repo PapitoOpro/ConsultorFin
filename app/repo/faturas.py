@@ -43,6 +43,17 @@ def por_conta_competencia(con: sqlite3.Connection, conta_id: int,
     ).fetchone()
 
 
+def anterior_da_conta(con: sqlite3.Connection, conta_id: int,
+                      data_vencimento: str, fatura_id: int) -> sqlite3.Row | None:
+    """Fatura imediatamente anterior (por vencimento) do mesmo cartão."""
+    return con.execute(
+        "SELECT * FROM faturas WHERE conta_id = ? AND id <> ?"
+        " AND (data_vencimento < ? OR (data_vencimento = ? AND id < ?))"
+        " ORDER BY data_vencimento DESC, id DESC LIMIT 1",
+        (conta_id, fatura_id, data_vencimento, data_vencimento, fatura_id),
+    ).fetchone()
+
+
 def por_lancamento(con: sqlite3.Connection, lancamento_id: int) -> sqlite3.Row | None:
     return con.execute(
         "SELECT * FROM faturas WHERE lancamento_id = ?", (lancamento_id,)

@@ -28,5 +28,14 @@
   {% else %}
     <tr><td colspan="7" class="secundario">Fatura sem itens.</td></tr>
   {% endfor %}
+  {% if residuo and residuo.centavos %}
+    <tr class="residuo-fatura">
+      <td class="col-marcar"></td><td class="sec">—</td>
+      <td class="desc">Saldo da fatura anterior{% if residuo.situacao == "confirmado" %} ({{ residuo.origem_competencia }}){% elif residuo.situacao == "diverge" %}<span class="selo neutro">não confere com o esperado ({{ residuo.esperado_centavos | brl }})</span>{% else %}<span class="selo neutro">origem não identificada</span>{% endif %}
+        <span class="mob-info">Não é compra: não entra nos gastos.</span></td>
+      <td class="sec">—</td><td class="sec">—</td><td class="categoria">—</td>
+      <td class="valor saida">{{ (-residuo.centavos) | brl }}</td>
+    </tr>
+  {% endif %}
   </tbody>
 </table></div>

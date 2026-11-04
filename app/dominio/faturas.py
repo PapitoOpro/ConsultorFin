@@ -407,6 +407,42 @@ def detalhe(con: Any, fatura_id: int) -> tuple[Any, list[Any]]:
     return fat, repo.itens(con, fatura_id)
 
 
+@dataclass(frozen=True)
+class Residuo:
+    """Saldo da fatura anterior que o banco carrega nesta (não é compra: não é consumo).
+    `situacao`: 'confirmado' (bate com o que sobrou da fatura anterior), 'sem_origem' (fatura
+    anterior ausente ou sem pagamento casado) ou 'diverge' (não bate com o esperado)."""
+    centavos: int
+    esperado_centavos: int | None
+    situacao: Literal["confirmado", "sem_origem", "diverge"]
+    origem_fatura_id: int | None
+    origem_competencia: str | None
+
+
+def residuo_da_fatura(con: Any, fat: Any) -> Residuo | None:
+    """Resíduo lido da fatura (`ajustes_resumo_centavos`) conferido com o esperado: total da
+    fatura anterior do cartão menos o pagamento casado a ela. Pagamento não casado: nada é
+    presumido. None quando não há saldo anterior nem sobra esperada."""
+    lido = int(fat["ajustes_resumo_centavos"])
+    anterior = repo.anterior_da_conta(con, int(fat["conta_id"]), str(fat["data_vencimento"]),
+                                      int(fat["id"]))
+    esperado: int | None = None
+    if anterior is not None and anterior["pagamento_lancamento_id"] is not None:
+        pago = repo_lanc.obter(con, int(anterior["pagamento_lancamento_id"]))
+        if pago is not None:
+            esperado = max(int(anterior["total_impresso_centavos"]) + int(pago["valor_centavos"]), 0)
+    if lido == 0 and not esperado:
+        return None
+    if esperado is None:
+        situacao: Literal["confirmado", "sem_origem", "diverge"] = "sem_origem"
+    else:
+        situacao = "confirmado" if lido == esperado else "diverge"
+    origem = anterior if situacao == "confirmado" else None
+    return Residuo(lido, esperado, situacao,
+                   None if origem is None else int(origem["id"]),
+                   None if origem is None else str(origem["competencia"]))
+
+
 def categorizar_itens_da_fatura(con: Any, fatura_id: int, ids: Sequence[int],
                                 categoria_id: int) -> int:
     """Lote restrito aos itens da fatura `fatura_id`."""

@@ -226,7 +226,18 @@ def _cab_fatura(con: Any, f: Any, n_itens: int) -> dict[str, Any]:
         "n_itens": n_itens, "divergencia_centavos": div or None,
         # total impresso acima/abaixo da soma dos itens (+ ajustes)
         "divergencia_sentido": "acima" if div > 0 else ("abaixo" if div < 0 else "zero"),
-        "divergencia": formatar_brl(abs(div)) if div else None}
+        "divergencia": formatar_brl(abs(div)) if div else None,
+        "residuo": _residuo(con, f)}
+
+
+def _residuo(con: Any, f: Any) -> dict[str, Any] | None:
+    """Saldo da fatura anterior carregado nesta (não é compra nem entra nos gastos)."""
+    r = dom_faturas.residuo_da_fatura(con, f)
+    if r is None:
+        return None
+    return {**dinheiro("valor", r.centavos), "situacao": r.situacao,
+            "origem_competencia": r.origem_competencia,
+            **({} if r.esperado_centavos is None else dinheiro("esperado", r.esperado_centavos))}
 
 
 def faturas(con: Any, hoje: date, conta_id: int | None = None) -> dict[str, Any]:

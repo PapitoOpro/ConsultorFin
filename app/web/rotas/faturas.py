@@ -19,7 +19,7 @@ from app.dominio import cofre_senhas
 from app.dominio.faturas import (
     ErroFatura, FaturaDiferenteExistente, FaturaJaImportada, PreviaFatura, RegistroNaoEncontrado,
     alterar_categoria_item, categorizar_itens_da_fatura, detalhe, importar_fatura, nome_cartao,
-    preparar_previa,
+    preparar_previa, residuo_da_fatura,
 )
 from app.dominio.faturas_pagamento import (
     PagamentoInvalido, confirmar_pagamento, desfazer_pagamento, propor_pagamentos,
@@ -335,7 +335,8 @@ def itens(fatura_id: str, request: Request, con: Any = Depends(get_con),
           voltar: str = "") -> Response:
     def montar() -> dict[str, Any]:
         fat, linhas = detalhe(con, interpretar_id(fatura_id, "Fatura"))
-        return {"fatura": fat, "itens": linhas, "categorias": opcoes_categorias(con)}
+        return {"fatura": fat, "itens": linhas, "categorias": opcoes_categorias(con),
+                "residuo": residuo_da_fatura(con, fat)}
     return _fragmento(request, "faturas/_itens.html", {"voltar": voltar[:1000]},
                       "fatura_itens_falhou", montar)
 
