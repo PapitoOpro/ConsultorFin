@@ -216,7 +216,10 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
                for n, v in top]
     pontos = projetar(con, hoje, horizonte)
     comparativo = comparativo_mensal(con, resumo.ano, resumo.mes)
-    parcelas = [_ponto(p.mes, rotulo_mes(p.mes), p.parcelas_centavos) for p in pontos]
+    importadas = _parcelas_importadas_por_mes(con, hoje, horizonte)
+    parcelas = [_ponto(p.mes, rotulo_mes(p.mes),
+                       p.parcelas_centavos + sum(-int(r["valor_centavos"]) for r in importadas[p.mes]))
+                for p in pontos]
     saldo = [{**_ponto(p.mes, rotulo_mes(p.mes), p.saldo_final_centavos),
               "negativo": p.saldo_final_centavos < 0} for p in pontos]
     cartoes = cartoes_em_aberto(con)
@@ -247,11 +250,21 @@ def dados_graficos(con: Any, hoje: date, resumo: Resumo, horizonte: int) -> dict
     }
 
 
+def _parcelas_importadas_por_mes(con: Any, hoje: date, horizonte: int) -> dict[str, list[Any]]:
+    """Parcelas já lançadas em faturas importadas, por mês de vencimento da fatura ('AAAA-MM')."""
+    primeiro = hoje.replace(day=1)
+    por_mes: dict[str, list[Any]] = {somar_meses(primeiro, i).isoformat()[:7]: [] for i in range(horizonte)}
+    for r in repo_faturas.parcelas_importadas(con, primeiro.isoformat(), somar_meses(primeiro, horizonte).isoformat()):
+        por_mes[str(r["data_vencimento"])[:7]].append(r)
+    return por_mes
+
+
 def detalhes_projecao(con: Any, hoje: date, horizonte: int, pontos: list[Any]) -> dict[str, dict[str, Any]]:
     """Origem de cada mês dos gráficos Saldo projetado e Parcelas futuras (chave = rótulo do mês):
     os maiores pendentes que o compõem, com a mesma base de `projetar`."""
     nomes = {int(c["id"]): str(c["nome"]) for c in contas.listar(con)}
     por_mes = pendentes_por_mes(con, hoje, horizonte)
+    importadas = _parcelas_importadas_por_mes(con, hoje, horizonte)
 
     def linha(r: Any) -> dict[str, str]:
         v = int(r["valor_centavos"])
@@ -276,8 +289,17 @@ def detalhes_projecao(con: Any, hoje: date, horizonte: int, pontos: list[Any]) -
             nota += " Inclui pendências vencidas."
         saldo[rot] = montar(f"Saldo ao fim de {rot}", p.saldo_final_centavos, rows, nota)
         par = [r for r in rows if int(r["valor_centavos"]) < 0 and r["grupo_parcela_uuid"]]
-        parcelas[rot] = montar(f"Parcelas de {rot}", p.parcelas_centavos, par,
-                               "Compras parceladas ainda pendentes neste mês.")
+        imp = importadas[p.mes]
+        total_imp = sum(-int(r["valor_centavos"]) for r in imp)
+        det = montar(f"Parcelas de {rot}", p.parcelas_centavos + total_imp, par,
+                     "Parcelas pendentes + parcelas de faturas já importadas neste mês.")
+        linhas_imp = [{"data": iso_para_br(str(r["data"])), "descricao": f"{r['descricao']} ({r['parcela_atual']}/{r['parcela_total']})",
+                       "valor_fmt": formatar_brl(-int(r["valor_centavos"])), "conta": nomes.get(int(r["conta_id"]), ""),
+                       "origem": "Fatura importada", "categoria": ""} for r in imp]
+        det["linhas"] = (det["linhas"] + linhas_imp)[:LIMITE_DETALHE]
+        det["n"] += len(imp)
+        det["restantes"] = det["n"] - len(det["linhas"])
+        parcelas[rot] = det
     return {"saldo": saldo, "parcelas": parcelas}
 
 

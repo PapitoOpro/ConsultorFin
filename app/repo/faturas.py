@@ -20,6 +20,17 @@ def criar(con: sqlite3.Connection, *, conta_id: int, competencia: str, data_venc
     return int(cur.lastrowid)
 
 
+def parcelas_importadas(con: sqlite3.Connection, de: str, ate: str) -> list[sqlite3.Row]:
+    """Itens parcelados (despesas) de faturas importadas com vencimento em [de, ate)."""
+    return con.execute(
+        "SELECT i.data, i.descricao, i.valor_centavos, i.parcela_atual, i.parcela_total,"
+        " f.conta_id, f.data_vencimento FROM fatura_itens i JOIN faturas f ON f.id = i.fatura_id"
+        " WHERE i.parcela_total IS NOT NULL AND i.valor_centavos < 0"
+        " AND f.data_vencimento >= ? AND f.data_vencimento < ? ORDER BY i.valor_centavos",
+        (de, ate),
+    ).fetchall()
+
+
 def obter(con: sqlite3.Connection, fatura_id: int) -> sqlite3.Row | None:
     return con.execute("SELECT * FROM faturas WHERE id = ?", (fatura_id,)).fetchone()
 
