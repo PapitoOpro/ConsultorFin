@@ -214,6 +214,7 @@ ESPEC_EXEMPLO: dict[str, Any] = {
     ],
     "tabela": {
         "titulo": "Maiores gastos",
+        "formatos": ["texto", "texto", "texto", "moeda"],  # moeda = centavos inteiros
         "sql": "SELECT data, descricao, COALESCE(cat_nome, 'Sem categoria') AS categoria, valor "
                f"FROM {_CONSUMO} ORDER BY valor DESC LIMIT 20",
     },
