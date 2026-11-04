@@ -83,7 +83,7 @@
     c = c || cores();
     return Object.assign({
       type: "value", show: false,
-      splitLine: { lineStyle: { color: c.borda } }
+      splitLine: { lineStyle: { color: c.borda, type: "dashed" } }
     }, extra || {});
   }
 
