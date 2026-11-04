@@ -234,6 +234,8 @@ def test_porteiro_quebrado_desliga_o_chat(tmp_path: Path, monkeypatch: pytest.Mo
     {"permissions": {"allow": ["Bash(.venv/Scripts/python -m app.consultor pagar:*)"]}},
     {"permissions": {"defaultMode": "bypassPermissions"}},
     {"hooks": {"PreToolUse": []}},
+    {"disableAllHooks": True},
+    {"env": {"CONSULTORFIN_CONFIRMADO": "1"}},
     "isto não é json",
 ])
 def test_settings_do_projeto_que_ampliam_permissao_desligam_o_chat(
@@ -247,6 +249,7 @@ def test_settings_do_projeto_que_ampliam_permissao_desligam_o_chat(
     monkeypatch.setenv("CONSULTORFIN_CHAT", "1")
     assert _cliente_sobe_com_chat(tmp_path) == 404
     assert "event=chat_settings_inseguros" in caplog.text
+    assert "arquivo=settings.local.json" in caplog.text and "chave=" in caplog.text
 
 
 def test_settings_neutros_mantem_o_chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -265,3 +268,14 @@ def test_settings_neutros_mantem_o_chat(tmp_path: Path, monkeypatch: pytest.Monk
 def test_settings_reais_do_repositorio_sao_seguros() -> None:
     from app.chat.verificacao import settings_do_projeto_seguros
     assert settings_do_projeto_seguros()
+
+
+def test_settings_limpos_e_chave_nomeada(tmp_path: Path) -> None:
+    from app.chat.verificacao import settings_do_projeto_seguros, settings_inseguros
+    (tmp_path / ".claude").mkdir()
+    arq = tmp_path / ".claude" / "settings.json"
+    arq.write_text(json.dumps({"disableAllHooks": False, "model": "x"}), encoding="utf-8")
+    assert settings_do_projeto_seguros(tmp_path)
+    arq.write_text(json.dumps({"disableAllHooks": True}), encoding="utf-8")
+    assert not settings_do_projeto_seguros(tmp_path)
+    assert settings_inseguros(tmp_path) == ("settings.json", "disableAllHooks")

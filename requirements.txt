@@ -10,3 +10,4 @@ httpx2==2.16.0
 pdfplumber==0.11.10
 pycryptodome==4.2.0
 pypdf==6.21.3  # somente testes (PDF criptografado)
+anyio==4.15.1
