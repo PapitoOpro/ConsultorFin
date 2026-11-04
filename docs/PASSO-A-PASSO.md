@@ -1,6 +1,6 @@
 # ConsultorFin: passo a passo
 
-Guia de uso da v0.1. O painel roda no seu computador e não envia nada para a internet. Se você usar o consultor pelo Claude Code (seção 8), o que ele consulta é processado por esse serviço.
+Guia de uso. O painel roda no seu computador (ou na sua VPS) e não faz chamadas externas. Se você usar o consultor (seção 8), o que ele consulta é processado pelo Claude, na nuvem. O Gmail (seção "Faturas do Gmail") é opcional e somente leitura.
 
 ## 1. Abrir o painel
 
@@ -54,7 +54,7 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 **O que você precisa:** o PDF da fatura, baixado do app ou site do emissor, e a senha do PDF (se ele tiver). Emissores suportados: Itaú, Porto e Mercado Pago. PDF escaneado (foto) não é lido.
 
 **Passo a passo** (tela **Importar**, bloco **Importar fatura do cartão (PDF)**):
-1. Escolha o arquivo e digite a senha, se houver. A senha só é usada para abrir o arquivo, fica na memória e não é guardada em lugar nenhum.
+1. Escolha o arquivo e digite a senha, se houver. A senha só é usada para abrir o arquivo; ela só é guardada se você marcar **Lembrar a senha deste cartão** (veja "Senhas de PDF guardadas").
 2. Clique em **Ver prévia da fatura**. Nada é gravado ainda.
 3. **Conferência do total:** o app soma os itens, tira créditos e estornos, soma encargos e compara com o total impresso na fatura. Se aparecer **Divergente**, algum item pode ter sido lido errado; confira antes de confirmar.
 4. **Conta-cartão:** se já existe uma conta de cartão com o mesmo final, a fatura vai para ela. Se não existe, marque **Criar conta-cartão** para criá-la.
@@ -74,6 +74,24 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 **Gasto por categoria x saídas:** o gasto por categoria segue a **data da compra** no cartão. As **saídas** seguem a **data do pagamento** (quando o dinheiro sai da conta). Por isso os dois números podem ser diferentes no mesmo mês.
 
 **No consultor (Claude Code):** peça "mostra minhas faturas", "mostra as faturas do cartão X" (filtro por conta: `faturas --conta ID`) ou "mostra os itens da fatura 1". Na lista, `divergencia_sentido` diz se o total impresso ficou **acima** ou **abaixo** da soma dos itens (ou **zero**). Ele só consulta e sugere categorias; a importação do PDF, a escolha da categoria de cada item, casar o pagamento e descartar uma prevista são no painel. Ele recusa marcar a fatura como paga (`pagar`). O consultor recusa PDF de propósito: a senha do PDF nunca passa pelo Claude.
+
+## Faturas do Gmail (opcional)
+
+Em vez de baixar cada fatura à mão, peça ao consultor: "pesquisar faturas de 10/2026" (aceita um mês ou um intervalo, até 50 e-mails por busca). Ele busca no Gmail os e-mails de fatura (Itaú, Nubank, Porto, Mercado Pago), baixa os PDFs e monta uma **fila na tela Importar**.
+
+- Cada item mostra emissor, final do cartão e vencimento (o que vier no e-mail; o resto aparece como "não identificado"). Faturas já importadas vêm marcadas, com **Pular** como padrão.
+- **Importar** abre o fluxo normal de fatura (prévia e confirmação). Se a senha estiver guardada, ela é usada sozinha; senão você a digita. **Pular** descarta o item sem gravar nada.
+- **Nubank:** o e-mail é reconhecido e entra na fila, mas o app ainda não lê o PDF da Nubank (só Itaú, Porto e Mercado Pago). Use **Pular** nesses itens.
+- Pendentes e PDFs temporários expiram em 7 dias. Nada é importado sem o seu clique.
+- O acesso é somente leitura (o app não envia, apaga nem marca e-mails). Configuração única: [GMAIL-CONFIGURACAO.md](GMAIL-CONFIGURACAO.md). Se o acesso expirar, o consultor avisa.
+
+## Senhas de PDF guardadas
+
+Na importação da fatura, marque **Lembrar a senha deste cartão**: depois que o PDF abre com a senha digitada, ela é guardada cifrada (AES-256-GCM) por emissor e final do cartão. Nas próximas faturas (upload ou fila do Gmail) o app tenta as senhas guardadas e vai direto para a prévia; se nenhuma abrir, pede a senha. Senha errada nunca é guardada.
+
+- A chave fica em `data/senhas.key`, fora do banco e do Git. Faça backup junto com o banco: sem ela as senhas guardadas não abrem.
+- Em **Importar**, o bloco **Senhas guardadas** lista só emissor e final, com **Esquecer**.
+- O consultor nunca lê a chave nem as senhas. Senha de holerite não é guardada.
 
 ## Importar holerite
 
@@ -165,6 +183,8 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 
 **Como começar:** abra a pasta do projeto no Claude Code e escreva o que quer, em português, sem comandos.
 
+**Dois jeitos de usar:** o **chat do painel** (balão no canto da tela, quando ligado) ou o **terminal do Claude Code**. O chat mostra a resposta aos poucos, uma linha discreta do que está consultando e, para escritas, um cartão **Confirmar / Cancelar**. A conversa vale enquanto o painel estiver aberto; **Nova conversa** zera tudo. O link "Abrir terminal em nova aba" leva ao terminal.
+
 **Exemplos de pedidos**
 - Saldo: "como estão minhas contas?"
 - Vencimentos: "o que vence nos próximos 10 dias?"
@@ -173,11 +193,13 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 - Importar: "importa este extrato: C:\caminho\extrato.csv"
 - Categorizar: "categoriza o que está sem categoria"
 - Painel: "abre o painel"
+- Relatório: "quanto gastei com saúde nos últimos 3 meses?" (gera gráficos em nova aba)
+- Gmail: "pesquisar faturas de 10/2026"
 - Faturas: "mostra minhas faturas de cartão", "faturas do cartão 2" (`faturas --conta 2`), "quais itens da fatura 1 estão sem categoria?"
 
 ### O que ele faz sozinho e o que só faz com o seu "sim"
 - **Sozinho (só consulta):** ver saldos, resumo do mês, vencimentos, projeção, gastos, lançamentos, faturas de cartão (lista e itens), contas e categorias.
-- **Só depois do seu "sim":** importar extrato, casar com o extrato, categorizar, criar regras, marcar conta como paga e criar conta.
+- **Só depois do seu "sim":** importar extrato, casar com o extrato, categorizar, criar regras, marcar conta como paga, criar conta e buscar faturas no Gmail. No chat, o "sim" é o botão **Confirmar** do cartão.
 
 **Exemplo: importar um extrato**
 1. Você informa o arquivo (.ofx, .csv ou .xlsx, até 5 MB). Se ainda não houver conta, ele pergunta nome, tipo, saldo inicial e a data desse saldo, e só cria depois do seu "sim".
@@ -188,13 +210,21 @@ Além do painel, você pode conversar com um consultor financeiro dentro do Clau
 
 Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o saldo inicial são feitos no painel web (peça "abre o painel").
 
+### Relatórios com gráfico
+Peça um gráfico ou relatório ("faz um relatório dos últimos 6 meses", "para onde vai meu dinheiro?"). O chat mostra um cartão **Abrir relatório**; clique para abrir em nova aba. A página traz um resumo de uma frase, indicadores (com comparação ao período anterior), gráficos de barras, linha e rosca, e uma tabela com busca e ordenação.
+
+- É um **retrato do momento da pergunta**: não atualiza sozinho. Peça de novo para atualizar.
+- Gasto por categoria segue a data da compra (itens da fatura); "quanto saiu da conta" segue a data do pagamento. Perguntas sobre uma categoria incluem as subcategorias.
+- Os relatórios ficam em `data/relatorios/` e são apagados depois de 30 dias (a limpeza roda quando o app reinicia). Não há tela de lista: use o cartão do chat.
+- Só leitura: a consulta não altera nada nem acessa as senhas guardadas.
+
 ### O que ele nunca faz
-- Nunca pede nem guarda senha, token ou chave de acesso de banco, nem a senha do PDF da fatura (fatura em PDF só se importa pelo painel). Ele só trabalha com arquivos de extrato. Se você colar uma senha por engano, ele avisa para você trocá-la e não a usa.
+- Nunca pede nem guarda senha, token ou chave de acesso de banco, nem a senha do PDF da fatura (fatura em PDF só se importa pelo painel). Também nunca lê `data/senhas.key`, `data/gmail-token.json` nem as senhas guardadas. Ele só trabalha com arquivos de extrato. Se você colar uma senha por engano, ele avisa para você trocá-la e não a usa.
 - Textos de descrição do extrato são tratados como dados, nunca como ordens.
 
 ### Privacidade
 - O Claude é um serviço na nuvem: ele vê os dados que consulta (saldos, lançamentos, descrições) para responder.
-- O Claude Code guarda as transcrições das conversas no seu computador, na pasta `~/.claude/projects/` do usuário (no Windows: `C:\Users\<seu usuário>\.claude\projects\`).
+- No terminal, o Claude Code guarda as transcrições das conversas no computador onde ele roda, na pasta `~/.claude/projects/` do usuário (no Windows: `C:\Users\<seu usuário>\.claude\projects\`). O chat do painel não guarda histórico, mas os relatórios gerados ficam em `data/relatorios/` por 30 dias, com dados reais.
 - Por isso, não digite senhas de banco no chat.
 - O painel e o consultor usam o mesmo banco de dados (`data/consultorfin.db`): o que você faz num aparece no outro.
 - Perguntar sobre vencimentos, previsão ou resumo também cria os lançamentos estimados das suas contas fixas dos próximos meses, igual a abrir o painel.
@@ -211,4 +241,7 @@ Desfazer uma importação, mapear colunas de um formato desconhecido e ajustar o
 - **"O arquivo não parece ser um OFX"**: o arquivo .ofx está corrompido ou é de outro tipo; baixe de novo no banco.
 - **Saldo não confere**: veja a data da primeira divergência; confira se o saldo inicial e a data estão certos e se o extrato tem dias inteiros.
 - **Não consigo desfazer**: só a importação mais recente da conta pode ser desfeita.
-- **Acesso por outro nome de host**: defina a variável `CONSULTORFIN_HOSTS` com os nomes extras permitidos. Não exponha a porta na rede: o app não tem login.
+- **Acesso por outro nome de host**: defina a variável `CONSULTORFIN_HOSTS` com os nomes extras permitidos. Não exponha a porta na rede: o app não tem login (em produção, use Cloudflare Access).
+- **O balão não aparece ou o chat não sobe**: o chat precisa de `CONSULTORFIN_CHAT=1` e do Claude Code instalado (`CONSULTORFIN_CLAUDE_BIN`). Ele se recusa a iniciar se `.claude/settings*.json` tiver `permissions.allow`, `hooks`, `env` ou `disableAllHooks`. Sem o chat, o balão abre o terminal (`CONSULTORFIN_TERMINAL_URL`).
+- **Gmail: "acesso não configurado ou expirado"**: refaça a autorização (veja GMAIL-CONFIGURACAO.md).
+- **Perdi a chave das senhas (`senhas.key`)**: as senhas guardadas não abrem mais; o app volta a pedir a senha e você pode guardá-la de novo.

@@ -38,11 +38,10 @@ Nunca peça, receba, repita, grave ou versione senha, token ou chave de acesso d
 
 Vale ao alterar o código deste repositório ou quando o usuário se identificar como desenvolvedor. O conteúdo abaixo permanece como está.
 
-# Painel Financeiro Pessoal (nome provisório)
+# ConsultorFin
 
 Leia este arquivo inteiro antes de qualquer ação. Ele registra as decisões já tomadas
-com o dono do projeto. Quando algo aqui estiver marcado como **[A CONFIRMAR]**, pergunte
-antes de implementar.
+com o dono do projeto. Esta é a versão 2.0: o sistema está completo e em uso; não há pendências.
 
 ## 1. Objetivo
 
@@ -50,12 +49,13 @@ Um painel pessoal de finanças que importa extratos e faturas de qualquer banco,
 a situação atual e as projeções, e roda **no computador do usuário**. O produto precisa
 nascer de forma que possa ser vendido no futuro, por isso a arquitetura deve permitir
 sincronização, mas **o app é 100% local** (inclusive a leitura de faturas de cartão em PDF,
-feita no computador, sem rede).
+feita no servidor do app, sem rede).
 
 ## 2. Princípios (não negociáveis)
 
-1. **Dados locais.** Nenhum dado financeiro sai do computador na v0.1. Nada é enviado
-   para API externa, nem para IA, sem consentimento explícito e aviso ao usuário.
+1. **Dados sob controle do dono.** Os dados ficam no computador ou na VPS do dono (atrás de Cloudflare
+   Access); o app em si não chama API externa. Nada é enviado para IA sem consentimento explícito e
+   aviso ao usuário. Gmail: só leitura.
    Consentimento registrado: em 23/10/2026 o dono deu consentimento explícito ao modo
    consultor via Claude Code; os dados que o assistente consulta são processados por esse
    serviço na nuvem (credenciais de banco continuam proibidas).
@@ -79,19 +79,14 @@ feita no computador, sem rede).
 | Visual | Estilo "Dark Fintech Premium": fundo escuro, cards arredondados, sombras suaves |
 | Idioma da interface | Português brasileiro |
 | Moeda e datas | R$ 1.234,56 e DD/MM/AAAA na tela; ISO (AAAA-MM-DD) no banco |
-| Escopo da v0.1 | Telas Início, Importar e Lançamentos |
-| Primeira conta a importar | Conta corrente do Itaú |
+| Interface | FastAPI + Jinja2 + HTMX, gráficos em ECharts local (sem CDN) |
+| Telas | Início, Lançamentos, Importar, Holerites, Contas a pagar, Categorias, Relatório (`/relatorio/<id>`) |
+| Consultor | Claude Code: terminal web (ttyd/tmux) e chat próprio no painel (`CONSULTORFIN_CHAT=1`, `claude -p` com porteiro em `app/chat/guarda.py`) |
+| Produção | VPS Oracle (systemd + Cloudflare Tunnel + Cloudflare Access); deploy = `git pull` + restart; backup semanal cifrado (rclone) |
+| Gmail | Somente leitura (`gmail.readonly`); fila de faturas na tela Importar; token em `data/` fora do Git |
+| Senhas de PDF | Guardadas cifradas (AES-256-GCM) por (emissor, final), chave em `data/senhas.key`; nunca expostas ao Claude |
 
-## 4. Pendências (A CONFIRMAR antes de implementar)
-
-- **Interface:** proposta é um servidor local com FastAPI + Jinja2 + HTMX, com gráficos
-  em ECharts ou Chart.js. Alternativa: Streamlit. **Não escolha sozinho.**
-- **Nome do produto:** provisório.
-- **Categorias iniciais:** lista pronta ou o usuário cadastra as próprias.
-- ~~Modelo de cartão a ser lido primeiro~~ Resolvido: faturas em PDF de Itaú, Porto e Mercado
-  Pago, importadas só pelo painel (tela Importar).
-
-## 5. Visual
+## 4. Visual
 
 Tema escuro estilo fintech. Use estas variáveis CSS (definidas em `app/web/static/css/tema.css`) e não invente outras cores:
 
@@ -132,41 +127,46 @@ Tema escuro estilo fintech. Use estas variáveis CSS (definidas em `app/web/stat
 - Ícones: macro `icone(nome, tamanho)` em `templates/_icones.html` (Lucide, SVG inline).
 - Gráficos: `window.ConsultorFinTema` em `static/js/graficos-tema.js` (cores, tooltip escapado, moeda pt-BR).
 - As fontes devem ser **incluídas no projeto** (o app funciona sem internet). Não use CDN.
-- Não copie layouts de outros produtos; use a estrutura descrita na seção 7.
+- Não copie layouts de outros produtos; use a estrutura descrita na seção 8.
 
-## 6. Estrutura de pastas (proposta)
+## 5. Estrutura de pastas
 
 ```
-painel-financeiro/
-├── CLAUDE.md
-├── README.md
-├── requirements.txt
+ConsultorFin/
+├── CLAUDE.md, README.md, requirements.txt, iniciar.bat
+├── .claude/skills/          # skills do consultor (saldo, gastos, relatorio, faturas-gmail...)
 ├── app/
-│   ├── main.py              # ponto de entrada do servidor local
-│   ├── db.py                # conexão e migrações do SQLite (único acesso ao banco)
-│   ├── importacao/
-│   │   ├── base.py          # interface comum dos parsers
-│   │   ├── itau_csv.py      # parser do extrato do Itaú
-│   │   └── deteccao.py      # identifica banco e formato
-│   ├── dominio/
-│   │   ├── lancamentos.py   # regras de negócio (tipos, transferências, deduplicação)
-│   │   ├── saldo.py         # cálculo e conciliação com o banco
-│   │   └── categorias.py    # regras de categorização
-│   ├── web/
-│   │   ├── rotas/           # inicio.py, importar.py, lancamentos.py
-│   │   ├── templates/
-│   │   └── static/          # css, js, fontes embutidas
-├── data/                    # SEMPRE fora do Git (banco, uploads, backups)
-├── tests/
-│   ├── fixtures/            # arquivos de exemplo ANONIMIZADOS
-│   └── ...
-└── .gitignore               # inclui data/, *.csv, *.xls*, *.db, .env
+│   ├── main.py              # create_app (limpeza de relatórios/fila no startup)
+│   ├── config.py            # caminhos, limites e variáveis CONSULTORFIN_*
+│   ├── db.py                # conexão e migrações do SQLite (MIGRACOES, só acrescentar ao fim)
+│   ├── importacao/          # parsers: itau_csv, ofx, excel; fatura/ (PDF); holerite/ (PDF); servico
+│   ├── dominio/             # regras de negócio (lancamentos, saldo, casamento, faturas, holerites,
+│   │                        #   parcelas, recorrentes, projecao, painel, insights, cofre_senhas...)
+│   ├── repo/                # acesso a dados por agregado (SQL fica aqui)
+│   ├── gmail/               # cliente somente leitura e classificador de e-mails de fatura
+│   ├── consultor/           # CLI do consultor (python -m app.consultor): cli, consultas, operacoes
+│   ├── relatorio/           # espec JSON, consulta SQL somente leitura, montagem do retrato
+│   ├── chat/                # chat do painel: argv, porteiro (guarda), eventos SSE, estado, turno, prompt
+│   └── web/                 # rotas/, templates/, static/ (css, js, fontes embutidas), segurança, uploads
+├── data/                    # SEMPRE fora do Git: consultorfin.db, senhas.key, gmail-token.json,
+│                            #   fila/ (PDFs, 7 dias), relatorios/ (*.json, 30 dias)
+├── docs/                    # PASSO-A-PASSO, GMAIL-CONFIGURACAO, categorias-padrao, superpowers/ (specs e planos)
+├── scripts/                 # gmail_autorizar, validar_*_locais, diagnostico_emissor
+├── tests/                   # pytest; fixtures/ ANONIMIZADAS
+└── .gitignore               # inclui data/, *.csv, *.xls*, *.db, *.pdf, .env, credenciais do Gmail
 ```
 
 Regra: a lógica de negócio fica em `dominio/`, nunca dentro das rotas da interface.
-Apenas `db.py` acessa o banco diretamente.
+Acesso ao banco só por `db.py` e `repo/`.
 
-## 7. Esquema do banco (v0.1)
+## 6. Esquema do banco
+
+O esquema atual vem de `app/db.py` (14 migrações). Além das tabelas abaixo (versão inicial, simplificada),
+existem: `faturas` e `fatura_itens` (fatura de cartão e seus itens, com resíduo e vínculo ao pagamento),
+`holerites` e `holerite_itens`, `titulares`, `recorrentes` e `recorrentes_pulados`, `fila_faturas`
+(fila do Gmail: só emissor/final/vencimento/hash), `senhas_pdf` (senhas cifradas por emissor e final do cartão),
+`configuracoes` e `chaves_quitadas`. `lancamentos` ganhou status (pendente/compensado, `data_compensacao`),
+parcelamento e vínculo com fatura. Categorias têm tipo (entrada/saída) e dois níveis (`pai_id`).
 
 ```sql
 CREATE TABLE contas (
@@ -223,11 +223,11 @@ CREATE TABLE regras_categoria (
 
 Pontos importantes:
 - **Valores em centavos (inteiros).** Nunca use `float` para dinheiro.
-- **Tipo do lançamento** é definido pelas regras da seção 8, não pelo sinal do valor.
+- **Tipo do lançamento** é definido pelas regras da seção 7, não pelo sinal do valor.
 - **Chave de deduplicação:** para lançamentos idênticos no mesmo dia, use um contador de
   ocorrência (1ª, 2ª...). Assim, dois PIX iguais no mesmo dia continuam sendo dois.
 
-## 8. Regras de negócio
+## 7. Regras de negócio
 
 **Tipos de movimento** (determinam o que entra nos gráficos de receita e despesa):
 - `entrada` e `saida`: contam como receita e despesa.
@@ -260,20 +260,23 @@ referência quando existir.
 
 **Lançamento manual:** entra com `origem = 'manual'`. Não é alterado por reimportação.
 
-## 9. Telas da v0.1
+## 8. Telas
+
+Menu lateral: Início, Lançamentos, Importar, Holerites, Contas a pagar, Categorias. Balão flutuante abre o
+chat do Consultor. Detalhes de uso: `docs/PASSO-A-PASSO.md`. Resumo das telas centrais:
 
 **Início (visão geral)**
-- Menu lateral com ícones: Início, Lançamentos, Importar.
-- Topo: título e seletor de período (mês/ano).
-- Quatro cartões: Saldo atual, Entradas do mês, Saídas do mês, Sobra do mês.
-- Gráfico principal: entradas e saídas do mês atual × mês anterior.
-- Rosca: gastos por categoria.
-- Barras horizontais: maiores categorias.
-- Tabela expansível: Categoria › Subcategoria › Lançamentos, com linha de total.
+- Topo: título, seletor de mês e horizonte da projeção (3, 6, 12 meses).
+- Cartões: Saldo total (sem cartões), Entradas, Saídas, Resultado do mês.
+- Fluxo de caixa, rosca de gastos por categoria, saldo projetado, parcelas futuras, maiores categorias,
+  entradas × saídas, próximos vencimentos, contas, tabela expansível Categoria › Subcategoria, frases de insight.
+- Gastos por categoria usam a data da compra (itens da fatura); saídas usam a data do pagamento.
 - Estado vazio: mensagem e botão "Importar primeiro extrato".
 
 **Importar**
-- Área para arrastar arquivo (CSV e Excel).
+- Extratos (OFX, CSV, Excel), fatura de cartão (PDF), holerite (PDF), fila de faturas do Gmail e
+  senhas de PDF guardadas (só lista emissor/final, com "Esquecer").
+- Área para arrastar arquivo.
 - Conta de destino detectada pelo arquivo, com confirmação do usuário.
 - Pré-visualização das primeiras linhas, já no formato final, com erros destacados.
 - Mapeamento manual de colunas quando o formato não for reconhecido.
@@ -291,7 +294,7 @@ referência quando existir.
 - Marcar linha como `transferencia` ou `pagamento_fatura`.
 - Indicador de origem: importado ou manual.
 
-## 10. Convenções de código
+## 9. Convenções de código
 
 - Type hints em todas as funções públicas.
 - Funções pequenas, com uma responsabilidade.
@@ -302,7 +305,7 @@ referência quando existir.
 - Teste de aceite: importar o extrato de exemplo e confirmar que o saldo final bate.
 - Commits pequenos e descritivos.
 
-## 11. Referência (projeto anterior, só para ideias)
+## 10. Referência (projeto anterior, só para ideias)
 
 Existe um projeto anterior chamado Financeiro-2026 (Streamlit + Supabase). Use-o **apenas
 como referência de ideias**, nunca copie código, credenciais ou a arquitetura em nuvem.
@@ -318,26 +321,20 @@ Ideias aproveitáveis:
 Não aproveitar: senha administrativa escrita no código, mensagens de depuração que
 imprimem valores financeiros e dependência de serviço externo para os dados.
 
-## 12. Ordem de trabalho da v0.1
+## 11. Fluxo de trabalho
 
-Não implemente tudo de uma vez. Siga esta ordem e confirme cada etapa com o usuário:
+O sistema (2.0) está completo e em produção. Mudanças novas, só se o dono pedir: spec e plano em `docs/superpowers/specs|plans/`,
+testes junto do código (`pytest` deve passar), commits pequenos, nenhum dado real no repositório
+(ele é público), README e `docs/PASSO-A-PASSO.md` atualizados quando o comportamento visível mudar.
+Deploy: ver README, seção Produção. Nunca mexer no container da porta 8000 da VPS (outro projeto).
 
-1. **Proposta:** leia este arquivo, responda as pendências da seção 4 e proponha o plano
-   de tarefas. Não escreva código antes da aprovação.
-2. **Base:** estrutura de pastas, `.gitignore`, ambiente Python e `db.py` com migrações
-   do esquema da seção 7.
-3. **Parser do Itaú:** lê o CSV de exemplo (anonimizado em `tests/fixtures/`) e gera
-   lançamentos normalizados. Teste cobrindo: cabeçalho, linhas de saldo descartadas,
-   valores com vírgula e datas.
-4. **Importação e deduplicação:** importar o mesmo arquivo duas vezes não cria duplicatas.
-   Teste de arquivos sobrepostos.
-5. **Saldo e conciliação:** o teste de aceite da seção 8 deve passar.
-6. **Tipos e categorias:** regras de transferência e pagamento de fatura; regras de
-   categorização por texto.
-7. **Telas:** Importar, Lançamentos e Início, nessa ordem.
-8. **Revisão final:** testes passando, nenhum dado real no repositório, README atualizado.
+**Chat e relatórios (regras de segurança):** o chat roda `claude -p` só com `--tools Bash`; o porteiro
+(`app/chat/guarda.py`) nega tudo que não seja subcomando do consultor com opções conferidas. Escritas viram
+cartão Confirmar/Cancelar e rodam uma única vez. Relatórios: o modelo envia uma espec JSON (nunca HTML);
+SQL é somente leitura (`mode=ro`, só SELECT, `senhas_pdf` bloqueada); o retrato fica em
+`data/relatorios/<id>.json` e é renderizado em `/relatorio/<id>` com CSP restritivo e texto escapado.
 
-## 13. Dados de exemplo para testes
+## 12. Dados de exemplo para testes
 
 Use um extrato **anonimizado**: troque nomes de pessoas nas descrições, números de conta
 e agência, mantendo a estrutura do arquivo. O saldo de referência do extrato de exemplo é
@@ -345,7 +342,3 @@ o saldo inicial de R$ 2.148,08 em 24/07/2026 e o saldo final de R$ 1.409,14 em 2
 (somando os lançamentos entre essas datas, o resultado é R$ 1.409,14). Use esses números
 como teste de aceite.
 
-## 14. Primeira mensagem sugerida para o Claude
-
-> Leia o CLAUDE.md completo. Me mostre as pendências da seção 4 e proponha o plano de
-> tarefas da seção 12. Não escreva código ainda.
