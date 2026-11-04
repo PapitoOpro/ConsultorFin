@@ -10,6 +10,7 @@ from app.dominio import painel
 from app.dominio.contas_pagar import interpretar_horizonte
 from app.dominio.lancamentos import ErroLancamento
 from app.dominio.projecao import HORIZONTES
+from app.dominio.versiculos import sortear
 from app.web.deps import get_con
 
 log = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def _parametros(request: Request) -> tuple[date, int, int, int]:
 
 def _html(request: Request, ctx: dict[str, Any], status: int = 200) -> HTMLResponse:
     return request.app.state.templates.TemplateResponse(
-        request, "inicio/index.html", {"ativo": "inicio", "horizontes": HORIZONTES, **ctx},
+        request, "inicio/index.html", {"ativo": "inicio", "horizontes": HORIZONTES, "versiculo": sortear(), **ctx},
         status_code=status)
 
 

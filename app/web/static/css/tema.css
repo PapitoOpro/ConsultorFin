@@ -777,6 +777,9 @@ tr.fatura-itens > td { padding: 8px 8px 16px 24px; border-left: 3px solid var(--
 .hero h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
 .hero h2 .numero { font-size: inherit; }
 .hero p { margin: 0; color: var(--texto-secundario); }
+.versiculo { margin: 0; max-width: 62ch; }
+.versiculo blockquote { margin: 0; font-size: 17px; font-weight: 500; line-height: 1.4; color: var(--texto); }
+.versiculo figcaption { margin-top: 4px; }
 .hero .hero-rotulo { font-size: 14px; margin-bottom: 4px; }
 .hero h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 0; }
 .hero h2 .numero { font-size: 32px; font-weight: 700; }

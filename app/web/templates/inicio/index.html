@@ -26,8 +26,9 @@
   {%- endif -%}
 {%- endmacro %}
 {% block cabecalho_pagina %}
-<div class="cabecalho-titulo"><h1>Início</h1>
-  <p class="subtitulo">{% if resumo %}{{ resumo.nome_mes|capitalize }}{% else %}Visão geral das suas finanças{% endif %}</p></div>
+<div class="cabecalho-titulo"><h1 class="sr-only">Início</h1>
+  <figure class="versiculo"><blockquote>&ldquo;{{ versiculo.texto }}&rdquo;</blockquote>
+    <figcaption class="subtitulo">{{ versiculo.referencia }}{% if resumo %} · {{ resumo.nome_mes|capitalize }}{% endif %}</figcaption></figure></div>
 <div class="cabecalho-acoes seletores">
   <form method="get" action="/" class="seletores form-mes">
     <input type="hidden" name="horizonte" value="{{ horizonte }}">
