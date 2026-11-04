@@ -97,14 +97,42 @@
 {% if faturas_importadas %}
 <section class="painel" id="faturas-importadas" aria-label="Faturas já importadas">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Faturas já importadas</h2><p class="subtitulo">Por vencimento, da mais recente para a mais antiga.</p></div></div>
+  {% set meses_fat = [] %}{% for f in faturas_importadas %}{% if f.data_vencimento[:7] not in meses_fat %}{% set _ = meses_fat.append(f.data_vencimento[:7]) %}{% endif %}{% endfor %}
+  <div class="campo" style="max-width:240px;margin-bottom:12px">
+    <label for="filtro-mes-fatura">Mês de vencimento</label>
+    <select id="filtro-mes-fatura">
+      <option value="">Todos os meses</option>
+      {% for m in meses_fat %}<option value="{{ m }}">{{ m[5:7] }}/{{ m[0:4] }}</option>{% endfor %}
+    </select>
+  </div>
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
     <thead><tr><th>Vencimento</th><th>Cartão</th><th>Itens</th><th>Situação</th><th class="num">Total</th></tr></thead>
-    <tbody>
+    <tbody id="faturas-importadas-corpo">
     {% for f in faturas_importadas %}
-      <tr><td class="data-linha">{{ f.data_vencimento | data_br }}</td><td>{{ f.conta_nome }}</td><td class="sec">{{ f.n_itens }}</td><td>{{ "Paga" if f.paga else "A pagar" }}</td><td class="num valor">{{ f.total_impresso_centavos | brl }}</td></tr>
+      <tr data-mes="{{ f.data_vencimento[:7] }}" data-total="{{ f.total_impresso_centavos }}"><td class="data-linha">{{ f.data_vencimento | data_br }}</td><td>{{ f.conta_nome }}</td><td class="sec">{{ f.n_itens }}</td><td>{{ "Paga" if f.paga else "A pagar" }}</td><td class="num valor">{{ f.total_impresso_centavos | brl }}</td></tr>
     {% endfor %}
     </tbody>
+    <tfoot><tr><th colspan="4">Total <span id="faturas-importadas-qtd"></span></th><th class="num valor" id="faturas-importadas-total"></th></tr></tfoot>
   </table></div>
+  <script>
+    (function () {
+      var sel = document.getElementById("filtro-mes-fatura");
+      var linhas = document.querySelectorAll("#faturas-importadas-corpo tr");
+      var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+      function aplicar() {
+        var total = 0, n = 0;
+        linhas.forEach(function (l) {
+          var ok = !sel.value || l.getAttribute("data-mes") === sel.value;
+          l.hidden = !ok;
+          if (ok) { total += parseInt(l.getAttribute("data-total"), 10); n += 1; }
+        });
+        document.getElementById("faturas-importadas-total").textContent = brl.format(total / 100);
+        document.getElementById("faturas-importadas-qtd").textContent = "(" + n + (n === 1 ? " fatura)" : " faturas)");
+      }
+      sel.addEventListener("change", aplicar);
+      aplicar();
+    })();
+  </script>
 </section>
 {% endif %}
 
