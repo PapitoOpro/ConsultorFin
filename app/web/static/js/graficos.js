@@ -245,7 +245,7 @@
         splitLine: { lineStyle: { color: C.borda } }
       }),
       series: [serie("Entradas", "entradas_centavos", "entradas_fmt", C.primaria),
-               serie("Saídas", "saidas_centavos", "saidas_fmt", C.cinza2)]
+               serie("Saídas", "saidas_centavos", "saidas_fmt", C.saida)]
     });
   }
 

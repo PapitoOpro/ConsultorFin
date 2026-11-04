@@ -18,10 +18,12 @@
     return c;
   }
 
-  function paleta(c) {
-    c = c || cores();
-    /* um acento (o maior item) e degraus de cinza neutro; sem arco-íris */
-    return [c.primaria, c.cinza1, c.cinza2, c.cinza3, c.cinza4, c.cinza5];
+  /* categórica para fundo escuro (#19191b), ordem fixa; validada (validate_palette.js --mode dark):
+     azul, laranja, água, amarelo, magenta, violeta. Verde da marca fica reservado a entradas. */
+  var CATEGORICA = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9"];
+
+  function paleta() {
+    return CATEGORICA.slice();
   }
 
   function esc(t) {
