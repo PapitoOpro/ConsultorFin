@@ -32,6 +32,9 @@ _SECOES = (
     ("limites de crédito", ""),
     ("encargos cobrados", ""),
 )
+_FIM_COLADO = tuple(k.replace(" ", "") for k in _FIM)
+_IGNORAR_COLADO = tuple(k.replace(" ", "") for k in _IGNORAR)
+_SECOES_COLADAS = tuple((k.replace(" ", ""), v) for k, v in _SECOES)
 _TIPO_SECAO = {"compras": "compra", "servico": "servico", "internacional": "internacional"}
 
 
@@ -144,9 +147,10 @@ class ParserItau:
             for linha in (pagina.esquerda + "\n" + pagina.direita).splitlines():
                 s = " ".join(linha.split())
                 baixa = s.lower()
-                if baixa.startswith(_FIM):
+                colada = baixa.replace(" ", "")  # títulos saem "Pa ga me nt os" em PDFs apertados
+                if colada.startswith(_FIM_COLADO):
                     return brutos, iof
-                nova = next((v for k, v in _SECOES if baixa.startswith(k)), None)
+                nova = next((v for k, v in _SECOES_COLADAS if colada.startswith(k)), None)
                 if nova is not None:
                     secao, ultimo = nova, None
                     quer_categoria = quer_continuacao = False
@@ -160,14 +164,14 @@ class ParserItau:
                     quer_categoria = secao == "compras"
                     quer_continuacao = secao == "servico"
                     continue
-                if baixa.startswith("lançamentos no cartão"):
+                if colada.startswith("lançamentosnocartão"):
                     cartao, ultimo = principal, None
                     continue
                 m_final = _FINAL.search(s)
                 if m_final:
                     cartao, ultimo = m_final.group(1), None
                     continue
-                if baixa.startswith(_IGNORAR):
+                if colada.startswith(_IGNORAR_COLADO):
                     continue
                 if secao == "internacional":
                     mi = _IOF_INTL.match(s)

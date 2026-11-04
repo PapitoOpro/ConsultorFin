@@ -7,6 +7,8 @@ import pdfplumber
 
 from app.importacao.fatura.modelo import PdfInvalido, PdfProtegido, PdfSemTexto, SenhaIncorreta
 
+TOLERANCIA_PADRAO = 3.0  # padrão do pdfplumber
+TOLERANCIA_APERTADA = 1.0  # PDFs que perdem os espaços entre palavras
 DIVISAO_COLUNAS = 0.57  # Itaú: 2 colunas; corte em 57% da largura
 
 
@@ -18,12 +20,12 @@ class PaginaTexto:
     direita: str
 
 
-def _recorte(pagina: "pdfplumber.page.Page", x0: float, x1: float) -> str:
+def _recorte(pagina: "pdfplumber.page.Page", x0: float, x1: float, tol: float) -> str:
     _, topo, _, base = pagina.bbox
-    return pagina.crop((x0, topo, x1, base)).extract_text() or ""
+    return pagina.crop((x0, topo, x1, base)).extract_text(x_tolerance=tol) or ""
 
 
-def _abrir(conteudo: bytes, senha: str | None) -> list[PaginaTexto]:
+def _abrir(conteudo: bytes, senha: str | None, tol: float) -> list[PaginaTexto]:
     with pdfplumber.open(io.BytesIO(conteudo), password=senha) as pdf:
         paginas: list[PaginaTexto] = []
         for i, p in enumerate(pdf.pages, 1):
@@ -31,17 +33,19 @@ def _abrir(conteudo: bytes, senha: str | None) -> list[PaginaTexto]:
             corte = x0 + (x1 - x0) * DIVISAO_COLUNAS
             paginas.append(PaginaTexto(
                 numero=i,
-                texto=p.extract_text() or "",
-                esquerda=_recorte(p, x0, corte),
-                direita=_recorte(p, corte, x1),
+                texto=p.extract_text(x_tolerance=tol) or "",
+                esquerda=_recorte(p, x0, corte, tol),
+                direita=_recorte(p, corte, x1, tol),
             ))
         return paginas
 
 
-def abrir_pdf(conteudo: bytes, senha: str | None = None) -> list[PaginaTexto]:
-    """Lê o PDF em memória. A senha nunca entra em mensagens de erro."""
+def abrir_pdf(conteudo: bytes, senha: str | None = None,
+              tolerancia: float = TOLERANCIA_PADRAO) -> list[PaginaTexto]:
+    """Lê o PDF em memória. A senha nunca entra em mensagens de erro. `tolerancia` é o
+    espaçamento (pontos) que separa palavras; PDFs com letras apertadas pedem um valor menor."""
     try:
-        paginas = _abrir(conteudo, senha or None)
+        paginas = _abrir(conteudo, senha or None, tolerancia)
     except Exception as e:  # mensagem original nunca é repassada (pode ter conteúdo)
         nomes = [type(e).__name__] + [type(a).__name__ for a in e.args]
         if any("Password" in n for n in nomes):
