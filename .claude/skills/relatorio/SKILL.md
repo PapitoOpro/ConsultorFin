@@ -5,7 +5,7 @@ description: Gera um relatório visual com gráficos, que o chat mostra como car
 
 # Relatório
 
-Use quando o usuário pedir gráfico, relatório ou "ver visualmente". Para resposta curta em texto, use a skill `gastos`.
+Use quando o usuário pedir gráfico, relatório ou "ver visualmente". Para resposta curta em texto, responda sem relatório (no terminal, a skill `gastos`).
 
 1. Defina o período (ex.: "últimos 6 meses" = do dia 1 de 6 meses atrás até hoje; sem período dito, o mês corrente). Datas em AAAA-MM-DD.
 2. Monte a especificação em JSON. Para ver um modelo que funciona, rode `.venv/Scripts/python -m app.consultor relatorio exemplo` (Linux/macOS: `.venv/bin/python`). Campos:

@@ -18,6 +18,8 @@ Verificado com chamadas reais (Claude Code 2.1.317, 2026-11-03/04), rodando na r
   no stream). `--setting-sources project --strict-mcp-config` corta hooks, plugins e MCP do usuário
   e ignora `.claude/settings.local.json`; o `CLAUDE.md` e as skills de `.claude/skills` do projeto
   continuam carregando.
+- `--tools Bash` remove a ferramenta Skill, por isso o `--append-system-prompt` com as instruções do
+  relatório (observado em produção em 2026-11-04).
 - `--resume <id>` exige sessão gravada: não usar `--no-session-persistence`.
 """
 import json
@@ -27,6 +29,7 @@ from pathlib import Path
 
 from app import config
 from app.chat.guarda import CAMINHO, CONSULTAS, PREFIXOS
+from app.chat.prompt import prompt_sistema
 
 CONSULTAS_PERMITIDAS: tuple[str, ...] = CONSULTAS
 PYTHON_HOOK: Path = Path(sys.executable)  # o mesmo Python do servidor (venv)
@@ -54,7 +57,8 @@ def montar_argv(*, sessao: str | None) -> list[str]:
     argv = [config.caminho_claude(), "-p", "--output-format", "stream-json", "--verbose",
             "--include-partial-messages", "--model", config.MODELO_CHAT, "--permission-prompts", "none",
             "--tools", "Bash", "--setting-sources", "project", "--strict-mcp-config",
-            "--settings", _settings(), "--allowedTools", *regras]
+            "--settings", _settings(), "--append-system-prompt", prompt_sistema(),
+            "--allowedTools", *regras]
     if sessao is not None:
         argv += ["--resume", sessao]
     return argv

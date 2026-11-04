@@ -1,8 +1,10 @@
 import json
 import re
+from pathlib import Path
 
 import pytest
 
+from app import config
 from app.chat import guarda
 from app.chat.argv import CONSULTAS_PERMITIDAS, comando_hook, montar_argv, sessao_valida
 
@@ -70,7 +72,7 @@ def test_sessao_invalida_nao_chega_ao_argv(sessao: str) -> None:
 
 def test_escrita_nunca_entra_nas_regras() -> None:
     argv = montar_argv(sessao=SESSAO)
-    assert not any("categorizar" in a for a in argv)
+    assert not any("-m app.consultor categorizar" in a for a in argv)
     with pytest.raises(TypeError):
         montar_argv(sessao=SESSAO, extras_permitidos=[ESCRITA])  # type: ignore[call-arg]
 
@@ -80,3 +82,48 @@ def test_caminho_do_claude_configuravel(monkeypatch: pytest.MonkeyPatch) -> None
     assert montar_argv(sessao=None)[0] == "/opt/claude/bin/claude"
     monkeypatch.delenv("CONSULTORFIN_CLAUDE_BIN")
     assert montar_argv(sessao=None)[0] == "claude"
+
+
+def _prompt(argv: list[str]) -> str:
+    assert argv.count("--append-system-prompt") == 1
+    return _par(argv, "--append-system-prompt")
+
+
+def test_prompt_de_sistema_traz_as_instrucoes_do_relatorio() -> None:
+    texto = _prompt(montar_argv(sessao=None))
+    for trecho in ("<<'EOF'", "observacao", "formatos", "Confirmar", "relatorio exemplo"):
+        assert trecho in texto
+    assert "name: relatorio" not in texto  # sem o frontmatter da skill
+    assert "--help" not in texto.replace("sem `--help`", "")
+
+
+def test_mensagem_do_usuario_fora_do_argv_e_flags_intactas() -> None:
+    argv = montar_argv(sessao=SESSAO)
+    assert _par(argv, "--tools") == "Bash"
+    assert argv[-2:] == ["--resume", SESSAO]
+    assert len(_regras(argv)) == 2 * len(CONSULTAS_PERMITIDAS)
+
+
+def test_skill_ausente_cai_para_a_nota(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+                                       capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(config, "RAIZ", tmp_path)
+    texto = _prompt(montar_argv(sessao=None))
+    err = capsys.readouterr().err
+    assert "event=chat_skill_ausente skill=relatorio" in err
+    assert "Traceback" not in err
+    assert "Confirmar" in texto and "<<'EOF'" not in texto
+
+
+def test_exemplos_do_prompt_sao_aceitos_pelo_porteiro() -> None:
+    texto = _prompt(montar_argv(sessao=None))
+    heredocs = re.findall(r"^(\.venv/(?:Scripts|bin)/python -m app\.consultor relatorio --spec - <<'EOF'\n.*?\nEOF)$",
+                          texto, re.M | re.S)
+    assert heredocs
+    for h in heredocs:
+        assert guarda.decidir(h) == guarda.PERMITIR
+    for p in guarda.PREFIXOS:
+        assert guarda.decidir(f"{p} -m app.consultor relatorio exemplo") is None
+    # todo comando com interpretador citado em linha própria deve passar no porteiro
+    for linha in texto.splitlines():
+        if linha.startswith(guarda.PREFIXOS) and "<<" not in linha:
+            assert guarda.decidir(linha) != guarda.NEGAR
