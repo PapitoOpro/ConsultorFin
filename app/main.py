@@ -13,10 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app import config
+from app.chat.estado import EstadoChat
+from app.chat.processo import executar_claude
 from app.db import conectar, migrar
 from app.dominio.dinheiro import fim_do_mes_iso, formatar_brl, iso_para_br
 from app.relatorio.montar import limpar_expirados
-from app.web.rotas import routers
+from app.web.rotas import router_chat, routers
 from app.web.seguranca import ProtecaoOrigemHost
 from app.web.uploads import ArmazemFaturas, ArmazemHolerites, ArmazemUploads
 
@@ -53,6 +55,10 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     app.state.holerites = ArmazemHolerites()
     app.state.hoje_fn = date.today  # relógio injetável (testes)
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
+    app.state.chat = EstadoChat()
+    app.state.claude_fn = executar_claude  # testes trocam por um gerador falso
     for r in routers:
         app.include_router(r)
+    if config.chat_ativo():
+        app.include_router(router_chat)
     return app
