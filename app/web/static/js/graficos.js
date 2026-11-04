@@ -155,10 +155,15 @@
           { offset: 0, color: cor + "00" }, { offset: 1, color: cor + "55" }]) },
         markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: C.sec, width: 1, type: "solid" }, data: [{ yAxis: 0 }] },
         label: {
-          show: true, color: C.texto, fontSize: 11, fontFamily: C.dados, position: "bottom", distance: 8,
+          show: true, color: C.texto, fontSize: 11, fontFamily: C.dados, position: "top", distance: 10,
           formatter: function (p) { return p.dataIndex === 0 || p.dataIndex === ultimo ? reais(p.value) : ""; }
         },
-        data: pontos.map(function (p) { return { value: p.valor_centavos, fmt: p.valor_fmt, name: p.rotulo }; })
+        data: pontos.map(function (p, i) {
+          var d = { value: p.valor_centavos, fmt: p.valor_fmt, name: p.rotulo };
+          if (i === ultimo) { d.label = { align: "right" }; }  // não vaza pela borda direita
+          else if (i === 0) { d.label = { align: "left" }; }
+          return d;
+        })
       }]
     });
   }
