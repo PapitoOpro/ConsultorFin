@@ -10,7 +10,7 @@
     painel.hidden = !aberto;
     balao.classList.toggle("aberto", aberto);
     balao.setAttribute("aria-expanded", aberto ? "true" : "false");
-    if (aberto && !corpo.firstChild) {
+    if (aberto && painel.dataset.url && !corpo.firstChild) {
       var quadro = document.createElement("iframe");
       quadro.src = painel.dataset.url;
       quadro.title = "Terminal do Consultor";
@@ -24,6 +24,11 @@
   });
   balao.addEventListener("click", function () { definir(painel.hidden); });
   document.getElementById("consultor-fechar").addEventListener("click", function () { definir(false); });
+  if (painel.dataset.modo === "chat") {
+    balao.addEventListener("click", function () {
+      if (!painel.hidden) { var campo = document.getElementById("chat-entrada"); if (campo) campo.focus(); }
+    });
+  }
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !painel.hidden && document.activeElement && painel.contains(document.activeElement)) definir(false);
   });
@@ -39,7 +44,7 @@
   alca.addEventListener("pointerdown", function (e) {
     e.preventDefault();
     var x0 = e.clientX, y0 = e.clientY, w0 = painel.offsetWidth, h0 = painel.offsetHeight;
-    corpo.style.pointerEvents = "none"; /* iframe não engole o arrasto */
+    if (painel.dataset.url) corpo.style.pointerEvents = "none"; /* iframe não engole o arrasto */
     alca.setPointerCapture(e.pointerId);
     function mover(ev) {
       painel.style.width = Math.max(300, w0 + (x0 - ev.clientX)) + "px";

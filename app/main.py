@@ -60,6 +60,8 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     app.state.claude_fn = executar_claude  # testes trocam por um gerador falso
     for r in routers:
         app.include_router(r)
-    if config.chat_ativo() and chat_pode_iniciar():  # sem porteiro, sem chat
+    chat_registrado: bool = config.chat_ativo() and chat_pode_iniciar()  # sem porteiro, sem chat
+    if chat_registrado:
         app.include_router(router_chat)
+    templates.env.globals["chat_ativo"] = chat_registrado  # só se as rotas existem de fato
     return app
