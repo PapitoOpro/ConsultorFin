@@ -12,7 +12,7 @@ Use quando o usuário pedir gráfico, relatório ou "ver visualmente". Para resp
    - `titulo` e `observacao` (sempre; 1 frase dizendo o que o relatório mostra), `periodo` com `de` e `ate`.
    - `kpis` (até 5): `rotulo`, `formato` (`moeda`, `inteiro`, `pct`), `sql` com uma única célula; `delta_sql` opcional para comparar com o período anterior.
    - `graficos` (até 6): `tipo` (`linha`, `barras`, `barras_h`, `rosca`), `titulo`, `formato`, `largura` (`cheia` ou `meia`), `sql`.
-   - `tabela` opcional: `titulo`, `sql`.
+   - `tabela` opcional: `titulo`, `sql`, `formatos` (uma entrada por coluna: `texto`, `moeda`, `inteiro`, `pct`). Toda coluna de dinheiro da tabela deve ser declarada `"moeda"` (valores em centavos); coluna não declarada aparece como texto puro.
 3. Consultas (somente leitura, só SELECT) sobre `lancamentos`, `categorias`, `contas`, `faturas`, `fatura_itens`. Regras:
    - Valores ficam em `valor_centavos` (centavos). Gastos são negativos: use `-SUM(valor_centavos)`.
    - Sempre dê alias às colunas. Gráficos: 1ª coluna = nome, 2ª = valor, 3ª (opcional) = série. Para meses use `strftime('%Y-%m', ...) AS mes`.

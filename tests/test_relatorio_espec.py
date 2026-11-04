@@ -89,3 +89,29 @@ def test_bruto_nao_dict() -> None:
 def test_titulo_longo() -> None:
     with pytest.raises(ErroRelatorio, match="titulo"):
         validar_espec({"titulo": "a" * 121, "observacao": "o"})
+
+
+def _com_tabela(**extra: Any) -> dict[str, Any]:
+    b = _minima()
+    b["tabela"] = {"titulo": "T", "sql": "select 1 as a", **extra}
+    return b
+
+
+def test_tabela_formatos_validos_e_padrao_none() -> None:
+    assert validar_espec(_com_tabela()).tabela.formatos is None  # type: ignore[union-attr]
+    e = validar_espec(_com_tabela(formatos=["texto", "moeda", "inteiro", "pct"]))
+    assert e.tabela.formatos == ("texto", "moeda", "inteiro", "pct")  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("ruim", [["dinheiro"], "moeda", [1], ["texto"] * 31, None])
+def test_tabela_formatos_invalidos(ruim: Any) -> None:
+    b = _com_tabela(formatos=ruim)
+    if ruim is None:
+        validar_espec(b)  # null equivale a ausente
+        return
+    with pytest.raises(ErroRelatorio):
+        validar_espec(b)
+
+
+def test_exemplo_declara_moeda_na_tabela() -> None:
+    assert "moeda" in (validar_espec(ESPEC_EXEMPLO).tabela.formatos or ())  # type: ignore[union-attr]

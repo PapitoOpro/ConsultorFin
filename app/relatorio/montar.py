@@ -109,7 +109,10 @@ def _montar_grafico(caminho_db: Path, g: Grafico) -> dict[str, Any]:
 
 def _montar_tabela(caminho_db: Path, t: Tabela) -> dict[str, Any]:
     res = executar_select(caminho_db, t.sql)
-    return {"titulo": t.titulo, "colunas": list(res.colunas),
+    formatos = list(t.formatos) if t.formatos is not None else ["texto"] * len(res.colunas)
+    if len(formatos) != len(res.colunas):
+        raise ErroRelatorio("tabela: a lista de formatos da tabela deve ter uma entrada por coluna.")
+    return {"titulo": t.titulo, "colunas": list(res.colunas), "formatos": formatos,
             "linhas": [[_celula(c) for c in r] for r in res.linhas], "truncado": res.truncado}
 
 

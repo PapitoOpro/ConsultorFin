@@ -60,7 +60,8 @@ def test_gera_e_le_retrato(db: Path, tmp_path: Path) -> None:
         {"nome": "05/09/2026", "valor": 500, "serie": "a"},
         {"nome": "outubro de 2026", "valor": 700, "serie": "a"},
     ]
-    assert ret["tabela"] == {"titulo": "T", "colunas": ["a", "b"], "linhas": [[1, "x"]], "truncado": False}
+    assert ret["tabela"] == {"titulo": "T", "colunas": ["a", "b"], "formatos": ["texto", "texto"],
+                              "linhas": [[1, "x"]], "truncado": False}
     assert not list(pasta.glob("*.tmp"))
 
 
@@ -230,3 +231,27 @@ def test_falha_de_serializacao_nao_deixa_arquivo(db: Path, tmp_path: Path,
     with pytest.raises(ErroRelatorio):
         gerar_relatorio(db, _espec(), tmp_path / "r", AGORA)
     assert not list((tmp_path / "r").glob("*"))
+
+
+def _tab(db: Path, tmp_path: Path, sql: str, formatos: tuple[str, ...] | None) -> dict[str, Any]:
+    pasta = tmp_path / "r"
+    r = gerar_relatorio(db, _espec(tabela=Tabela("T", sql, formatos)), pasta, AGORA)
+    return json.loads((pasta / f"{r['id']}.json").read_text(encoding="utf-8"))["tabela"]
+
+
+def test_tabela_formatos_padrao_texto_por_coluna(db: Path, tmp_path: Path) -> None:
+    assert _tab(db, tmp_path, "SELECT 1 AS a, 2 AS b", None)["formatos"] == ["texto", "texto"]
+
+
+def test_tabela_formatos_explicitos(db: Path, tmp_path: Path) -> None:
+    assert _tab(db, tmp_path, "SELECT 'x' AS a, 2 AS b", ("texto", "moeda"))["formatos"] == ["texto", "moeda"]
+
+
+def test_tabela_formatos_tamanho_errado(db: Path, tmp_path: Path) -> None:
+    with pytest.raises(ErroRelatorio, match="uma entrada por coluna"):
+        _tab(db, tmp_path, "SELECT 1 AS a, 2 AS b", ("moeda",))
+
+
+def test_tabela_moeda_com_celula_nao_numerica(db: Path, tmp_path: Path) -> None:
+    t = _tab(db, tmp_path, "SELECT 'abc' AS a", ("moeda",))
+    assert t["linhas"] == [["abc"]]

@@ -155,8 +155,6 @@
   }
 
   /* ---------- tabela ---------- */
-  var RE_MOEDA = /valor|total|saldo|r\$|gasto|receita|entrada|sa[ií]da|pre[cç]o|custo/i;
-
   function montarTabela() {
     var raiz = document.getElementById("relatorio-tabela");
     var t = dados.tabela;
@@ -166,16 +164,17 @@
       raiz.appendChild(el("p", "secundario", "Nenhuma linha para mostrar."));
       return;
     }
-    var numerica = t.colunas.map(function (_, c) {
-      return t.linhas.every(function (l) { return l[c] === null || typeof l[c] === "number"; });
+    /* formato explícito por coluna (tabela.formatos); ausente/desconhecido/texto = texto puro */
+    var formatos = t.colunas.map(function (_, c) {
+      var f = Array.isArray(t.formatos) ? t.formatos[c] : "texto";
+      return f === "moeda" || f === "inteiro" || f === "pct" ? f : "texto";
     });
-    var moeda = t.colunas.map(function (nome, c) {
-      return numerica[c] && RE_MOEDA.test(nome) &&
-        t.linhas.every(function (l) { return l[c] === null || Number.isInteger(l[c]); });
+    var numerica = t.colunas.map(function (_, c) {
+      return formatos[c] !== "texto" && t.linhas.every(function (l) { return l[c] === null || typeof l[c] === "number"; });
     });
     function texto(v, c) {
       if (v === null || v === undefined) { return "—"; }
-      if (typeof v === "number") { return moeda[c] ? T.moeda(v) : v.toLocaleString("pt-BR"); }
+      if (typeof v === "number" && numerica[c]) { return formatar(v, formatos[c]); }
       return String(v);
     }
     var linhas = t.linhas.map(function (l) {

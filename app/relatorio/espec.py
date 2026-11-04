@@ -4,6 +4,8 @@ from datetime import date
 from typing import Any
 
 FORMATOS: tuple[str, ...] = ("moeda", "inteiro", "pct")
+FORMATOS_TABELA: tuple[str, ...] = ("texto", *FORMATOS)
+MAX_COLUNAS = 30
 TIPOS_GRAFICO: tuple[str, ...] = ("linha", "barras", "barras_h", "rosca")
 LARGURAS: tuple[str, ...] = ("cheia", "meia")
 MAX_TITULO = 120
@@ -38,6 +40,7 @@ class Grafico:
 class Tabela:
     titulo: str
     sql: str
+    formatos: tuple[str, ...] | None = None  # um por coluna; None = tudo texto
 
 
 @dataclass(frozen=True)
@@ -110,9 +113,13 @@ def _grafico(bruto: object, i: int) -> Grafico:
 
 
 def _tabela(bruto: object) -> Tabela:
-    d = _objeto(bruto, "tabela", {"titulo", "sql"}, {"titulo", "sql"})
+    d = _objeto(bruto, "tabela", {"titulo", "sql", "formatos"}, {"titulo", "sql"})
+    bruto_fmt = d.get("formatos")
+    formatos = None if bruto_fmt is None else tuple(
+        _escolha(f, "tabela", "formatos", FORMATOS_TABELA)
+        for f in _lista(bruto_fmt, "tabela", "formatos", MAX_COLUNAS))
     return Tabela(titulo=_texto(d["titulo"], "tabela", "titulo", MAX_TITULO),
-                  sql=_texto(d["sql"], "tabela", "sql", MAX_SQL))
+                  sql=_texto(d["sql"], "tabela", "sql", MAX_SQL), formatos=formatos)
 
 
 def _data_iso(valor: object, campo: str) -> str:
@@ -181,6 +188,7 @@ ESPEC_EXEMPLO: dict[str, Any] = {
     ],
     "tabela": {
         "titulo": "Maiores gastos",
+        "formatos": ["texto", "texto", "moeda"],  # moeda = centavos inteiros
         "sql": "SELECT l.data_compensacao AS data, l.descricao AS descricao, "
                f"-l.valor_centavos AS valor {_DESPESA_FROM} ORDER BY valor DESC LIMIT 20",
     },

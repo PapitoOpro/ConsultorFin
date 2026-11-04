@@ -108,3 +108,18 @@ def test_lifespan_limpa_expirados(tmp_path: Path) -> None:
     with TestClient(app):
         pass
     assert not velho.exists()
+
+
+def test_formatos_da_tabela_vao_no_json_embutido(cliente: TestClient) -> None:
+    t = _retrato()
+    t["tabela"] = {"titulo": "T", "colunas": ["Nome", "Mensalidade", "Total"], "formatos": ["texto", "moeda", "inteiro"],
+                   "linhas": [["a", 123456, 12]], "truncado": False}
+    r = cliente.get(f"/relatorio/{_salvar(cliente, t)}")
+    m = re.search(r'id="dados-relatorio">(.*?)</script>', r.text, re.S)
+    assert m and json.loads(m.group(1))["tabela"]["formatos"] == ["texto", "moeda", "inteiro"]
+
+
+def test_js_sem_heuristica_de_nome_de_coluna() -> None:
+    js = (Path(__file__).resolve().parent.parent / "app/web/static/js/relatorio.js").read_text(encoding="utf-8")
+    assert "RE_MOEDA" not in js and "gasto|receita" not in js
+    assert "formatos" in js
