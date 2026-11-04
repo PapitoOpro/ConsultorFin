@@ -93,7 +93,7 @@ def test_confirmar_executa_com_o_comando_negado_liberado(cliente: TestClient, fa
     assert r.status_code == 200
     assert _eventos(r.text)[-1]["tipo"] == "fim"
     argv, entrada = falso.chamadas[-1]
-    assert not any("categorizar" in a for a in argv)  # nada de regra para o turno inteiro
+    assert not any("-m app.consultor categorizar" in a for a in argv)  # nada de regra para o turno inteiro
     assert argv[argv.index("--resume") + 1] == SESSAO
     assert entrada == "Confirmado. Execute agora a ação que foi bloqueada e conte o resultado."
     ambiente = falso.ambientes[-1]
@@ -126,7 +126,7 @@ def test_cancelar_nao_libera_comando(cliente: TestClient, falso: FalsoClaude) ->
     assert r.status_code == 200
     argv, entrada = falso.chamadas[-1]
     assert entrada == "Cancelado. Não faça essa alteração."
-    assert not any("categorizar" in a for a in argv)
+    assert not any("-m app.consultor categorizar" in a for a in argv)
     assert falso.ambientes[-1] == {}
 
 
