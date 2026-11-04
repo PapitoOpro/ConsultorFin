@@ -64,7 +64,7 @@ class _Subs:
         self._acao, self._comum = acao, comum
 
     def add_parser(self, nome: str, **kw: Any) -> argparse.ArgumentParser:
-        parser: argparse.ArgumentParser = self._acao.add_parser(nome, parents=[self._comum], **kw)
+        parser: argparse.ArgumentParser = self._acao.add_parser(nome, parents=[self._comum], allow_abbrev=False, **kw)
         return parser
 
 
@@ -83,10 +83,10 @@ def _id(texto: str | None, rotulo: str) -> int:
 
 
 def construir_parser() -> argparse.ArgumentParser:
-    p = _Parser(prog="python -m app.consultor", description="Consulta e operações do ConsultorFin.")
+    p = _Parser(prog="python -m app.consultor", allow_abbrev=False, description="Consulta e operações do ConsultorFin.")
     p.add_argument("--db", default=None, help="Caminho do banco (padrão: data/consultorfin.db).")
     p.add_argument("--hoje", default=None, help=argparse.SUPPRESS)
-    comum = _Parser(add_help=False)  # aceita --db/--hoje também depois do subcomando
+    comum = _Parser(add_help=False, allow_abbrev=False)  # aceita --db/--hoje também depois do subcomando
     comum.add_argument("--db", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     comum.add_argument("--hoje", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     sub = _Subs(p.add_subparsers(dest="comando", required=True), comum)
