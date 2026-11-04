@@ -34,3 +34,7 @@ def caminho_chave_senhas() -> Path:
     """Chave AES das senhas de PDF (env CONSULTORFIN_SENHAS_KEY; padrão data/senhas.key)."""
     valor = os.environ.get("CONSULTORFIN_SENHAS_KEY", "").strip()
     return Path(valor) if valor else RAIZ / "data" / "senhas.key"
+
+LIMITE_LINHAS_RELATORIO: int = 2000
+DIAS_EXPIRACAO_RELATORIO: int = 30
+DIR_RELATORIOS: Path = RAIZ / "data" / "relatorios"
