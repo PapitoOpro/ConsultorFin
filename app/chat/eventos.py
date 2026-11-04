@@ -2,11 +2,14 @@
 import json
 import logging
 import re
+import unicodedata
+from collections.abc import Callable
 from typing import Any
 
 from app.chat.argv import sessao_valida
 from app.chat.estado import EstadoChat
-from app.chat.guarda import subcomando_escrita
+from app.chat.guarda import analisar, subcomando_escrita
+from app.dominio.dinheiro import formatar_brl, para_centavos
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +39,65 @@ DESCRICOES: dict[str, str] = {
     "criar-conta": "Criar conta",
     "gmail-buscar": "Buscar faturas no Gmail",
 }
+LIMITE_TEXTO_CARTAO = 60
 _SUBCOMANDO = re.compile(r"-m app\.consultor ([a-z-]+)")
+
+
+def _limpo(valor: str | bool | None, limite: int = LIMITE_TEXTO_CARTAO) -> str:
+    """Texto vindo do modelo: sem caracteres de controle/formatação, espaços colapsados, cortado."""
+    texto = "".join(" " if c.isspace() else c for c in str(valor or "")
+                    if c.isspace() or not unicodedata.category(c).startswith("C"))
+    texto = " ".join(texto.split())
+    return texto if len(texto) <= limite else texto[:limite - 1] + "…"
+
+
+def _dinheiro(valor: str | bool | None) -> str:
+    try:
+        return formatar_brl(para_centavos(str(valor)))
+    except (ValueError, ArithmeticError):
+        return f"valor {_limpo(valor, 20)}"
+
+
+def _gmail(o: dict[str, str | bool]) -> str:
+    if o.get("--ate"):
+        return f"Buscar faturas no Gmail ({_limpo(o.get('--mes') or 'mês atual', 20)} até {_limpo(o['--ate'], 20)})"
+    mes = o.get("--mes")
+    return f"Buscar faturas no Gmail (mês {_limpo(mes, 20)})" if mes else "Buscar faturas no Gmail (mês atual)"
+
+
+def _importar(o: dict[str, str | bool]) -> str:
+    arquivo = _limpo(re.split(r"[\\/]", str(o.get("--arquivo", "")))[-1])
+    acao = "Importar o arquivo" if o.get("--confirmar") else "Simular a importação do arquivo"
+    return f"{acao} {arquivo} na conta #{_limpo(o.get('--conta'), 20)}"
+
+
+def _pagar(o: dict[str, str | bool]) -> str:
+    valor = _dinheiro(o["--valor"]) if o.get("--valor") else "valor previsto"
+    data = f" em {_limpo(o['--data'], 20)}" if o.get("--data") else ""
+    return f"Registrar pagamento do lançamento #{_limpo(o.get('--lancamento'), 20)} ({valor}){data}"
+
+
+_DESCREVER: dict[str, Callable[[dict[str, str | bool]], str]] = {
+    "categorizar": lambda o: f"Categorizar lançamento #{_limpo(o.get('--lancamento'), 20)} → "
+                             f"categoria {_limpo(o.get('--categoria'), 20)}",
+    "pagar": _pagar,
+    "criar-conta": lambda o: f"Criar conta «{_limpo(o.get('--nome'))}» ({_limpo(o.get('--tipo'), 20)}, "
+                             f"saldo inicial {_dinheiro(o.get('--saldo-inicial'))} em "
+                             f"{_limpo(o.get('--data-saldo'), 20)})",
+    "importar": _importar,
+    "regra": lambda o: f"Criar regra: descrições com «{_limpo(o.get('--padrao'))}» → "
+                       f"categoria {_limpo(o.get('--categoria'), 20)}",
+    "casar": lambda o: f"Casar pendente #{_limpo(o.get('--pendente'), 20)} com a linha #{_limpo(o.get('--linha'), 20)}",
+    "gmail-buscar": _gmail,
+}
+
+
+def descrever(comando: str) -> str | None:
+    """Descrição do cartão montada dos argumentos já conferidos pelo porteiro (nunca o comando)."""
+    a = analisar(comando)
+    if a is None or a.subcomando not in _DESCREVER:
+        return None
+    return _DESCREVER[a.subcomando](a.opcoes)
 _RID = re.compile(r"[0-9a-f]{32}")
 
 
@@ -84,7 +145,7 @@ def _cartoes(dados: dict[str, Any], sessao: str | None, estado: EstadoChat) -> l
             log.warning("event=chat_negado escrita=%s", escrita or "nao")
             continue
         token = estado.guardar_pendencia(sessao, str(comando))
-        saida.append({"tipo": "confirmar", "token": token, "descricao": DESCRICOES[escrita]})
+        saida.append({"tipo": "confirmar", "token": token, "descricao": descrever(comando) or DESCRICOES[escrita]})
     return saida
 
 

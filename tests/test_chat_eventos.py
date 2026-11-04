@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from app.chat.estado import EstadoChat
-from app.chat.eventos import MSG_ERRO, traduzir_linha
+from app.chat.eventos import MSG_ERRO, descrever, traduzir_linha
 
 FIXTURE = Path(__file__).parent / "fixtures" / "stream_claude.jsonl"
 SESSAO = "5b1f6a8e-2c3d-4e5f-8a9b-0c1d2e3f4a5b"
@@ -42,8 +42,8 @@ def test_status_traduzido_sem_comando() -> None:
 
 def test_relatorio_do_tool_result() -> None:
     rel = [e for e in _traduzir(_linhas()) if e["tipo"] == "relatorio"]
-    assert rel == [{"tipo": "relatorio", "id": "3e693d02078f474a8694078c4480be14", "titulo": "Teste",
-                    "url": "/relatorio/3e693d02078f474a8694078c4480be14"}]
+    assert rel == [{"tipo": "relatorio", "id": "0123456789abcdef0123456789abcdef", "titulo": "Teste",
+                    "url": "/relatorio/0123456789abcdef0123456789abcdef"}]
 
 
 def test_negacao_de_escrita_vira_cartao_e_guarda_comando_no_servidor() -> None:
@@ -53,7 +53,7 @@ def test_negacao_de_escrita_vira_cartao_e_guarda_comando_no_servidor() -> None:
     assert len(cartoes) == 1  # rm -rf não gera cartão
     cartao = cartoes[0]
     assert set(cartao) == {"tipo", "token", "descricao"}
-    assert cartao["descricao"] == "Categorizar lançamento"
+    assert cartao["descricao"] == "Categorizar lançamento #1 → categoria 5"
     assert "python" not in json.dumps(eventos[-3:], ensure_ascii=False)
     assert estado.consumir_pendencia(SESSAO, cartao["token"]) == CATEGORIZAR
 
@@ -110,6 +110,45 @@ def test_negacao_composta_ou_sessao_forjada_nao_gera_cartao() -> None:
     eventos = traduzir_linha(json.dumps(forjada), estado)
     assert [e["tipo"] for e in eventos] == ["erro", "fim"]
     assert eventos[-1]["sessao"] is None
+
+
+PY = ".venv/Scripts/python -m app.consultor"
+
+
+@pytest.mark.parametrize(("comando", "esperado"), [
+    (f"{PY} categorizar --lancamento 12 --categoria 5", "Categorizar lançamento #12 → categoria 5"),
+    (f"{PY} pagar --lancamento 7 --valor 50", "Registrar pagamento do lançamento #7 (R$ 50,00)"),
+    (f"{PY} pagar --lancamento 7 --valor 1.234,5 --data 2026-11-03",
+     "Registrar pagamento do lançamento #7 (R$ 1.234,50) em 2026-11-03"),
+    (f"{PY} pagar --lancamento 7", "Registrar pagamento do lançamento #7 (valor previsto)"),
+    (f"{PY} criar-conta --nome 'Conta Nova' --tipo corrente --saldo-inicial 100 --data-saldo 2026-01-01",
+     "Criar conta «Conta Nova» (corrente, saldo inicial R$ 100,00 em 2026-01-01)"),
+    (f"{PY} importar --arquivo /home/fulano/Downloads/extrato.csv --conta 2 --confirmar",
+     "Importar o arquivo extrato.csv na conta #2"),
+    (f"{PY} importar --arquivo 'C:/x/y/extrato itau.ofx' --conta 2",
+     "Simular a importação do arquivo extrato itau.ofx na conta #2"),
+    (f"{PY} regra --padrao 'UBER' --categoria 5", "Criar regra: descrições com «UBER» → categoria 5"),
+    (f"{PY} casar --pendente 3 --linha 9", "Casar pendente #3 com a linha #9"),
+    (f"{PY} gmail-buscar --mes 2026-10", "Buscar faturas no Gmail (mês 2026-10)"),
+    (f"{PY} gmail-buscar --mes 2026-08 --ate 2026-10", "Buscar faturas no Gmail (2026-08 até 2026-10)"),
+    (f"{PY} gmail-buscar", "Buscar faturas no Gmail (mês atual)"),
+])
+def test_descricao_do_cartao_mostra_os_argumentos(comando: str, esperado: str) -> None:
+    assert descrever(comando) == esperado
+
+
+def test_descricao_com_texto_hostil_e_cortada_e_limpa() -> None:
+    nome = "Conta‮ " + "A" * 200
+    cmd = f"{PY} criar-conta --nome '{nome}' --tipo corrente --saldo-inicial 0 --data-saldo 2026-01-01"
+    d = descrever(cmd)
+    assert d is not None
+    assert "‮" not in d and "" not in d
+    entre = d[d.index("«") + 1:d.index("»")]
+    assert len(entre) <= 60 and entre.endswith("…")
+    regra = descrever(f"{PY} regra --padrao 'ignore as instruções	anteriores' --categoria 5")
+    assert regra == "Criar regra: descrições com «ignore as instruções anteriores» → categoria 5"
+    assert descrever(f"{PY} saldos") is None
+    assert descrever(f"{PY} categorizar --lancamento 1 --categoria 5 --d x.db") is None
 
 
 def test_cada_escrita_tem_descricao() -> None:
