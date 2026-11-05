@@ -14,6 +14,7 @@ from app.dominio.lancamentos import interpretar_id
 from app.dominio.saldo import ajustar_saldo_inicial, comparar_saldo_informado, conciliar, saldo_inicial_e_estimativa, texto_saldo_informado
 from app.importacao.base import FormatoNaoSuportado, Parser, ResultadoLeitura
 from app.importacao.deteccao import detectar, exigir_ofx_valido
+from app.importacao.itau_pdf import tem_extrato_itau_pdf
 from app.importacao.excel import ArquivoIlegivel, ParserExcel, listar_colunas
 from app.importacao.servico import (
     ArquivoJaImportado, ImportacaoNaoEncontrada, LancamentosAnterioresAoSaldoInicial, conta_detectada,
@@ -162,12 +163,19 @@ def pagina(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
     return _pagina_inicial(request, con)
 
 
+def _pdf_eh_extrato(arquivo: UploadFile) -> bool:
+    """PDF de extrato de conta do Itaú segue o fluxo de extrato; os demais, o de fatura."""
+    conteudo = arquivo.file.read(LIMITE_BYTES + 1)
+    arquivo.file.seek(0)
+    return len(conteudo) <= LIMITE_BYTES and tem_extrato_itau_pdf(conteudo)
+
+
 @router.post("/importar/previa", response_class=HTMLResponse)
 def previa(request: Request, con: Any = Depends(get_con),
            arquivo: UploadFile | None = File(None), token: str = Form(""),
            conta_id: str = Form(""), mapa_data: str = Form(""), mapa_descricao: str = Form(""),
            mapa_valor: str = Form("")) -> Response:
-    if arquivo is not None and Path(arquivo.filename or "").suffix.lower() == ".pdf":
+    if arquivo is not None and Path(arquivo.filename or "").suffix.lower() == ".pdf"             and not _pdf_eh_extrato(arquivo):
         from app.web.rotas.faturas import previa_de_upload  # import local: evita ciclo
         return previa_de_upload(request, con, arquivo, "", "")
     try:
