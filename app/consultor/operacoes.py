@@ -28,7 +28,7 @@ from app.repo import contas as repo_contas
 log = logging.getLogger(__name__)
 
 LIMITE_BYTES = 5 * 1024 * 1024
-EXTENSOES = {".csv", ".xlsx", ".ofx", ".ofc"}
+EXTENSOES = {".csv", ".xlsx", ".ofx", ".ofc", ".pdf"}
 MSG_PDF = ("Faturas de cartão em PDF são importadas pelo painel web (tela Importar), porque a "
            "senha do PDF não pode passar pelo Claude. Abra o painel, escolha o PDF e digite a "
            "senha lá; depois use o comando faturas para consultar.")
@@ -40,10 +40,8 @@ MSG_PADRAO_LONGO = "O padrão da regra pode ter no máximo 100 caracteres."
 
 def _ler_arquivo(caminho: str) -> tuple[str, bytes]:
     arq = Path(caminho)
-    if arq.suffix.lower() == ".pdf":
-        raise ErroLancamento(MSG_PDF)
     if arq.suffix.lower() not in EXTENSOES:
-        raise ErroLancamento("Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx.")
+        raise ErroLancamento("Formato não aceito. Envie um arquivo .csv, .xlsx, .ofx ou .pdf.")
     if not arq.is_file():
         raise ErroLancamento("Arquivo não encontrado.")
     if arq.stat().st_size > LIMITE_BYTES:
@@ -115,7 +113,7 @@ def importar(con: Any, hoje: date, caminho: str, conta_id: int, confirmar: bool)
     except FormatoNaoSuportado as exc:
         raise ErroLancamento(str(exc)) from exc
     if parser is None:
-        raise ErroLancamento(MSG_FORMATO)
+        raise ErroLancamento(MSG_PDF if nome.lower().endswith(".pdf") else MSG_FORMATO)
     try:
         leitura = parser.ler(conteudo)
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace

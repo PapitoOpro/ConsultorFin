@@ -117,12 +117,11 @@ def test_faturas_nao_grava(db: Path, capsys: pytest.CaptureFixture[str]) -> None
     assert hashlib.sha256(db.read_bytes()).hexdigest() == antes
 
 
-@pytest.mark.parametrize("nome", ["fatura.pdf", "FATURA.PDF", "inexistente.pdf"])
+@pytest.mark.parametrize("nome", ["fatura.pdf", "FATURA.PDF"])
 def test_importar_recusa_pdf(db: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str],
                              nome: str) -> None:
     pdf = tmp_path / nome
-    if nome != "inexistente.pdf":
-        pdf.write_bytes(b"%PDF-1.4 teste")
+    pdf.write_bytes(b"%PDF-1.4 teste")
     codigo, r = rodar(capsys, db, "importar", "--arquivo", str(pdf), "--conta", "2",
                       "--confirmar")
     assert codigo == 1

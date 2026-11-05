@@ -144,8 +144,8 @@ def test_confirmar_revalida_arquivo_repetido(cliente: TestClient, db: Path) -> N
 
 @pytest.mark.parametrize("nome,conteudo,msg", [
     ("extrato.csv", b"", "O arquivo está vazio."),
-    ("extrato.txt", b"abc", "Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx."),
-    ("antigo.xls", XLS_ANTIGO, "Formato não aceito. Envie um arquivo .csv, .xlsx ou .ofx."),
+    ("extrato.txt", b"abc", "Formato não aceito. Envie um arquivo .csv, .xlsx, .ofx ou .pdf."),
+    ("antigo.xls", XLS_ANTIGO, "Formato não aceito. Envie um arquivo .csv, .xlsx, .ofx ou .pdf."),
     ("disfarcado.xlsx", XLS_ANTIGO, "Planilhas .xls (Excel antigo) não são aceitas."),
     ("extrato.csv", b"x" * (5 * 1024 * 1024 + 1), "O arquivo excede o limite de 5 MB."),
     ("planilha.xlsx", b"PK\x03\x04lixo", "Não foi possível ler o arquivo."),

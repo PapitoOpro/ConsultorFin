@@ -25,10 +25,10 @@
   <label id="area" class="dropzone" for="arquivo">
     <span class="dropzone-icone">{{ icone("upload", 24) }}</span>
     <strong>Arraste o extrato aqui</strong> ou clique para escolher
-    <span class="secundario">OFX, CSV ou Excel (.ofx, .csv, .xlsx), até 5 MB</span>
+    <span class="secundario">OFX, CSV, Excel ou PDF do extrato Itaú (.ofx, .csv, .xlsx, .pdf), até 5 MB</span>
     <span class="arquivo-escolhido" id="arquivo-nome" aria-live="polite"></span>
   </label>
-  <input id="arquivo" class="sr-only" name="arquivo" type="file" accept=".ofx,.csv,.xlsx" required>
+  <input id="arquivo" class="sr-only" name="arquivo" type="file" accept=".ofx,.csv,.xlsx,.pdf" required>
   <div class="campo">
     <label for="conta_id">Conta de destino</label>
     <select id="conta_id" name="conta_id">
