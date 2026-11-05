@@ -28,6 +28,13 @@ class Casamento:
     pontuacao: float
 
 
+def _tolerancia(valor_centavos: int) -> float:
+    """Tolerância de valor: 10%, com piso de R$ 5,00 limitado ao próprio valor (não casa
+    R$ 0,02 com R$ 0,06)."""
+    v = abs(valor_centavos)
+    return max(v * TOLERANCIA_PERCENTUAL, min(TOLERANCIA_MINIMA_CENTAVOS, v))
+
+
 @lru_cache(maxsize=65536)
 def _normalizar(texto: str) -> str:
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
@@ -68,7 +75,7 @@ def _parte_sem_texto(pendente: Any, linha: Any) -> tuple[float, float] | None:
     vp, vl = int(pendente["valor_centavos"]), int(linha["valor_centavos"])
     if (vp < 0) != (vl < 0) or vp == 0 or vl == 0:
         return None
-    tolerancia = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
+    tolerancia = _tolerancia(vp)
     dif_valor = abs(vl - vp)
     if dif_valor > tolerancia:  # barato primeiro: evita o parse de datas
         return None
@@ -118,7 +125,7 @@ def propor_casamentos(con: Any, conta_id: int, importacao_id: int | None = None)
         vp = int(p["valor_centavos"])
         if vp == 0 or dia is None:
             continue
-        tol = max(abs(vp) * TOLERANCIA_PERCENTUAL, TOLERANCIA_MINIMA_CENTAVOS)
+        tol = _tolerancia(vp)
         ini = bisect.bisect_left(chaves, (dia - janela).isoformat())
         fim = bisect.bisect_right(chaves, (dia + janela).isoformat())
         for li in range(ini, fim):

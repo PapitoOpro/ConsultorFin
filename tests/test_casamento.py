@@ -647,3 +647,10 @@ def test_candidato_de_valor_zero_nao_le_a_data(con) -> None:
     con.execute("UPDATE lancamentos SET valor_centavos = 0, data = 'lixo' WHERE id = ?", (pid,))
     con.commit()
     assert propor_casamentos(con, conta) == []
+
+
+def test_tolerancia_nao_casa_centavos_com_valor_maior() -> None:
+    from app.dominio.casamento import _tolerancia
+    assert _tolerancia(2) == 2  # R$ 0,02 não casa com R$ 0,06
+    assert _tolerancia(3000) == 500
+    assert _tolerancia(50000) == 5000

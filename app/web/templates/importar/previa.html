@@ -38,10 +38,10 @@
         {% if conta_id is none %}<option value="" selected>Escolha a conta de destino</option>{% endif %}
         {% for c in contas %}<option value="{{ c.id }}"{% if c.id == conta_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
       </select>
-      {% if detectada %}<p class="campo-ajuda">{{ icone("info", 14) }} Conta detectada pelo arquivo. Confirme ou altere.</p>{% endif %}
     </div>
     <div class="campo"><button type="submit" class="secundario">{{ icone("check", 16) }}Atualizar conta</button></div>
   </div>
+  {% if detectada %}<p class="campo-ajuda">{{ icone("info", 14) }} Conta detectada pelo arquivo. Confirme ou altere.</p>{% endif %}
 </form>
 {% endif %}
 
