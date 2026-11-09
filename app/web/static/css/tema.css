@@ -876,7 +876,18 @@ th[aria-sort="descending"] .relatorio-ordenar::after { content: " ▼"; }
 .faixa-cheque { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--saida); border-radius: var(--raio); background: var(--superficie); color: var(--saida); }
 .faixa-cheque p { margin: 0; color: var(--texto); font-size: 14px; }
 .faixa-cheque.atencao { border-color: var(--alerta); color: var(--alerta); }
-.cheque-card { margin-bottom: 16px; display: grid; gap: 12px; }
+.cheque-card { margin: 0 0 16px; padding: 10px 16px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); font-size: 13px; color: var(--texto-secundario); }
+.cheque-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.cheque-titulo { color: var(--texto); font-weight: 600; }
+.cheque-linha .consumo { flex: 1 1 200px; min-width: 160px; gap: 4px; }
+.cheque-linha .consumo-texto { font-size: 12px; }
+.cheque-valor .numero { font-family: var(--fonte-dados); color: var(--texto); }
+.cheque-valor .numero.saida, .cheque-valor .saida { color: var(--saida); }
+.cheque-ajustar summary { cursor: pointer; color: var(--texto-secundario); }
+.cheque-ajustar { flex-basis: auto; }
+.cheque-ajustar[open] { flex-basis: 100%; }
+.cheque-ajustar form { margin: 8px 0; }
+.cheque-vazio { margin: 0; }
 .cheque-ajuste { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 .cheque-ajuste label { display: grid; gap: 4px; font-size: 12px; color: var(--texto-secundario); }
 .dialogo-cheque { background: var(--superficie); color: var(--texto); border: 1px solid var(--saida); border-radius: var(--raio-grande); padding: 20px 24px; max-width: 420px; box-shadow: var(--sombra); }
