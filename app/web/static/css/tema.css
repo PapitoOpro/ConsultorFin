@@ -922,7 +922,29 @@ th[aria-sort="descending"] .relatorio-ordenar::after { content: " ▼"; }
 .dashboard .grade-kpi .kpi:not(.kpi-destaque) .rotulo { font-size: 13px; font-weight: 500; color: var(--texto-secundario); }
 .dashboard .grade-kpi .kpi:not(.kpi-destaque) .numero { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
 .dashboard .kpi-destaque { border-color: var(--borda-hover); }
-.dashboard .kpi-destaque .numero { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+.dashboard .kpi-destaque > .valor.numero { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
 @keyframes barra-enche { from { width: 0; } }
 .consumo-barra::after { animation: barra-enche 700ms cubic-bezier(0.22, 1, 0.36, 1) 150ms backwards; }
 @media (max-width: 640px) { .dashboard .hero h2 .numero { font-size: 34px; } .dashboard .hero { padding: 20px; } }
+
+/* ===== Início: layout bento (telas largas) ===== */
+@media (min-width: 1280px) {
+  .dashboard { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+  .dashboard > .grade-kpi, .dashboard > .grade-paineis, .dashboard > .grade-3 { display: contents; }
+  .dashboard > .hero, .dashboard > .faixa-cheque, .dashboard > .painel.detalhe, .dashboard > #msg-graficos { grid-column: 1 / -1; }
+  .dashboard .grade-kpi > .kpi { grid-column: span 3; }
+  .dashboard .grade-kpi > .kpi-destaque { grid-row: span 2; justify-content: center; }
+  .dashboard > .cheque-card { grid-column: span 9; margin: 0; display: flex; align-items: center; }
+  .dashboard > .cheque-card > * { width: 100%; }
+  .dashboard .grade-paineis.analise > :nth-child(1) { grid-column: span 8; }
+  .dashboard .grade-paineis.analise > :nth-child(2) { grid-column: span 4; grid-row: span 2; }
+  .dashboard .grade-3 > * { grid-column: span 4; }
+  .dashboard .grade-paineis.meio > * { grid-column: span 6; }
+  .dashboard .grade-paineis.recentes > :nth-child(1) { grid-column: span 7; }
+  .dashboard .grade-paineis.recentes > :nth-child(2) { grid-column: span 5; }
+  .dashboard .grade-kpi > *, .dashboard .grade-paineis > *, .dashboard .grade-3 > * { animation: entrada-card 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .dashboard .grade-kpi > :nth-child(2), .dashboard .grade-paineis > :nth-child(2), .dashboard .grade-3 > :nth-child(2) { animation-delay: 50ms; }
+  .dashboard .grade-kpi > :nth-child(3) { animation-delay: 100ms; }
+  .dashboard .grade-kpi > :nth-child(4) { animation-delay: 150ms; }
+  .dashboard .grade-3 .grafico.pequeno { height: 170px; }
+}
