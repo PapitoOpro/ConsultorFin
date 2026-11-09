@@ -38,8 +38,9 @@ Itens marcados "(minha escolha)" não foram discutidos com o dono.
 1. **Configuração por conta (minha escolha):** guardada em `configuracoes`, chave `cheque_especial`, valor JSON
    `{"conta_id", "limite_centavos", "dias_isentos": 10, "alerta_a_partir_de": 8}`. Sem migração de banco.
    Valores iniciais sugeridos no formulário: 441000, 10, 8. Uma conta só.
-2. **Tela de configuração (minha escolha):** link "Configurar" no próprio card (conta, limite, dias isentos,
-   limiar). Sem a configuração, o card mostra um convite "Configurar cheque especial".
+2. **Tela de configuração (revisado a pedido do dono):** fora do Início. Fica em Contas a pagar › Contas e
+   cartões (coluna Cheque especial, só conta corrente) e como campo opcional ao cadastrar a conta. Limite vazio
+   desativa. O card do Início só tem o link para lá e a correção de dias.
 3. **Dia de uso (minha escolha):** o dia conta quando o **saldo ao fim do dia** (lançamentos compensados com
    `data_compensacao` <= dia) é negativo. Percorre do dia 1 do mês até hoje. O dia de hoje conta se o saldo
    atual já está negativo. Só lançamentos compensados; pendentes não entram.

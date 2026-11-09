@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any, TypeVar
 
+from app.dominio import cheque_especial
 from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, confirmar_casamento, linha_do_extrato_para
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
 from app.dominio.lancamentos import (
@@ -212,7 +213,7 @@ def excluir_grupo(con: Any, grupo: str) -> str:
 
 def criar_conta_de_formulario(
     con: Any, *, nome: str, tipo: str, instituicao: str, final_numero: str,
-    saldo_inicial: str, data_saldo_inicial: str,
+    saldo_inicial: str, data_saldo_inicial: str, limite_cheque_especial: str = "",
 ) -> str:
     nome = nome.strip()
     if not nome:
@@ -234,7 +235,54 @@ def criar_conta_de_formulario(
     except ValueError as exc:
         raise ErroLancamento("Valor inválido. Use o formato 1.234,56.") from exc
     dia = interpretar_data(data_saldo_inicial)
-    repo_contas.criar_conta(
+    cheque = None
+    if limite_cheque_especial.strip():
+        if tipo != "corrente":
+            raise ErroLancamento(MSG_CHEQUE_SO_CORRENTE)
+        cheque = _cheque_do_formulario(limite_cheque_especial, "", "")
+    novo_id = repo_contas.criar_conta(
         con, nome, tipo, instituicao=instituicao or None, final_numero=final or None,
         saldo_inicial_centavos=saldo, data_saldo_inicial=dia)
+    if cheque is not None:
+        cheque_especial.salvar_config(con, cheque_especial.validar_config(novo_id, *cheque))
+        return "Conta cadastrada. Cheque especial configurado."
     return "Conta cadastrada."
+
+
+MSG_CHEQUE_SO_CORRENTE = "O cheque especial só vale para conta corrente."
+
+
+def _cheque_do_formulario(limite: str, dias_isentos: str, alerta: str) -> tuple[int, int, int]:
+    """(limite_centavos, dias_isentos, alerta_a_partir_de); vazio usa os padrões 10 e 8."""
+    try:
+        centavos = para_centavos(limite)
+        isentos = int(dias_isentos) if dias_isentos.strip() else 10
+        aviso = int(alerta) if alerta.strip() else 8
+        cheque_especial.validar_config(0, centavos, isentos, aviso)
+    except ValorMuitoAlto as exc:
+        raise ErroLancamento("Valor muito alto. O máximo é R$ 10.000.000.000,00.") from exc
+    except ValueError as exc:
+        texto = str(exc)
+        raise ErroLancamento(texto if texto.endswith(".") and not texto.startswith("valor") else
+                             "Confira os valores do cheque especial.") from exc
+    return centavos, isentos, aviso
+
+
+def configurar_cheque_especial_de_formulario(
+    con: Any, *, conta_id: str, limite: str, dias_isentos: str, alerta_a_partir_de: str,
+) -> str:
+    cid = interpretar_id(conta_id)
+    conta = repo_contas.obter(con, cid)
+    if conta is None:
+        raise NaoEncontrado("Conta não encontrada.")
+    if conta["tipo"] != "corrente":
+        raise ErroLancamento(MSG_CHEQUE_SO_CORRENTE)
+    if not limite.strip():
+        atual = cheque_especial.carregar_config(con)
+        if atual is not None and atual.conta_id == cid:
+            cheque_especial.remover_config(con)
+            return "Cheque especial removido."
+        raise ErroLancamento("Informe o limite do cheque especial.")
+    centavos, isentos, aviso = _cheque_do_formulario(limite, dias_isentos, alerta_a_partir_de)
+    cheque_especial.salvar_config(con, cheque_especial.validar_config(cid, centavos, isentos, aviso))
+    return "Cheque especial configurado."

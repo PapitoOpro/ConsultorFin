@@ -121,18 +121,12 @@
     <button class="botao secundario">Corrigir</button>
   </form>
   {% endif %}
-  <details class="cheque-config"{% if not ch %} open{% endif %}>
-    <summary>{{ 'Configurar cheque especial' if not ch else 'Alterar configuração' }}</summary>
-    <form method="post" action="/cheque-especial">
-      <label>Conta <select name="conta_id" required>
-        {% for c in resumo.contas if c.tipo != 'cartao' %}<option value="{{ c.id }}"{% if ch and ch.config.conta_id == c.id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
-      </select></label>
-      <label>Limite (R$) <input name="limite" inputmode="decimal" value="{{ ((ch.config.limite_centavos / 100)|string).replace('.', ',') if ch else '4.410,00' }}" required></label>
-      <label>Dias sem juros <input type="number" name="dias_isentos" min="1" max="31" value="{{ ch.config.dias_isentos if ch else 10 }}" required></label>
-      <label>Avisar a partir de (dias) <input type="number" name="alerta_a_partir_de" min="1" max="31" value="{{ ch.config.alerta_a_partir_de if ch else 8 }}" required></label>
-      <button class="botao">Salvar</button>
-    </form>
-  </details>
+  {% if not ch %}
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Cheque especial</h2></div></div>
+  <p class="subtitulo">Controle os dias sem juros do cheque especial. <a href="/contas-a-pagar#contas">Configurar nas contas</a></p>
+  {% else %}
+  <p class="subtitulo"><a href="/contas-a-pagar#contas">Alterar limite ou dias nas contas</a></p>
+  {% endif %}
 </section>
 
 <section class="grade-kpi" aria-label="Resumo do mês">

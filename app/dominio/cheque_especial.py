@@ -74,6 +74,11 @@ def carregar_config(con: Any) -> ConfigChequeEspecial | None:
         return None
 
 
+def remover_config(con: Any) -> None:
+    configuracoes.remover(con, CHAVE_CONFIG)
+    configuracoes.remover(con, CHAVE_DIAS)
+
+
 def informar_dias(con: Any, hoje: date, dias: int) -> None:
     """Dias de uso segundo o banco; vale só no mês de `hoje`."""
     if not 0 <= dias <= 31:

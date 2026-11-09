@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
+from app.dominio import cheque_especial
 from app.dominio import contas_pagar as dom
 from app.dominio import contas_pagar_acoes as acoes
 from app.dominio.lancamentos import ErroLancamento, NaoEncontrado, opcoes_categorias
@@ -38,6 +39,7 @@ def _pagina(request: Request, con: Any, horizonte: int, *, aviso: str | None = N
         "categorias_saida": opcoes_categorias(con, "saida"),
         "categorias_entrada": opcoes_categorias(con, "entrada"),
         "tipos_conta": acoes.TIPOS_CONTA, "aviso": aviso, "erro": erro,
+        "cheque_cfg": cheque_especial.carregar_config(con),
     }
     return request.app.state.templates.TemplateResponse(
         request, "contas_pagar/index.html", ctx, status_code=status)
@@ -114,11 +116,25 @@ def nova_conta(
     request: Request, con: Any = Depends(get_con), nome: str = Form(""), tipo: str = Form(""),
     instituicao: str = Form(""), final_numero: str = Form(""), saldo_inicial: str = Form(""),
     data_saldo_inicial: str = Form(""), horizonte: str = Form(""),
+    limite_cheque_especial: str = Form(""),
 ) -> HTMLResponse:
     def acao(_: date) -> str:
         return acoes.criar_conta_de_formulario(
             con, nome=nome, tipo=tipo, instituicao=instituicao, final_numero=final_numero,
-            saldo_inicial=saldo_inicial, data_saldo_inicial=data_saldo_inicial)
+            saldo_inicial=saldo_inicial, data_saldo_inicial=data_saldo_inicial,
+            limite_cheque_especial=limite_cheque_especial)
+    return _executar(request, con, horizonte, acao)
+
+
+@router.post("/contas-a-pagar/conta/{conta_id}/cheque-especial", response_class=HTMLResponse)
+def configurar_cheque_especial(
+    conta_id: str, request: Request, con: Any = Depends(get_con), limite: str = Form(""),
+    dias_isentos: str = Form(""), alerta_a_partir_de: str = Form(""), horizonte: str = Form(""),
+) -> HTMLResponse:
+    def acao(_: date) -> str:
+        return acoes.configurar_cheque_especial_de_formulario(
+            con, conta_id=conta_id, limite=limite, dias_isentos=dias_isentos,
+            alerta_a_partir_de=alerta_a_partir_de)
     return _executar(request, con, horizonte, acao)
 
 

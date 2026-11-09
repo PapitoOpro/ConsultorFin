@@ -643,7 +643,7 @@ def _cheque(db: Path, conta: int, dias_negativos: int) -> None:
 
 def test_cheque_sem_config_mostra_convite_e_sem_faixa(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/").text
-    assert "Configurar cheque especial" in html
+    assert 'href="/contas-a-pagar#contas"' in html and 'action="/cheque-especial"' not in html
     assert 'id="cheque-faixa"' not in html
 
 

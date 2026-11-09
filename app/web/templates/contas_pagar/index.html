@@ -226,7 +226,7 @@
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("wallet", 18) }}Contas e cartões <span class="selo neutro">{{ contas | length }}</span></h2></div></div>
   {% if contas %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
-    <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Instituição</th><th class="valor">Saldo inicial</th></tr></thead>
+    <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Instituição</th><th class="valor">Saldo inicial</th><th>Cheque especial</th></tr></thead>
     <tbody>
     {% for c in contas %}
       <tr>
@@ -234,6 +234,24 @@
         <td class="sec"><span class="selo {{ 'roxo' if c.tipo == 'cartao' else 'neutro' }}">{{ tipos_conta.get(c.tipo, c.tipo) }}</span></td>
         <td class="sec">{{ c.instituicao or "—" }}</td>
         <td class="valor">{{ c.saldo_inicial_centavos | brl }}{% if c.data_saldo_inicial %} <span class="secundario">em {{ c.data_saldo_inicial | data_br }}</span>{% endif %}</td>
+        <td>
+          {% if c.tipo == 'corrente' %}
+          {% set ativo = cheque_cfg and cheque_cfg.conta_id == c.id %}
+          <details class="painel-interno">
+            <summary>{{ (cheque_cfg.limite_centavos | brl) if ativo else 'Configurar' }}</summary>
+            <form method="post" action="/contas-a-pagar/conta/{{ c.id }}/cheque-especial">
+              <input type="hidden" name="horizonte" value="{{ horizonte }}">
+              <div class="grade-form">
+                <div class="campo"><label for="ce-lim-{{ c.id }}">Limite (R$)</label><input id="ce-lim-{{ c.id }}" class="valor" name="limite" inputmode="decimal" placeholder="4.410,00" value="{{ ((cheque_cfg.limite_centavos / 100) | string).replace('.', ',') if ativo else '' }}"></div>
+                <div class="campo"><label for="ce-iso-{{ c.id }}">Dias sem juros</label><input id="ce-iso-{{ c.id }}" type="number" name="dias_isentos" min="1" max="31" value="{{ cheque_cfg.dias_isentos if ativo else 10 }}"></div>
+                <div class="campo"><label for="ce-ale-{{ c.id }}">Avisar a partir de (dias)</label><input id="ce-ale-{{ c.id }}" type="number" name="alerta_a_partir_de" min="1" max="31" value="{{ cheque_cfg.alerta_a_partir_de if ativo else 8 }}"></div>
+              </div>
+              <p class="campo-ajuda mb-3">{{ icone("info", 14) }} Deixe o limite vazio para desativar.</p>
+              <button type="submit">{{ icone("check", 16) }}Salvar</button>
+            </form>
+          </details>
+          {% else %}<span class="secundario">—</span>{% endif %}
+        </td>
       </tr>
     {% endfor %}
     </tbody>
@@ -253,6 +271,7 @@
         <div class="campo"><label for="c-final">Final do cartão/conta</label><input id="c-final" name="final_numero" maxlength="20"></div>
         <div class="campo"><label for="c-saldo">Saldo inicial</label><input id="c-saldo" class="valor" name="saldo_inicial" value="0,00" required></div>
         <div class="campo"><label for="c-data">Data do saldo inicial</label><input id="c-data" type="date" name="data_saldo_inicial" value="{{ hoje }}" required></div>
+        <div class="campo"><label for="c-cheque">Limite do cheque especial (opcional, só conta corrente)</label><input id="c-cheque" class="valor" name="limite_cheque_especial" inputmode="decimal" placeholder="4.410,00"></div>
       </div>
       <p class="campo-ajuda mb-3">{{ icone("info", 14) }} Informe o saldo na data do primeiro lançamento que você vai importar.</p>
       <button type="submit">{{ icone("check", 16) }}Cadastrar conta</button>

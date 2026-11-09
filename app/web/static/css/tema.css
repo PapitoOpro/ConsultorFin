@@ -877,10 +877,8 @@ th[aria-sort="descending"] .relatorio-ordenar::after { content: " ▼"; }
 .faixa-cheque p { margin: 0; color: var(--texto); font-size: 14px; }
 .faixa-cheque.atencao { border-color: var(--alerta); color: var(--alerta); }
 .cheque-card { margin-bottom: 16px; display: grid; gap: 12px; }
-.cheque-ajuste, .cheque-config form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
-.cheque-ajuste label, .cheque-config label { display: grid; gap: 4px; font-size: 12px; color: var(--texto-secundario); }
-.cheque-config summary { cursor: pointer; font-size: 13px; color: var(--texto-secundario); }
-.cheque-config form { margin-top: 12px; }
+.cheque-ajuste { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.cheque-ajuste label { display: grid; gap: 4px; font-size: 12px; color: var(--texto-secundario); }
 .dialogo-cheque { background: var(--superficie); color: var(--texto); border: 1px solid var(--saida); border-radius: var(--raio-grande); padding: 20px 24px; max-width: 420px; box-shadow: var(--sombra); }
 .dialogo-cheque::backdrop { background: rgba(0, 0, 0, .6); }
 .dialogo-cheque h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 18px; color: var(--saida); }

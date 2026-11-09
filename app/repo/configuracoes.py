@@ -14,3 +14,8 @@ def definir(con: sqlite3.Connection, chave: str, valor: str) -> None:
         (chave, valor),
     )
     con.commit()
+
+
+def remover(con: sqlite3.Connection, chave: str) -> None:
+    con.execute("DELETE FROM configuracoes WHERE chave = ?", (chave,))
+    con.commit()
