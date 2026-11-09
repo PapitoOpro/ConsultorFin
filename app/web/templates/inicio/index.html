@@ -89,7 +89,12 @@
 <section class="grade-kpi" aria-label="Resumo do mês">
   <div class="kpi kpi-destaque"><div class="rotulo">Saldo total</div>
     <div class="valor numero">{{ resumo.saldo_total_centavos|brl }}</div>
-    <span class="kpi-variacao">hoje, sem cartões de crédito</span></div>
+    <span class="kpi-variacao">hoje, sem cartões de crédito</span>
+    <ul class="kpi-contas" aria-label="Saldo por conta">
+      {% for c in resumo.contas if c.tipo != 'cartao' %}
+      <li><span>{{ c.nome }}</span><span class="numero">{{ c.saldo_centavos|brl }}</span></li>
+      {% endfor %}
+    </ul></div>
   <div class="kpi"><div class="rotulo">Entradas do mês</div>
     <div class="valor numero entrada">{{ resumo.entradas_centavos|brl }}</div>
     {{ variacao(ind.var_entradas, ind.mes_anterior, ind.aviso_entradas) }}</div>
