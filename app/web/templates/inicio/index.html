@@ -6,6 +6,8 @@
   <script src="/static/js/echarts.min.js?v={{ versao_static }}" defer></script>
   <script src="/static/js/graficos.js?v={{ versao_static }}" defer></script>
   {% endif %}
+  <script src="/static/js/alpine.min.js?v={{ versao_static }}" defer></script>
+  <script src="/static/js/contagem.js?v={{ versao_static }}" defer></script>
 {% endblock %}
 {% block mensagens %}
   {% if erro %}<div class="alerta">{{ erro }}</div>{% endif %}
@@ -107,11 +109,15 @@
   <div class="kpi kpi-destaque"><div class="rotulo">Saldo total</div>
     <div class="valor numero">{{ resumo.saldo_total_centavos|brl }}</div>
     <span class="kpi-variacao">hoje, sem cartões de crédito</span>
+    {% set contas_kpi = resumo.contas|rejectattr('tipo', 'equalto', 'cartao')|list %}
+    <div x-data="{ todas: false }">
     <ul class="kpi-contas" aria-label="Saldo por conta">
-      {% for c in resumo.contas if c.tipo != 'cartao' %}
-      <li><span>{{ c.nome }}</span><span class="numero">{{ c.saldo_centavos|brl }}</span></li>
+      {% for c in contas_kpi %}
+      <li{% if loop.index > 3 %} x-show="todas" x-cloak{% endif %}><span>{{ c.nome }}</span><span class="numero">{{ c.saldo_centavos|brl }}</span></li>
       {% endfor %}
-    </ul></div>
+    </ul>
+    {% if contas_kpi|length > 3 %}<button type="button" class="kpi-contas-mais" x-on:click="todas = !todas" x-bind:aria-expanded="todas" x-text="todas ? 'Ver menos' : 'Ver todas ({{ contas_kpi|length }})'">Ver todas ({{ contas_kpi|length }})</button>{% endif %}
+    </div></div>
   <div class="kpi"><div class="rotulo">Entradas do mês</div>
     <div class="valor numero entrada">{{ resumo.entradas_centavos|brl }}</div>
     {{ variacao(ind.var_entradas, ind.mes_anterior, ind.aviso_entradas) }}</div>

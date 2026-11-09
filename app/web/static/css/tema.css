@@ -895,3 +895,34 @@ th[aria-sort="descending"] .relatorio-ordenar::after { content: " ▼"; }
 .dialogo-cheque h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 18px; color: var(--saida); }
 .dialogo-cheque[data-estado="atencao"] { border-color: var(--alerta); }
 .dialogo-cheque[data-estado="atencao"] h2 { color: var(--alerta); }
+
+/* ===== movimento moderno: transição entre páginas, entrada dos cards, KPIs ===== */
+@view-transition { navigation: auto; }
+.menu-lateral { view-transition-name: menu-lateral; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+@keyframes entrada-card { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.dashboard > * { animation: entrada-card 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+.dashboard > :nth-child(2) { animation-delay: 40ms; }
+.dashboard > :nth-child(3) { animation-delay: 80ms; }
+.dashboard > :nth-child(4) { animation-delay: 120ms; }
+.dashboard > :nth-child(5) { animation-delay: 160ms; }
+.dashboard > :nth-child(n+6) { animation-delay: 200ms; }
+.grade-kpi .kpi:hover { transform: translateY(-2px); border-color: var(--borda-hover); box-shadow: var(--sombra); }
+.kpi { transition: transform var(--transicao), border-color var(--transicao), box-shadow var(--transicao); }
+.kpi .numero { font-variant-numeric: tabular-nums; }
+.kpi-contas-mais { align-self: flex-start; margin-top: 2px; padding: 0; background: none; border: 0; color: var(--primaria); font-size: 12px; font-weight: 600; cursor: pointer; }
+.kpi-contas-mais:hover { text-decoration: underline; }
+[x-cloak] { display: none !important; }
+
+/* ===== Início: hierarquia visual ===== */
+.dashboard .hero { padding: 28px 32px; border-color: var(--borda-hover); box-shadow: var(--sombra); }
+.dashboard .hero h2 .numero { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
+.dashboard .hero .hero-rotulo { font-size: 13px; font-weight: 500; }
+.dashboard .grade-kpi .kpi:not(.kpi-destaque) .rotulo { font-size: 13px; font-weight: 500; color: var(--texto-secundario); }
+.dashboard .grade-kpi .kpi:not(.kpi-destaque) .numero { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.dashboard .kpi-destaque { border-color: var(--borda-hover); }
+.dashboard .kpi-destaque .numero { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+@keyframes barra-enche { from { width: 0; } }
+.consumo-barra::after { animation: barra-enche 700ms cubic-bezier(0.22, 1, 0.36, 1) 150ms backwards; }
+@media (max-width: 640px) { .dashboard .hero h2 .numero { font-size: 34px; } .dashboard .hero { padding: 20px; } }
