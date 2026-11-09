@@ -159,7 +159,8 @@ Quando uma conta que você lançou aparece depois no extrato importado, o app pr
 
 ## 6. Ler a tela Início
 
-- **Cartões do topo**: **Saldo total** (destaque verde, sem cartões de crédito), **Entradas do mês**, **Saídas do mês** (as duas comparadas ao mês anterior quando ele teve movimento) e **Resultado do mês**: verde com "superávit" quando sobra dinheiro, vermelho com "déficit" quando falta, "equilibrado" quando fecha em zero e "sem movimento" se o mês não teve nada. Transferências ficam de fora.
+- **Cartões do topo**: **Saldo total** (destaque verde, sem cartões de crédito, com o saldo de cada conta logo abaixo), **Entradas do mês**, **Saídas do mês** (as duas comparadas ao mês anterior quando ele teve movimento) e **Resultado do mês**: verde com "superávit" quando sobra dinheiro, vermelho com "déficit" quando falta, "equilibrado" quando fecha em zero e "sem movimento" se o mês não teve nada. Transferências ficam de fora.
+- **Cheque especial**: informe a conta, o limite (ex.: R$ 4.410,00), os dias sem juros (10) e a partir de quantos dias quer ser avisado (8). O painel conta sozinho os dias do mês em que o saldo da conta ficou negativo no fim do dia; os dias somam e só zeram na virada do mês. A partir do aviso aparecem uma faixa vermelha no Início e um pop-up (uma vez por dia). Se a contagem não bater com a do banco, use **Corrigir** para informar os dias do banco; vale até o fim do mês.
 - **Fluxo de caixa**: entradas e saídas dos últimos 6 meses.
 - **Gastos por categoria**: rosca com legenda; passe o mouse (ou toque) em uma fatia para ver o valor e a porcentagem.
 - **Lançamentos recentes**: os últimos lançamentos já efetivados. **Ver todos** abre Lançamentos.

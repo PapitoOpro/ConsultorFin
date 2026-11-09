@@ -627,3 +627,46 @@ def test_detalhe_da_fatia_outros_junta_as_categorias_menores(cliente: TestClient
     det = cliente.get("/inicio/dados.json?mes=2026-10").json()["detalhes"]["rosca"]["Outros"]
     assert det["n"] >= 2 and det["link"] is None and det["titulo"].startswith("Outros")  # categorias menores juntas
     assert set(cliente.get("/inicio/dados.json?mes=2026-10").json()["detalhes"]["rosca"]) >= {"Outros", "Educação"}
+
+
+def _cheque(db: Path, conta: int, dias_negativos: int) -> None:
+    """Config do cheque especial; saldo negativo desde (HOJE - dias_negativos + 1)."""
+    from app.dominio import cheque_especial as ce
+    con = conectar(db)
+    try:
+        ce.salvar_config(con, ce.ConfigChequeEspecial(conta_id=conta, limite_centavos=441000))
+        if dias_negativos:
+            ce.informar_dias(con, HOJE, dias_negativos)
+    finally:
+        con.close()
+
+
+def test_cheque_sem_config_mostra_convite_e_sem_faixa(cliente: TestClient, conta: int) -> None:
+    html = cliente.get("/").text
+    assert "Configurar cheque especial" in html
+    assert 'id="cheque-faixa"' not in html
+
+
+def test_cheque_atencao_mostra_faixa_e_dialog(cliente: TestClient, db: Path, conta: int) -> None:
+    _cheque(db, conta, 8)
+    html = cliente.get("/").text
+    assert 'id="cheque-faixa"' in html and "8 de 10" in html
+    assert 'data-estado="atencao"' in html
+
+
+def test_cheque_esgotado(cliente: TestClient, db: Path, conta: int) -> None:
+    _cheque(db, conta, 10)
+    html = cliente.get("/").text
+    assert "acabaram" in html and 'data-estado="esgotado"' in html
+
+
+def test_cheque_ok_sem_faixa_nem_dialog(cliente: TestClient, db: Path, conta: int) -> None:
+    _cheque(db, conta, 3)
+    html = cliente.get("/").text
+    assert 'id="cheque-faixa"' not in html and 'id="cheque-dialogo"' not in html
+    assert 'id="cheque-card"' in html
+
+
+def test_cheque_erro_na_query_aparece_escapado(cliente: TestClient, conta: int) -> None:
+    html = cliente.get("/", params={"erro_cheque": "<b>Limite inválido</b>"}).text
+    assert "&lt;b&gt;Limite inválido&lt;/b&gt;" in html and "<b>Limite" not in html

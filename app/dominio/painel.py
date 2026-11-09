@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from app.dominio import insights
+from app.dominio import cheque_especial, insights
+from app.dominio.cheque_especial import ChequeEspecial
 from app.dominio.categorias import despesas_do_mes, entradas_do_mes
 from app.dominio.dinheiro import formatar_brl, iso_para_br, somar_meses
 from app.dominio.lancamentos import ErroLancamento
@@ -202,6 +203,7 @@ class Resumo:
     a_pagar_vencidas_centavos: int = 0  # parte do total acima que já venceu
     a_pagar_qtd: int = 0
     fechamento: Fechamento | None = None
+    cheque_especial: ChequeEspecial | None = None
 
     @property
     def sobra_centavos(self) -> int:
@@ -242,7 +244,8 @@ def resumo_inicio(con: Any, hoje: date, ano: int, mes: int, horizonte: int,
         saldo_total_centavos=total, entradas_centavos=entradas_do_mes(con, ano, mes),
         saidas_centavos=despesas_do_mes(con, ano, mes), venc=vencimentos(con, hoje, janela_dias),
         categorias=gastos_por_categoria(con, ano, mes), ano=ano, mes=mes,
-        fechamento=fechamento_do_mes(con, hoje, ano, mes))
+        fechamento=fechamento_do_mes(con, hoje, ano, mes),
+        cheque_especial=cheque_especial.calcular(con, hoje))
 
 
 def _ponto(chave: str, rotulo: str, centavos: int) -> dict[str, Any]:

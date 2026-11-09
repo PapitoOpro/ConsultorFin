@@ -86,6 +86,55 @@
   </div>
 </section>
 
+{% set ch = resumo.cheque_especial %}
+{% if erro_cheque %}<div class="alerta" role="alert">{{ erro_cheque }}</div>{% endif %}
+{% if ch and ch.estado != 'ok' %}
+<div id="cheque-faixa" class="faixa-cheque {{ ch.estado }}" role="alert">
+  {{ icone("alert-triangle", 18) }}
+  <p><strong>Cheque especial: {{ ch.dias_usados }} de {{ ch.config.dias_isentos }} dias sem juros usados.</strong>
+    {% if ch.estado == 'esgotado' %}Os {{ ch.config.dias_isentos }} dias sem juros acabaram; cubra o saldo para evitar juros.
+    {% else %}Faltam {{ ch.dias_restantes }} dia{{ 's' if ch.dias_restantes != 1 }}; cubra o saldo antes de acabar.{% endif %}</p>
+</div>
+<dialog id="cheque-dialogo" class="dialogo-cheque" data-estado="{{ ch.estado }}" data-dia="{{ hoje_iso }}" aria-labelledby="cheque-dialogo-titulo">
+  <h2 id="cheque-dialogo-titulo">{{ icone("alert-triangle", 20) }} Cheque especial</h2>
+  <p>{{ ch.dias_usados }} de {{ ch.config.dias_isentos }} dias sem juros usados neste mês.
+    {% if ch.estado == 'esgotado' %}Os dias sem juros acabaram.{% else %}Faltam {{ ch.dias_restantes }} dia{{ 's' if ch.dias_restantes != 1 }}.{% endif %}</p>
+  <form method="dialog"><button class="botao" autofocus>Entendi</button></form>
+</dialog>
+<script src="/static/js/cheque-especial.js?v={{ versao_static }}" defer></script>
+{% endif %}
+<section id="cheque-card" class="painel cheque-card" aria-label="Cheque especial">
+  {% if ch %}
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Cheque especial</h2>
+    <p class="subtitulo">{{ ch.dias_usados }} de {{ ch.config.dias_isentos }} dias sem juros usados neste mês{% if ch.dias_informados is not none %} (informado por você){% endif %}</p></div></div>
+  <div class="consumo {{ 'estouro' if ch.estado == 'esgotado' else 'atencao' if ch.estado == 'atencao' else '' }}" style="--pct: {{ (ch.dias_usados * 100 // ch.config.dias_isentos)|int if ch.dias_usados < ch.config.dias_isentos else 100 }}" role="img" aria-label="{{ ch.dias_usados }} de {{ ch.config.dias_isentos }} dias usados">
+    <div class="consumo-texto"><span>Dias usados</span><strong>{{ ch.dias_usados }} / {{ ch.config.dias_isentos }}</strong></div>
+    <div class="consumo-barra"></div>
+  </div>
+  <dl class="fechamento-grade">
+    <div><dt>Em uso</dt><dd class="numero {{ 'saida' if ch.em_uso_centavos }}">{{ ch.em_uso_centavos|brl }}</dd></div>
+    <div><dt>Limite</dt><dd class="numero">{{ ch.config.limite_centavos|brl }}</dd></div>
+    {% if ch.excesso_centavos %}<div><dt>Acima do limite</dt><dd class="numero saida">{{ ch.excesso_centavos|brl }}</dd></div>{% endif %}
+  </dl>
+  <form class="cheque-ajuste" method="post" action="/cheque-especial/dias">
+    <label>Dias usados segundo o banco <input type="number" name="dias" min="0" max="31" value="{{ ch.dias_usados }}" required></label>
+    <button class="botao secundario">Corrigir</button>
+  </form>
+  {% endif %}
+  <details class="cheque-config"{% if not ch %} open{% endif %}>
+    <summary>{{ 'Configurar cheque especial' if not ch else 'Alterar configuração' }}</summary>
+    <form method="post" action="/cheque-especial">
+      <label>Conta <select name="conta_id" required>
+        {% for c in resumo.contas if c.tipo != 'cartao' %}<option value="{{ c.id }}"{% if ch and ch.config.conta_id == c.id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select></label>
+      <label>Limite (R$) <input name="limite" inputmode="decimal" value="{{ ((ch.config.limite_centavos / 100)|string).replace('.', ',') if ch else '4.410,00' }}" required></label>
+      <label>Dias sem juros <input type="number" name="dias_isentos" min="1" max="31" value="{{ ch.config.dias_isentos if ch else 10 }}" required></label>
+      <label>Avisar a partir de (dias) <input type="number" name="alerta_a_partir_de" min="1" max="31" value="{{ ch.config.alerta_a_partir_de if ch else 8 }}" required></label>
+      <button class="botao">Salvar</button>
+    </form>
+  </details>
+</section>
+
 <section class="grade-kpi" aria-label="Resumo do mês">
   <div class="kpi kpi-destaque"><div class="rotulo">Saldo total</div>
     <div class="valor numero">{{ resumo.saldo_total_centavos|brl }}</div>

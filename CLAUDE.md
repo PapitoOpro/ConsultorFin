@@ -268,6 +268,7 @@ chat do Consultor. Detalhes de uso: `docs/PASSO-A-PASSO.md`. Resumo das telas ce
 **Início (visão geral)**
 - Topo: título, seletor de mês e horizonte da projeção (3, 6, 12 meses).
 - Cartões: Saldo total (sem cartões), Entradas, Saídas, Resultado do mês.
+- Cheque especial: card com dias de uso (de 10 sem juros) do mês, faixa vermelha e pop-up a partir do limiar (padrão 8); config em `configuracoes`.
 - Fluxo de caixa, rosca de gastos por categoria, saldo projetado, parcelas futuras, maiores categorias,
   entradas × saídas, próximos vencimentos, contas, tabela expansível Categoria › Subcategoria, frases de insight.
 - Gastos por categoria usam a data da compra (itens da fatura); saídas usam a data do pagamento.

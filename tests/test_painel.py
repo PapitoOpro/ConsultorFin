@@ -224,3 +224,17 @@ def test_proximos_vencimentos_com_cinco_vencidas(con: sqlite3.Connection) -> Non
     lista, mv, mp = proximos_vencimentos_com_resto(con, HOJE)
     assert [x["descricao"] for x in lista] == ["Venc14", "Venc15", "Venc16", "Em 2 dias", "IPTU"]
     assert (mv, mp) == (2, 0)
+
+
+def test_resumo_inclui_cheque_especial(con: sqlite3.Connection) -> None:
+    from app.dominio import cheque_especial as ce
+    from app.dominio.painel import resumo_inicio
+    cid = contas.criar_conta(con, "Itaú CC", "corrente", saldo_inicial_centavos=-10000,
+                             data_saldo_inicial="2026-10-01")
+    hoje = date(2026, 11, 10)
+    assert resumo_inicio(con, hoje, 2026, 11, 6).cheque_especial is None
+    ce.salvar_config(con, ce.ConfigChequeEspecial(conta_id=cid, limite_centavos=441000))
+    r = resumo_inicio(con, hoje, 2026, 11, 6)
+    assert r.cheque_especial is not None and r.cheque_especial.dias_usados == 10
+    # o cheque especial sempre usa a data atual, mesmo olhando outro mês
+    assert resumo_inicio(con, hoje, 2026, 10, 6).cheque_especial.dias_usados == 10

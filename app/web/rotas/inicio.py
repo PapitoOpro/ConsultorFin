@@ -50,7 +50,9 @@ def inicio(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
         dados = None if resumo.vazio else painel.dados_graficos(con, hoje, resumo, horizonte)
         ind = None if resumo.vazio else painel.indicadores_inicio(con, hoje, resumo)
         return _html(request, {"erro": None, "resumo": resumo, "dados": dados, "ind": ind,
-                               "horizonte": horizonte, "mes_iso": resumo.mes_iso})
+                               "horizonte": horizonte, "mes_iso": resumo.mes_iso,
+                               "erro_cheque": request.query_params.get("erro_cheque", "")[:200],
+                               "hoje_iso": hoje.isoformat()})
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
         log.error("event=inicio_falhou erro=%s", type(exc).__name__)
         return _pagina_erro(request, MSG_INESPERADO, 500)

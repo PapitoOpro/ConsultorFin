@@ -85,6 +85,19 @@ def somas_diarias_conciliacao(
     return [(str(r["d"]), int(r["s"])) for r in rows]
 
 
+def somas_diarias_compensados(
+    con: sqlite3.Connection, conta_id: int, ate_iso: str
+) -> list[tuple[str, int]]:
+    """(data_compensacao, soma) de todos os compensados até `ate_iso`, em ordem crescente."""
+    rows = con.execute(
+        "SELECT data_compensacao AS d, SUM(valor_centavos) AS s FROM lancamentos"
+        " WHERE conta_id = ? AND compensado = 1 AND data_compensacao IS NOT NULL"
+        " AND data_compensacao <= ? GROUP BY data_compensacao ORDER BY data_compensacao",
+        (conta_id, ate_iso),
+    ).fetchall()
+    return [(str(r["d"]), int(r["s"])) for r in rows]
+
+
 def inserir_manual(
     con: sqlite3.Connection, *, conta_id: int, data: str, descricao: str,
     valor_centavos: int, tipo: str, categoria_id: int | None, compensado: bool,
