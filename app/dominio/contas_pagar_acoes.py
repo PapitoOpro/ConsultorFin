@@ -174,6 +174,13 @@ def confirmar_correspondencia(con: Any, pendente_id: str, lancamento_id: str) ->
     return "Correspondência confirmada."
 
 
+def recusar_correspondencia(con: Any, pendente_id: str, lancamento_id: str) -> str:
+    """Recusa uma "Possível correspondência no extrato": não volta a ser proposta."""
+    from app.dominio.contas_pagar import recusar_correspondencia as recusar
+    recusar(con, interpretar_id(pendente_id), interpretar_id(lancamento_id))
+    return "Correspondência recusada."
+
+
 def pular(con: Any, lancamento_id: str, hoje: date | None = None) -> str:
     lid = interpretar_id(lancamento_id)
     if repo_lanc.obter(con, lid) is None:

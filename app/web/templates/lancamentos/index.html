@@ -37,12 +37,20 @@
         <td class="desc sec">{{ p.linha_descricao }} <span class="secundario">{{ p.linha_data | data_br }}</span></td>
         <td class="valor sec">{{ p.linha_valor | brl }}</td>
         <td>
-          <form method="post" action="/lancamentos/casamento/confirmar">
-            <input type="hidden" name="voltar" value="{{ voltar }}">
-            <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
-            <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
-            <button type="submit">{{ icone("check", 16) }}Confirmar</button>
-          </form>
+          <div class="acoes-form">
+            <form method="post" action="/lancamentos/casamento/confirmar">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
+              <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
+              <button type="submit">{{ icone("check", 16) }}Confirmar</button>
+            </form>
+            <form method="post" action="/lancamentos/casamento/recusar">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
+              <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
+              <button type="submit" class="secundario">{{ icone("x", 16) }}Recusar</button>
+            </form>
+          </div>
         </td>
       </tr>
     {% endfor %}

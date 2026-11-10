@@ -1,4 +1,5 @@
 """Visões da aba A pagar de Lançamentos e de Cadastros: painel de vencimentos, parcelamentos agrupados, recorrentes."""
+import json
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -8,6 +9,7 @@ from app.dominio.dinheiro import somar_meses
 from app.dominio.lancamentos import ErroLancamento
 from app.dominio.projecao import HORIZONTES, vencimentos
 from app.dominio.recorrentes import gerar_recorrentes
+from app.repo import configuracoes
 from app.repo import contas as repo_contas
 from app.repo import lancamentos as repo_lanc
 from app.repo import recorrentes as repo_rec
@@ -177,8 +179,29 @@ def listar_recorrentes(con: Any) -> list[RecorrenteVista]:
     ]
 
 
+CHAVE_RECUSADAS = "casamentos_recusados"
+
+
+def _recusadas(con: Any) -> set[tuple[int, int]]:
+    bruto = configuracoes.obter(con, CHAVE_RECUSADAS)
+    if not bruto:
+        return set()
+    try:
+        return {(int(a), int(b)) for a, b in json.loads(bruto)}
+    except (ValueError, TypeError):
+        return set()
+
+
+def recusar_correspondencia(con: Any, pendente_id: int, lancamento_id: int) -> None:
+    """Guarda o par recusado para que não volte a ser proposto no painel (nada é alterado nos lançamentos)."""
+    pares = sorted(_recusadas(con) | {(pendente_id, lancamento_id)})
+    configuracoes.definir(con, CHAVE_RECUSADAS, json.dumps(pares))
+
+
 def correspondencias(con: Any) -> list[tuple[str, PropostaCasamento]]:
     """(nome da conta, proposta) para itens que parecem corresponder a linhas já importadas
-    do extrato, em todas as contas; nada é confirmado aqui."""
+    do extrato, em todas as contas, sem os pares recusados; nada é confirmado aqui."""
+    recusadas = _recusadas(con)
     return [(str(c["nome"]), p) for c in repo_contas.listar(con)
-            for p in propostas_com_detalhes(con, int(c["id"]))]
+            for p in propostas_com_detalhes(con, int(c["id"]))
+            if (p.pendente_id, p.lancamento_id) not in recusadas]

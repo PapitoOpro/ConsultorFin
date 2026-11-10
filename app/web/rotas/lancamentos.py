@@ -181,6 +181,14 @@ def confirmar_correspondencia(request: Request, con: Any = Depends(get_con),
                     lambda: acoes.confirmar_correspondencia(con, pendente_id, lancamento_id))
 
 
+@router.post("/lancamentos/casamento/recusar", response_class=HTMLResponse)
+def recusar_correspondencia(request: Request, con: Any = Depends(get_con),
+                            pendente_id: str = Form(""), lancamento_id: str = Form(""),
+                            voltar: str = Form("")) -> HTMLResponse:
+    return executar(request, con, voltar,
+                    lambda: acoes.recusar_correspondencia(con, pendente_id, lancamento_id))
+
+
 @router.post("/lancamentos/lote", response_class=HTMLResponse)
 def lote(request: Request, con: Any = Depends(get_con), ids: list[str] = Form(default=[]),
          categoria_id: str = Form(""), voltar: str = Form("")) -> HTMLResponse:

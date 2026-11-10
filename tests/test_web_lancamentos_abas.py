@@ -403,6 +403,31 @@ def test_confirmar_correspondencia_limpa_pendente(cliente: TestClient, db: Path,
     assert 'id="correspondencias"' not in r.text
 
 
+def test_recusar_correspondencia_some_do_painel_e_nao_altera_lancamentos(
+        cliente: TestClient, db: Path, conta: int) -> None:
+    pend, linha = _com_correspondencia(cliente, db, conta)
+    antes = _sql(db, "SELECT COUNT(*) FROM lancamentos")
+    r = cliente.post("/lancamentos/casamento/recusar",
+                     data={"pendente_id": pend, "lancamento_id": linha, "voltar": A_PAGAR})
+    assert r.status_code == 200 and "Correspondência recusada." in r.text
+    assert _aba_ativa(r.text) == "a-pagar"
+    assert 'id="correspondencias"' not in r.text
+    assert 'id="correspondencias"' not in _aba(cliente, "a-pagar").text  # continua recusada
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos") == antes
+
+
+def test_recusar_correspondencia_invalida(cliente: TestClient, db: Path, conta: int) -> None:
+    r = cliente.post("/lancamentos/casamento/recusar",
+                     data={"pendente_id": "x", "lancamento_id": "1", "voltar": A_PAGAR})
+    assert r.status_code == 400 and "inválido" in r.text and "Traceback" not in r.text
+
+
+def test_painel_tem_botoes_confirmar_e_recusar(cliente: TestClient, db: Path, conta: int) -> None:
+    _com_correspondencia(cliente, db, conta)
+    painel = _aba(cliente, "a-pagar").text.split('id="correspondencias"')[1]
+    assert "Confirmar" in painel and "Recusar" in painel
+
+
 def test_confirmar_correspondencia_invalida(cliente: TestClient, db: Path, conta: int) -> None:
     antes = _sql(db, "SELECT COUNT(*) FROM lancamentos")
     r = cliente.post("/lancamentos/casamento/confirmar",
