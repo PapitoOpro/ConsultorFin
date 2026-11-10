@@ -5,11 +5,12 @@ import pytest
 
 from app.dominio.contas_pagar import (
     abrir_painel,
+    contar_vencidas,
     interpretar_horizonte,
     listar_recorrentes,
     resumo_parcelamentos,
 )
-from app.dominio.lancamentos import ErroLancamento
+from app.dominio.lancamentos import ErroLancamento, criar_lancamento_manual
 from app.dominio.parcelas import criar_parcelamento, marcar_pago
 from app.dominio.recorrentes import confirmar_recorrente, criar_recorrente
 from app.repo import contas
@@ -70,3 +71,13 @@ def test_abrir_painel_particiona_e_gera(con: Any, conta: int) -> None:
     assert [r["data"] for r in p.receitas] == ["2026-10-05", "2026-11-05", "2026-12-05"]
     assert p.total_a_vencer_centavos == -9000
     assert [r["data"] for r in abrir_painel(con, HOJE, 3).proximos] == ["2026-11-25", "2026-12-25"]
+
+
+def test_contar_vencidas(con: Any, conta: int) -> None:
+    assert contar_vencidas(con, HOJE) == 0
+    for dia, valor, pago in ((date(2026, 10, 1), -5000, False), (date(2026, 9, 20), -2500, False),
+                             (date(2026, 10, 22), 9000, False), (date(2026, 10, 2), -100, True),
+                             (date(2026, 10, 23), -700, False)):
+        criar_lancamento_manual(con, conta_id=conta, data=dia, descricao="X",
+                                valor_centavos=valor, compensado=pago)
+    assert contar_vencidas(con, HOJE) == 2  # entrada, compensado e vencendo hoje ficam de fora

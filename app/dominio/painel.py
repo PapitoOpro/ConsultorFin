@@ -337,7 +337,7 @@ def detalhes_projecao(con: Any, hoje: date, horizonte: int, pontos: list[Any]) -
     def montar(titulo: str, total: int, rows: list[Any], nota: str) -> dict[str, Any]:
         top = sorted(rows, key=lambda r: -abs(int(r["valor_centavos"])))[:LIMITE_DETALHE]
         return {"titulo": titulo, "total_fmt": formatar_brl(total), "n": len(rows),
-                "restantes": len(rows) - len(top), "link": "/contas-a-pagar", "link_rotulo": "Ver em Contas a pagar",
+                "restantes": len(rows) - len(top), "link": "/lancamentos?aba=a-pagar", "link_rotulo": "Ver em Lançamentos",
                 "nota": nota, "linhas": [linha(r) for r in top]}
 
     saldo: dict[str, Any] = {}
@@ -414,7 +414,7 @@ def detalhe_cartoes(con: Any) -> dict[str, Any]:
                          f"{formatar_brl(int(f['total_impresso_centavos']))}" for f in faturas)
         saida[str(c["nome"])] = {
             "titulo": str(c["nome"]), "total_fmt": formatar_brl(total), "n": len(itens),
-            "restantes": len(itens) - len(top), "link": "/contas-a-pagar", "link_rotulo": "Ver em Contas a pagar",
+            "restantes": len(itens) - len(top), "link": "/lancamentos?aba=a-pagar", "link_rotulo": "Ver em Lançamentos",
             "nota": f"Fatura em aberto: {nota}. O total impresso pode incluir saldo anterior e encargos.",
             "linhas": [{
                 "data": iso_para_br(str(i["data"])), "descricao": str(i["descricao"]) + (

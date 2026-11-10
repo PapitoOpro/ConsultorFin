@@ -24,7 +24,7 @@
 <section class="painel" aria-label="Conciliação de saldo">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Conciliação de saldo</h2></div></div>
   {% if falha_conferencia %}
-    <div class="resultado-card aviso"><span class="resultado-icone">{{ icone("alert-triangle", 20) }}</span><div class="resultado-corpo"><p>A importação foi concluída, mas não foi possível conferir o saldo nem procurar correspondências agora. Os lançamentos já estão gravados; confira em Lançamentos e em Contas a pagar.</p></div></div>
+    <div class="resultado-card aviso"><span class="resultado-icone">{{ icone("alert-triangle", 20) }}</span><div class="resultado-corpo"><p>A importação foi concluída, mas não foi possível conferir o saldo nem procurar correspondências agora. Os lançamentos já estão gravados; confira em Lançamentos.</p></div></div>
   {% elif estimativa_circular %}
     <div class="resultado-card info"><span class="resultado-icone">{{ icone("info", 20) }}</span><div class="resultado-corpo"><p>Saldo inicial estimado a partir deste arquivo; a conferência só passa a ter sentido nas próximas importações.</p></div></div>
   {% elif informado %}

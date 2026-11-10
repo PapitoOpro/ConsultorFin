@@ -132,23 +132,15 @@ def _id_fatura(db: Path) -> int:
         c.close()
 
 
-def test_web_contas_a_pagar_sem_botao_pagar_na_fatura(cliente: TestClient, db_web: Path) -> None:
+def test_web_a_pagar_sem_botao_pagar_na_fatura(cliente: TestClient, db_web: Path) -> None:
     lid = _id_fatura(db_web)
-    html = cliente.get("/contas-a-pagar").text
+    html = cliente.get("/lancamentos?aba=a-pagar").text
     assert f'id="lancamento-{lid}"' in html
-    assert f'action="/contas-a-pagar/{lid}/pagar"' not in html
-    link = "/lancamentos?tipo=fatura&amp;de=2026-10-01&amp;ate=2026-10-31"
-    assert f'href="{link}"' in html and "Casar pagamento" in html
-    destino = cliente.get(link.replace("&amp;", "&")).text  # mês do vencimento (10/10)
-    assert f'id="lancamento-{lid}"' in destino
+    assert f'action="/lancamentos/{lid}/pagar"' not in html
 
 
-def test_web_contas_a_pagar_recusa_pagar_fatura(cliente: TestClient, db_web: Path) -> None:
+def test_web_recusa_pagar_fatura(cliente: TestClient, db_web: Path) -> None:
     lid = _id_fatura(db_web)
-    r = cliente.post(f"/contas-a-pagar/{lid}/pagar",
-                     data={"valor": "300,00", "data": "2026-10-10", "horizonte": ""})
-    assert r.status_code == 400
-    assert MSG_FATURA in r.text
     r = cliente.post(f"/lancamentos/{lid}/pagar",
                      data={"valor": "300,00", "data": "2026-10-10", "voltar": ""})
     assert r.status_code == 400

@@ -322,7 +322,7 @@ def test_saldo_de_hoje_bloqueia_importacao_e_ajuste_resolve(db: Path) -> None:
     app = create_app(db)
     app.state.hoje_fn = lambda: date(2026, 10, 23)
     with TestClient(app) as c:
-        c.post("/contas-a-pagar/conta", data={
+        c.post("/cadastros/conta", data={
             "nome": "Itaú", "tipo": "corrente", "instituicao": "", "final_numero": "00000-0",
             "saldo_inicial": "1.409,14", "data_saldo_inicial": "2026-10-23"})
         conta = _consulta(db, "SELECT id FROM contas")[0][0]

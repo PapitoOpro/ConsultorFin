@@ -1,4 +1,4 @@
-"""Visões da tela Contas a pagar: painel de vencimentos, parcelamentos agrupados, recorrentes."""
+"""Visões da aba A pagar de Lançamentos e de Cadastros: painel de vencimentos, parcelamentos agrupados, recorrentes."""
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -24,6 +24,16 @@ def interpretar_horizonte(texto: str | None) -> int:
     if texto in {str(h) for h in HORIZONTES}:
         return int(texto)
     raise ErroLancamento(MSG_HORIZONTE)
+
+
+def resumo_vencidas(con: Any, hoje: date) -> tuple[int, int]:
+    """(quantidade, total com sinal em centavos) das saídas pendentes com data < hoje."""
+    vencidas = vencimentos(con, hoje, 0).vencidas
+    return len(vencidas), _soma(vencidas)
+
+
+def contar_vencidas(con: Any, hoje: date) -> int:
+    return resumo_vencidas(con, hoje)[0]
 
 
 def _soma(linhas: list[Any]) -> int:

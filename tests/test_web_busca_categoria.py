@@ -113,13 +113,13 @@ def test_fragmento_inline_htmx_com_busca(cliente: TestClient, db: Path, conta: i
     assert f'<option value="{cid}" selected>' in r.text
 
 
-def test_contas_a_pagar_selects_com_busca(cliente: TestClient, conta: int) -> None:
-    r = cliente.get("/contas-a-pagar")
+def test_cadastros_recorrentes_selects_com_busca(cliente: TestClient, conta: int) -> None:
+    r = cliente.get("/cadastros?secao=recorrentes")
     assert r.status_code == 200 and SCRIPT_TAG in r.text
     sel = _selects(r.text)
-    for chave in ("p-cat", "r-cat-saida", "r-cat-entrada"):
+    for chave in ("r-cat-saida", "r-cat-entrada"):
         assert "data-busca" in sel[chave], chave
-    assert "data-busca" not in sel["p-conta"]
+    assert "data-busca" not in sel["r-conta"]
     assert "Saúde › Dentista" in r.text
 
 

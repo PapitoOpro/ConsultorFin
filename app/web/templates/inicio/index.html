@@ -66,8 +66,8 @@
     <p>Saldo inicial, entradas e despesas previstas</p>
     {% set nv = resumo.venc.vencidas|length %}{% set na = resumo.venc.a_vencer|length %}
     <div class="hero-chips">
-      {% if nv %}<a class="chip alerta-chip" href="/contas-a-pagar#vencidas">{{ icone("alert-triangle", 16) }} {{ nv }} vencida{{ 's' if nv != 1 }}</a>{% endif %}
-      {% if na %}<a class="chip" href="/contas-a-pagar#a-vencer">{{ icone("calendar-clock", 16) }} {{ na }} a vencer em 7 dias</a>{% endif %}
+      {% if nv %}<a class="chip alerta-chip" href="/lancamentos?aba=a-pagar">{{ icone("alert-triangle", 16) }} {{ nv }} vencida{{ 's' if nv != 1 }}</a>{% endif %}
+      {% if na %}<a class="chip" href="/lancamentos?aba=a-pagar">{{ icone("calendar-clock", 16) }} {{ na }} a vencer em 7 dias</a>{% endif %}
       {% if not nv and not na %}<span class="chip ok">{{ icone("check-circle", 16) }} Nenhuma conta vencida ou a vencer</span>{% endif %}
     </div>
   </div>
@@ -145,11 +145,11 @@
         <label>Dias usados segundo o banco <input type="number" name="dias" min="0" max="31" value="{{ ch.dias_usados }}" required></label>
         <button class="botao secundario">Corrigir</button>
       </form>
-      <a href="/contas-a-pagar#contas">Alterar limite ou dias nas contas</a>
+      <a href="/cadastros?secao=contas">Alterar limite ou dias nas contas</a>
     </details>
   </div>
   {% else %}
-  <p class="cheque-vazio">Cheque especial: <a href="/contas-a-pagar#contas">configurar nas contas</a> para acompanhar os dias sem juros.</p>
+  <p class="cheque-vazio">Cheque especial: <a href="/cadastros?secao=contas">configurar nas contas</a> para acompanhar os dias sem juros.</p>
   {% endif %}
 </section>
 
@@ -267,7 +267,7 @@
     <div class="painel-cabecalho"><div class="painel-titulo"><h2>Próximos vencimentos</h2>
       {% if ind.vencimentos %}<p class="subtitulo">{{ nv }} vencida{{ 's' if nv != 1 }} · {{ na }} a vencer em 7 dias</p>
       {% else %}<p class="subtitulo">Contas a pagar pendentes</p>{% endif %}</div>
-      <a class="painel-acao" href="/contas-a-pagar">Ver todas {{ icone("arrow-right", 14) }}</a></div>
+      <a class="painel-acao" href="/lancamentos?aba=a-pagar">Ver todas {{ icone("arrow-right", 14) }}</a></div>
     {% if ind.vencimentos %}
     <ul class="lista-venc">
       {% for v in ind.vencimentos %}
@@ -282,14 +282,14 @@
     </ul>
     {% if ind.vencimentos_mais_vencidas or ind.vencimentos_mais_a_vencer %}
     <p class="mais-venc">
-      {% if ind.vencimentos_mais_vencidas %}<a href="/contas-a-pagar#vencidas">+{{ ind.vencimentos_mais_vencidas }} vencida{{ 's' if ind.vencimentos_mais_vencidas != 1 }}</a>{% endif %}
-      {% if ind.vencimentos_mais_a_vencer %}<a href="/contas-a-pagar#a-vencer">+{{ ind.vencimentos_mais_a_vencer }} a vencer</a>{% endif %}
+      {% if ind.vencimentos_mais_vencidas %}<a href="/lancamentos?aba=a-pagar">+{{ ind.vencimentos_mais_vencidas }} vencida{{ 's' if ind.vencimentos_mais_vencidas != 1 }}</a>{% endif %}
+      {% if ind.vencimentos_mais_a_vencer %}<a href="/lancamentos?aba=a-pagar">+{{ ind.vencimentos_mais_a_vencer }} a vencer</a>{% endif %}
     </p>
     {% endif %}
     {% else %}
     <div class="vazio vazio-compacto"><span class="vazio-icone">{{ icone("check-circle", 20) }}</span>
       <p>Nenhuma conta vencida ou a vencer</p>
-      <a class="botao secundario" href="/contas-a-pagar">Ir para contas a pagar</a></div>
+      <a class="botao secundario" href="/lancamentos?aba=a-pagar">Ir para contas a pagar</a></div>
     {% endif %}
   </section>
 </div>

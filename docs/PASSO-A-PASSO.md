@@ -17,7 +17,7 @@ Seus dados ficam em `data/consultorfin.db`. Para fazer backup, copie esse arquiv
 
 ## 2. Cadastrar suas contas e cartões
 
-Em **Contas a pagar**, na seção **Nova conta ou cartão** (ou na tela **Importar**, no formulário de conta):
+Em **Cadastros** (seção **Contas e cartões**), em **Nova conta ou cartão** (ou na tela **Importar**, no formulário de conta):
 
 - **Nome**: por exemplo "Itaú CC".
 - **Tipo**: corrente, poupança, cartão ou carteira.
@@ -63,12 +63,12 @@ Em **Histórico de importações**, o botão **Desfazer** aparece só na importa
 
 **Depois de importar**
 - Em **Lançamentos**, a fatura aparece como uma linha (**Fatura <cartão> · venc. dd/mm**, com selo **a pagar** ou **paga**). Clique na linha para expandir os itens; em cada item você escolhe a categoria, e pode marcar vários e categorizar de uma vez.
-- **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas. Elas aparecem só em **Contas a pagar** (agrupadas por fatura, como "Fatura prevista (só parcelas)") e na projeção, sem **Ações**: servem para prever a dívida dos próximos meses. Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
+- **Parcelas previstas:** compras parceladas geram as parcelas dos meses seguintes como previstas. Elas aparecem na aba **A pagar** de **Lançamentos** (com o selo **prevista**, valor estimado, sem **Marcar como pago**) e na projeção; contam como vencidas quando a data passa: servem para prever a dívida dos próximos meses. Quando a parcela chega numa fatura seguinte, a prevista é baixada sozinha.
 - **Prevista que não apareceu na fatura:** se a fatura do mês foi importada e não trouxe uma parcela prevista (compra cancelada, quitada antes, renegociada ou fatura de um mês anterior que você não importou), a prevista passa a aparecer em Lançamentos com o selo **não apareceu na fatura**. Abra **Ações** e clique em **Descartar** para apagar só essa parcela; ou importe a fatura que faltou e ela é baixada sozinha.
 - **Casar o pagamento:** quando a saída da fatura aparece no extrato da conta corrente com o **valor exato** do total impresso (até 7 dias do vencimento) e só uma fatura combina, o app casa sozinho, ao importar o extrato ou a fatura. Nos demais casos, use **Casar pagamento** na linha da fatura. Casado, o pagamento deixa de contar como despesa (as compras já contam pelos itens) e a fatura vira **paga**. Pagamento não casado continua contando como despesa, com um aviso na linha.
 - **Pagamento parcial:** se você pagou menos que o total (o resto foi financiado), **Casar pagamento** lista as saídas de valor menor, com o selo **parcial**. Ao confirmar, a fatura fica paga; o restante aparece como saldo financiado na fatura seguinte e não é contado de novo como gasto. O app nunca casa pagamento parcial sozinho.
 - **Valor da linha x total a pagar:** a linha da fatura soma só o consumo lido (itens, créditos e encargos). O total a pagar é o impresso no PDF, que pode incluir o saldo financiado do mês anterior; é com ele que o pagamento do banco é comparado.
-- **Nunca marque a fatura como paga à mão.** A fatura só fica paga casando o pagamento do banco (botão **Casar pagamento** na linha da fatura, em Lançamentos). Em Contas a pagar, a linha da fatura não tem **Marcar como pago**: ela leva para Lançamentos. Se você ainda não importou o extrato com o pagamento, importe-o primeiro. Desfazer a importação desse extrato volta a fatura para **a pagar**.
+- **Nunca marque a fatura como paga à mão.** A fatura só fica paga casando o pagamento do banco (botão **Casar pagamento** na linha da fatura, em Lançamentos). Na aba **A pagar**, a linha da fatura não tem **Marcar como pago**: use **Casar pagamento** na própria linha. Se você ainda não importou o extrato com o pagamento, importe-o primeiro. Desfazer a importação desse extrato volta a fatura para **a pagar**.
 - **Reimportar ou substituir:** o mesmo PDF não duplica. Se o emissor gerar uma versão diferente da fatura do mesmo mês, marque **Substituir a fatura existente deste mês**; as categorias já escolhidas nos itens iguais são mantidas.
 
 **Gasto por categoria x saídas:** o gasto por categoria segue a **data da compra** no cartão. As **saídas** seguem a **data do pagamento** (quando o dinheiro sai da conta). Por isso os dois números podem ser diferentes no mesmo mês.
@@ -109,21 +109,21 @@ Na importação da fatura, marque **Lembrar a senha deste cartão**: depois que 
 
 Em **Lançamentos**:
 
-- **Filtros**: período, conta, categoria, tipo, status e busca no texto da descrição. As parcelas previstas de fatura não aparecem aqui (ficam em Contas a pagar), salvo as que não apareceram na fatura. Os quatro cartões de total no topo (**Entradas**, **Saídas**, **Resultado líquido** e **Pendentes no filtro**) acompanham o filtro.
+- **Filtros**: período, conta, categoria, tipo, status e busca no texto da descrição. As parcelas previstas de fatura não aparecem aqui (ficam na aba **A pagar**), salvo as que não apareceram na fatura. Os quatro cartões de total no topo (**Entradas**, **Saídas**, **Resultado líquido** e **Pendentes no filtro**) acompanham o filtro.
 - **Categoria**: escolha direto na linha, ou marque várias linhas (ou **Marcar todas as linhas da página**, na caixa do cabeçalho da tabela) e use **Categorizar selecionados em**; o contador ao lado diz quantas linhas estão marcadas.
 - **Menu Ações** (botão **Ações** no fim de cada linha): reúne o que se faz com aquele lançamento.
   - **Criar regra**: gera "sempre que a descrição contiver X, categoria Y" e aplica nos lançamentos ainda sem categoria.
   - **Marcar tipo**: marque como **transferência** (movimento entre suas contas, não conta como gasto), **pagamento de fatura** ou **ajuste de saldo** (corrige a diferença com o banco: entra no saldo, mas não conta como entrada nem saída). Se o pagamento estiver casado com uma fatura importada, ele não conta como gasto; sem casar, conta como despesa.
   - **Marcar como pago**: aparece nos lançamentos pendentes; informe o valor real e a data.
-  - **Excluir**: aparece só nos lançamentos manuais; os importados não podem ser excluídos aqui.
-- **Novo lançamento**: o botão no topo da página abre o formulário **Novo lançamento manual**, para o que não está em nenhum extrato.
+  - **Excluir**: aparece só nos lançamentos manuais avulsos; os importados não podem ser excluídos aqui, e os de conta fixa/receita recorrente se removem com **Pular este mês** (ou **Desativar** em Cadastros).
+- **Novo lançamento**: o botão no topo da página abre o formulário **Novo lançamento** (modos **À vista**, **Parcelado em N** e **Repetir todo mês**), para o que não está em nenhum extrato.
 - Em telas pequenas (celular), a data, a conta, o tipo e o valor aparecem sob a descrição; arraste a tabela para o lado para ver a categoria e o menu **Ações**.
 
 ### Organizar as categorias
 
 > **Backup antes de atualizar:** Antes de atualizar para esta versão, copie o arquivo `data/consultorfin.db` para outro lugar como backup; a atualização reorganiza as categorias automaticamente.
 
-Em **Categorias** ficam todas as categorias, em dois níveis: categoria › subcategoria. As abas **Entradas** e **Saídas** separam o que é dinheiro que entra do que é dinheiro que sai. A lista inicial vem da tabela em `docs/categorias-padrao.md`; você pode alterá-la à vontade.
+Em **Cadastros › Categorias** ficam todas as categorias, em dois níveis: categoria › subcategoria. As abas **Entradas** e **Saídas** separam o que é dinheiro que entra do que é dinheiro que sai. A lista inicial vem da tabela em `docs/categorias-padrao.md`; você pode alterá-la à vontade.
 
 - **Adicionar categoria**: na aba desejada, digite o nome e clique em **Adicionar categoria**. Ela nasce com o tipo da aba.
 - **Adicionar subcategoria**: dentro da categoria, digite o nome e clique em **Adicionar subcategoria**. Não existe subcategoria dentro de subcategoria.
@@ -137,34 +137,34 @@ Ao atualizar, as categorias que você já tinha foram reconciliadas com a nova l
 
 O consultor do Claude Code apenas lê as categorias; para criar, renomear, mover ou excluir, use esta tela.
 
-## 5. Contas a pagar
+## 5. Contas a pagar (aba A pagar)
 
-Em **Contas a pagar** a tela é dividida em abas: **Vencimentos** (vencidas, a vencer em 7 dias e próximos vencimentos por mês, mais receitas previstas e possíveis correspondências quando houver), **Parcelamentos**, **Contas fixas e receitas recorrentes** e **Contas e cartões**. Use o seletor **Horizonte** (3, 6 ou 12 meses) no topo e clique em **Atualizar** para mudar a previsão. A aba escolhida fica lembrada.
+Em **Lançamentos** há três abas: **Todos**, **A pagar** (pendentes: vencidas em destaque, com contador, e as próximas, até 6 meses à frente; as contas fixas dos próximos meses são geradas ao abrir a aba) e **Realizados**. O item **Lançamentos** do menu mostra um selo vermelho com o número de contas vencidas.
 
-Em cada linha de vencimento, o botão **Ações** abre **Marcar como pago** (valor real e data) e, nas contas fixas, **Pular este mês**. A linha da **fatura de cartão** não tem **Marcar como pago**: use **Casar pagamento**, que leva a Lançamentos (veja "Importar fatura do cartão").
+Em cada linha pendente, o botão **Ações** abre **Marcar como pago** (valor real e data) e, nas contas fixas, **Pular este mês**. A linha da **fatura de cartão** não tem **Marcar como pago**: use **Casar pagamento** (veja "Importar fatura do cartão").
 
-### Compra parcelada
-**Novo parcelamento**: descrição, **Valor total**, **Nº de parcelas**, **Primeiro vencimento**, conta e categoria. O app cria uma parcela pendente por mês (1/10, 2/10...). A última parcela absorve a diferença de centavos. Para editar ou excluir as parcelas ainda pendentes, use o botão **Ações** da linha do parcelamento (**Editar pendentes** e **Excluir pendentes**).
+### Novo lançamento, compra parcelada e conta que se repete
+O formulário **Novo lançamento** tem três modos: **À vista** (pode marcar **Já pago**), **Parcelado em N** (valor total, nº de parcelas e primeiro vencimento; uma parcela pendente por mês, a última absorve os centavos) e **Repetir todo mês** (conta fixa ou receita recorrente: o dia vem da data e o valor é o estimado). Para editar ou excluir as parcelas ainda pendentes, use **Editar pendentes** e **Excluir pendentes** no **Ações** da linha.
 
 ### Contas fixas e receitas recorrentes (aluguel, luz, salário)
-**Nova conta fixa ou receita recorrente**: nome, tipo (saída ou entrada), **Dia do mês**, **Valor estimado**, conta e categoria. O painel gera os lançamentos dos próximos meses marcados como **estimado** e usa esses valores na previsão.
+Também podem ser cadastradas em **Cadastros › Contas fixas**: nome, tipo, **Dia do mês**, **Valor estimado**, conta e categoria. Os lançamentos dos próximos meses ficam marcados como **estimado**.
 
 Quando a conta chegar:
-1. No botão **Ações** da linha, use **Marcar como pago** (nas contas fixas, **Confirmar valor e pagar**): informe o **valor real** e a data do pagamento.
+1. No **Ações** da linha, use **Confirmar valor e pagar**: informe o **valor real** e a data do pagamento.
 2. A marca "estimado" some e os meses futuros passam a usar esse último valor real como estimativa.
-3. **Pular este mês** remove só aquele mês; **Desativar** para de gerar meses futuros (as vencidas ficam).
+3. **Pular este mês** remove só aquele mês; **Desativar** (em Cadastros) para de gerar meses futuros (as vencidas ficam).
 
 ### Casamento com o extrato
-Quando uma conta que você lançou aparece depois no extrato importado, o app propõe a ligação em **Possíveis correspondências no extrato** (valor parecido, data próxima). Clique em **Confirmar** para ligar os dois: o item vira pago com o valor do banco e não é contado duas vezes. Nada é confirmado sozinho.
+Quando uma conta que você lançou aparece depois no extrato importado, o app propõe a ligação em **Possíveis correspondências no extrato**: na aba **A pagar** de Lançamentos e no resultado da tela **Importar**, logo após importar (valor parecido, data próxima). Clique em **Confirmar** para ligar os dois: o item vira pago com o valor do banco e não é contado duas vezes. Nada é confirmado sozinho.
 
 ## 6. Ler a tela Início
 
 - **Cartões do topo**: **Saldo total** (destaque verde, sem cartões de crédito, com o saldo de cada conta logo abaixo), **Entradas do mês**, **Saídas do mês** (as duas comparadas ao mês anterior quando ele teve movimento) e **Resultado do mês**: verde com "superávit" quando sobra dinheiro, vermelho com "déficit" quando falta, "equilibrado" quando fecha em zero e "sem movimento" se o mês não teve nada. Transferências ficam de fora.
-- **Cheque especial**: configure na conta corrente (**Contas a pagar › Contas e cartões › Cheque especial**, ou no campo de limite ao cadastrar a conta): limite (ex.: R$ 4.410,00), dias sem juros (10) e a partir de quantos dias quer ser avisado (8). O valor em uso é o saldo negativo da conta. O painel conta sozinho os dias do mês em que o saldo da conta ficou negativo no fim do dia; os dias somam e só zeram na virada do mês. A partir do aviso aparecem uma faixa vermelha no Início e um pop-up (uma vez por dia). Se a contagem não bater com a do banco, use **Corrigir** para informar os dias do banco; vale até o fim do mês.
+- **Cheque especial**: configure na conta corrente (**Cadastros › Contas e cartões › Cheque especial**, ou no campo de limite ao cadastrar a conta): limite (ex.: R$ 4.410,00), dias sem juros (10) e a partir de quantos dias quer ser avisado (8). O valor em uso é o saldo negativo da conta. O painel conta sozinho os dias do mês em que o saldo da conta ficou negativo no fim do dia; os dias somam e só zeram na virada do mês. A partir do aviso aparecem uma faixa vermelha no Início e um pop-up (uma vez por dia). Se a contagem não bater com a do banco, use **Corrigir** para informar os dias do banco; vale até o fim do mês.
 - **Fluxo de caixa**: entradas e saídas dos últimos 6 meses.
 - **Gastos por categoria**: rosca com legenda; passe o mouse (ou toque) em uma fatia para ver o valor e a porcentagem.
 - **Lançamentos recentes**: os últimos lançamentos já efetivados. **Ver todos** abre Lançamentos.
-- **Próximos vencimentos**: primeiro as contas **vencidas** (até 3; se houver mais, aparece o link "+N vencidas"), depois **todas** as que vencem nos próximos 7 dias (até 5; se houver mais, "+N a vencer"). Se sobrar espaço, entram as próximas contas pendentes, até 6 itens no total. O subtítulo mostra quantas estão vencidas e quantas vencem em 7 dias. **Ver todas** abre Contas a pagar.
+- **Próximos vencimentos**: primeiro as contas **vencidas** (até 3; se houver mais, aparece o link "+N vencidas"), depois **todas** as que vencem nos próximos 7 dias (até 5; se houver mais, "+N a vencer"). Se sobrar espaço, entram as próximas contas pendentes, até 6 itens no total. O subtítulo mostra quantas estão vencidas e quantas vencem em 7 dias. **Ver todas** abre a aba **A pagar** de Lançamentos.
 - **Contas**: o saldo atual de cada conta (verde positivo, vermelho negativo); cartões não entram no saldo total.
 - **Saldo projetado**, **Parcelas futuras**, **Maiores categorias** e **Entradas × saídas** (contra o mês anterior): a previsão começa no mês atual.
 - **Saídas por categoria**: lista expansível por categoria e subcategoria, com o **Total** no fim.

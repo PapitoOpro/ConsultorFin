@@ -1,4 +1,4 @@
-"""Ações da tela Contas a pagar: validam o texto bruto dos formulários e delegam ao domínio."""
+"""Ações das telas Lançamentos e Cadastros: validam o texto bruto dos formulários e delegam ao domínio."""
 import re
 from collections.abc import Callable
 from datetime import date

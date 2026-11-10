@@ -65,15 +65,15 @@ def conta(cliente: TestClient, db: Path) -> int:
 
 
 def test_tela_lista_taxonomia_e_menu(cliente: TestClient) -> None:
-    r = cliente.get("/categorias")
+    r = cliente.get("/categorias")  # redireciona para Cadastros
     assert r.status_code == 200
-    assert 'href="/categorias"' in r.text
+    assert 'href="/cadastros"' in r.text
     ent = cliente.get("/categorias?aba=entrada").text
     assert "Salário e Trabalho" in ent and "13º salário" in ent
     assert "Música e Equipamentos" not in ent
     sai = cliente.get("/categorias?aba=saida").text
     assert "Música e Equipamentos" in sai and "13º salário" not in sai
-    assert 'href="/categorias?aba=entrada"' in sai
+    assert 'href="/cadastros?secao=categorias&aba=entrada"' in sai
 
 
 def test_aba_invalida_cai_no_padrao(cliente: TestClient) -> None:
@@ -301,7 +301,7 @@ def test_xss_escapado_nas_telas(cliente: TestClient, db: Path, conta: int) -> No
     finally:
         con.close()
     for url in ("/categorias?aba=saida", "/lancamentos?de=2000-01-01&ate=2100-01-01",
-                "/contas-a-pagar"):
+                "/cadastros?secao=recorrentes"):
         t = cliente.get(url).text
         assert XSS not in t and ESC in t, url
     t = _post(cliente, f"/categorias/{_id(db, XSS, XSS)}/excluir").text
@@ -357,10 +357,8 @@ def test_lancamento_manual_usa_categoria_do_sinal(
         (1000, ent), (-1000, sai)]
 
 
-def test_seletores_em_contas_a_pagar(cliente: TestClient) -> None:
-    t = cliente.get("/contas-a-pagar").text
-    assert "Moradia › Aluguel" in _select(t, "p-cat")
-    assert "13º salário" not in _select(t, "p-cat")
+def test_seletores_em_cadastros_recorrentes(cliente: TestClient) -> None:
+    t = cliente.get("/cadastros?secao=recorrentes").text
     assert "Moradia › Aluguel" in _select(t, "r-cat-saida")
     assert "13º salário" in _select(t, "r-cat-entrada")
     assert "Moradia" not in _select(t, "r-cat-entrada")
@@ -369,7 +367,7 @@ def test_seletores_em_contas_a_pagar(cliente: TestClient) -> None:
 def test_recorrente_usa_categoria_do_tipo(cliente: TestClient, db: Path, conta: int) -> None:
     ent = _id(db, "13º salário", "Salário e Trabalho")
     sai = _id(db, "Aluguel", "Moradia")
-    r = cliente.post("/contas-a-pagar/recorrente", data={
+    r = cliente.post("/cadastros/recorrente", data={
         "nome": "Salário", "tipo": "entrada", "dia": "5", "valor_estimado": "100,00",
         "conta_id": str(conta), "categoria_entrada": str(ent), "categoria_saida": str(sai)})
     assert r.status_code == 200

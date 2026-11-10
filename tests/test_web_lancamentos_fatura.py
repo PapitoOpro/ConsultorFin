@@ -346,7 +346,7 @@ def test_voltar_sobrevive_as_acoes(cliente: TestClient, cen: Cenario) -> None:
 def test_previstas_rotuladas(cliente: TestClient, db: Path, cen: Cenario) -> None:
     previstas = _sql(db, "SELECT id FROM lancamentos WHERE origem = 'fatura_prevista'")
     assert len(previstas) == 1  # parcela 3/3
-    # previstas ficam em Contas a pagar: não aparecem no extrato (só as que não vieram na fatura)
+    # previstas ficam na aba A pagar: não aparecem no extrato (só as que não vieram na fatura)
     assert f'id="lancamento-{previstas[0][0]}"' not in _get(cliente).text
 
 

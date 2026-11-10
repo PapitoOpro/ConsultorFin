@@ -111,6 +111,7 @@ class Filtros:
     status: str = "todos"
     pagina: int = 1
     recentes_primeiro: bool = False  # ordem do extrato (a tela usa a ordem crescente)
+    incluir_previstas: bool = False  # aba A pagar: mostra também as parcelas previstas pela fatura
 
     @classmethod
     def de_parametros(cls, params: Mapping[str, str], hoje: date) -> "Filtros":
@@ -172,6 +173,10 @@ class LinhaExtrato:
     fatura_id: int | None = None  # linha da fatura (tipo 'fatura'): id da fatura
     fatura_paga: bool = False
     fatura_qtd_itens: int = 0
+    recorrente_id: int | None = None  # pendente gerado por conta fixa/receita recorrente
+    grupo: str | None = None  # grupo_parcela_uuid do parcelamento
+    parcela_atual: int | None = None
+    parcela_total: int | None = None
 
 
 @dataclass(frozen=True)
@@ -190,7 +195,8 @@ class PaginaLancamentos:
 def _criterios(f: Filtros) -> dict[str, Any]:
     return {"de": f.de, "ate": f.ate, "conta_id": f.conta_id, "categoria_id": f.categoria_id,
             "sem_categoria": f.sem_categoria, "tipo": f.tipo, "texto": f.texto or None,
-            "compensado": STATUS[f.status]}
+            "compensado": STATUS[f.status],
+            "incluir_previstas": f.incluir_previstas}
 
 
 def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
@@ -220,7 +226,12 @@ def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
         fatura_casada_id=None if r["fatura_casada_id"] is None else int(r["fatura_casada_id"]),
         fatura_id=None if r["fatura_id"] is None else int(r["fatura_id"]),
         fatura_paga=r["fatura_pagamento_id"] is not None,
-        fatura_qtd_itens=int(r["fatura_qtd_itens"] or 0)) for r in rows]
+        fatura_qtd_itens=int(r["fatura_qtd_itens"] or 0),
+        recorrente_id=None if r["recorrente_id"] is None else int(r["recorrente_id"]),
+        grupo=r["grupo_parcela_uuid"],
+        parcela_atual=None if r["parcela_atual"] is None else int(r["parcela_atual"]),
+        parcela_total=None if r["parcela_total"] is None else int(r["parcela_total"]))
+        for r in rows]
     entradas, saidas = int(t["entradas"]), int(t["saidas"])
     return PaginaLancamentos(
         linhas=linhas, total=total, pagina=pagina, paginas=paginas, entradas_centavos=entradas,
@@ -304,8 +315,8 @@ def excluir_manual(con: Any, lancamento_id: int, hoje: date | None = None) -> No
                              "Para removê-los, desfaça a importação.")
     if row["recorrente_id"] is not None:
         raise ErroLancamento("Este lançamento é de uma conta fixa ou receita recorrente e seria "
-                             "recriado. Para não pagá-lo neste mês, use \"Pular este mês\" em "
-                             "Contas a pagar.")
+                             "recriado. Para não pagá-lo neste mês, use \"Pular este mês\" na "
+                             "aba A pagar de Lançamentos.")
     with transacao(con):
         liberar_vinculo_do_lancamento(con, lancamento_id, hoje)
         repo.excluir(con, lancamento_id)
@@ -380,3 +391,34 @@ def criar_manual_de_formulario(
         con, conta_id=conta, data=dia, descricao=descricao,
         valor_centavos=magnitude if sinal == "entrada" else -magnitude, categoria_id=cat,
         compensado=compensado, observacao=observacao.strip()[:500] or None)
+
+
+def criar_avulso_de_formulario(
+    con: Any, *, modo: str, data: str, descricao: str, valor: str, sinal: str, conta_id: str,
+    categoria_id: str, observacao: str, ja_pago: bool, n_parcelas: str, hoje: date,
+) -> str:
+    """Formulário único "Novo lançamento": à vista, parcelado ou recorrente. Devolve o aviso."""
+    from app.dominio import contas_pagar_acoes as acoes  # import tardio: evita ciclo
+
+    if modo not in ("avista", "parcelado", "recorrente"):
+        raise ErroLancamento("Escolha À vista, Parcelado ou Repetir todo mês.")
+    dia = date.fromisoformat(interpretar_data(data))
+    if modo == "avista":
+        if ja_pago and dia > hoje:
+            raise ErroLancamento("Só é possível marcar como pago com data de hoje ou anterior.")
+        criar_manual_de_formulario(
+            con, data=data, descricao=descricao, valor=valor, sinal=sinal, conta_id=conta_id,
+            categoria_id=categoria_id, observacao=observacao, compensado=ja_pago)
+        return "Lançamento criado."
+    if ja_pago:
+        raise ErroLancamento("Só é possível marcar como pago um lançamento à vista.")
+    if modo == "parcelado":
+        if sinal != "saida":
+            raise ErroLancamento("Parcelamento só para saídas.")
+        n = acoes.criar_parcelamento_de_formulario(
+            con, descricao=descricao, valor_total=valor, n_parcelas=n_parcelas,
+            primeiro_vencimento=data, conta_id=conta_id, categoria_id=categoria_id)
+        return "Parcelamento criado: 1 parcela." if n == 1 else f"Parcelamento criado: {n} parcelas."
+    return acoes.criar_recorrente_de_formulario(
+        con, nome=descricao, tipo=sinal, dia=str(dia.day), valor_estimado=valor,
+        conta_id=conta_id, categoria_id=categoria_id)

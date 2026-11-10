@@ -1,6 +1,6 @@
 {% from "_icones.html" import icone %}
-{% macro item_menu(chave, href, nome, icone_nome) -%}
-<a class="item-menu" href="{{ href }}"{% if ativo == chave %} aria-current="page"{% endif %}>{{ icone(icone_nome, 18) }}<span>{{ nome }}</span></a>
+{% macro item_menu(chave, href, nome, icone_nome, selo=0) -%}
+<a class="item-menu" href="{{ href }}"{% if ativo == chave %} aria-current="page"{% endif %}>{{ icone(icone_nome, 18) }}<span>{{ nome }}</span>{% if selo %}<span class="selo-menu" aria-hidden="true">{{ selo }}</span><span class="sr-only">{{ selo }} vencida{{ 's' if selo != 1 }}</span>{% endif %}</a>
 {%- endmacro %}
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -29,13 +29,12 @@
       <nav class="menu-nav" id="menu-principal" aria-label="Menu principal">
         <p class="grupo-menu">Visão geral</p>
         {{ item_menu("inicio", "/", "Início", "layout-dashboard") }}
-        {{ item_menu("lancamentos", "/lancamentos", "Lançamentos", "receipt") }}
+        {{ item_menu("lancamentos", "/lancamentos", "Lançamentos", "receipt", n_vencidas|default(0)) }}
         <p class="grupo-menu">Operações</p>
         {{ item_menu("importar", "/importar", "Importar", "upload") }}
         {{ item_menu("holerites", "/holerites", "Holerites", "file-text") }}
-        {{ item_menu("contas", "/contas-a-pagar", "Contas a pagar", "calendar-clock") }}
         <p class="grupo-menu">Organização</p>
-        {{ item_menu("categorias", "/categorias", "Categorias", "tags") }}
+        {{ item_menu("cadastros", "/cadastros", "Cadastros", "tags") }}
       </nav>
     </div>
     <div class="principal">
