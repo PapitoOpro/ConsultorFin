@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import alerta %}
+{% set secoes = [("contas", "Contas e cartões"), ("categorias", "Categorias"), ("recorrentes", "Recorrentes")] %}
+{% block titulo %}Cadastros{% endblock %}
+{% block mensagens %}
+  {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
+  {% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
+{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Cadastros</h1><p class="subtitulo">Contas, categorias e contas fixas.</p></div>
+{% endblock %}
+{% block conteudo %}
+<nav class="abas" aria-label="Seções de cadastros">
+  {% for chave, rotulo in secoes %}
+  <a href="/cadastros?secao={{ chave }}" class="{{ 'ativa' if secao == chave }}"{% if secao == chave %} aria-current="true"{% endif %}>{{ rotulo }}</a>
+  {% endfor %}
+</nav>
+{% if secao == "categorias" %}{% include "cadastros/_categorias.html" %}
+{% elif secao == "recorrentes" %}{% include "cadastros/_recorrentes.html" %}
+{% else %}{% include "cadastros/_contas.html" %}
+{% endif %}
+{% endblock %}

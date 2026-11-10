@@ -65,15 +65,15 @@ def conta(cliente: TestClient, db: Path) -> int:
 
 
 def test_tela_lista_taxonomia_e_menu(cliente: TestClient) -> None:
-    r = cliente.get("/categorias")
+    r = cliente.get("/categorias")  # redireciona para Cadastros
     assert r.status_code == 200
-    assert 'href="/categorias"' in r.text
+    assert 'href="/cadastros"' in r.text
     ent = cliente.get("/categorias?aba=entrada").text
     assert "Salário e Trabalho" in ent and "13º salário" in ent
     assert "Música e Equipamentos" not in ent
     sai = cliente.get("/categorias?aba=saida").text
     assert "Música e Equipamentos" in sai and "13º salário" not in sai
-    assert 'href="/categorias?aba=entrada"' in sai
+    assert 'href="/cadastros?secao=categorias&aba=entrada"' in sai
 
 
 def test_aba_invalida_cai_no_padrao(cliente: TestClient) -> None:

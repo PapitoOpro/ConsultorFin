@@ -10,9 +10,9 @@ from app.main import create_app
 WEB = Path(__file__).resolve().parent.parent / "app" / "web"
 PAGINAS = {
     "/": "Início", "/lancamentos": "Lançamentos", "/importar": "Importar",
-    "/contas-a-pagar": "Contas a pagar", "/categorias": "Categorias", "/holerites": "Holerites",
+    "/contas-a-pagar": "Contas a pagar", "/cadastros": "Cadastros", "/holerites": "Holerites",
 }
-HREFS = ("/", "/lancamentos", "/importar", "/contas-a-pagar", "/categorias", "/holerites")
+HREFS = ("/", "/lancamentos", "/importar", "/contas-a-pagar", "/cadastros", "/holerites")
 
 
 @pytest.fixture

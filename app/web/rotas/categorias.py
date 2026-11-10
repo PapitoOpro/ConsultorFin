@@ -1,16 +1,17 @@
-"""Tela Categorias: adicionar, renomear, mover, mudar tipo e excluir (com substituição)."""
+"""Ações de categorias (a tela fica em Cadastros): adicionar, renomear, mover, mudar tipo e excluir (com substituição)."""
 import logging
 from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dominio import categorias as dom
 from app.dominio.categorias import ErroCategoria
 from app.dominio.lancamentos import ErroLancamento, NaoEncontrado, interpretar_id, opcoes_categorias
 from app.repo import categorias as repo
 from app.web.deps import get_con
+from app.web.rotas.cadastros import pagina_cadastros
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,13 +27,8 @@ def _aba(valor: str | None) -> str:
 def _pagina(request: Request, con: Any, aba: str, *, aviso: str | None = None,
             erro: str | None = None, status: int = 200,
             excluindo: dict[str, Any] | None = None) -> HTMLResponse:
-    ctx = {
-        "ativo": "categorias", "aba": aba, "arvore": dom.arvore_para_tela(con),
-        "aviso": aviso, "erro": erro, "excluindo": excluindo,
-        "todas": {t: opcoes_categorias(con, t) for t in ABAS},
-    }
-    return request.app.state.templates.TemplateResponse(
-        request, "categorias/index.html", ctx, status_code=status)
+    return pagina_cadastros(request, con, "categorias", aviso=aviso, erro=erro, status=status,
+                            aba=aba, excluindo=excluindo)
 
 
 def _seguro(request: Request, con: Any, aba: str, **kw: Any) -> HTMLResponse:
@@ -67,9 +63,10 @@ def _executar(request: Request, con: Any, aba: str, acao: Callable[[], str]) -> 
     return _seguro(request, con, aba, aviso=aviso)
 
 
-@router.get("/categorias", response_class=HTMLResponse)
-def tela(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
-    return _seguro(request, con, _aba(request.query_params.get("aba")))
+@router.get("/categorias")
+def tela(request: Request) -> RedirectResponse:
+    aba = _aba(request.query_params.get("aba"))
+    return RedirectResponse(f"/cadastros?secao=categorias&aba={aba}", status_code=303)
 
 
 @router.post("/categorias/criar", response_class=HTMLResponse)

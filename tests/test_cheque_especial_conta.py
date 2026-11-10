@@ -1,4 +1,4 @@
-"""Cheque especial configurado junto das contas (Contas a pagar)."""
+"""Cheque especial configurado junto das contas (Cadastros)."""
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -44,56 +44,55 @@ def _config(db: Path) -> ce.ConfigChequeEspecial | None:
 
 
 def _form(limite: str = "4.410,00") -> dict[str, str]:
-    return {"limite": limite, "dias_isentos": "10", "alerta_a_partir_de": "8", "horizonte": "6"}
+    return {"limite": limite, "dias_isentos": "10", "alerta_a_partir_de": "8"}
 
 
 def test_configura_conta_existente(cliente: TestClient, db: Path) -> None:
     cid = _nova(db)
-    r = cliente.post(f"/contas-a-pagar/conta/{cid}/cheque-especial", data=_form())
+    r = cliente.post(f"/cadastros/conta/{cid}/cheque-especial", data=_form())
     assert r.status_code == 200 and "Cheque especial configurado" in r.text
     assert _config(db) == ce.ConfigChequeEspecial(conta_id=cid, limite_centavos=441000)
 
 
 def test_limite_vazio_remove_quando_e_a_conta_configurada(cliente: TestClient, db: Path) -> None:
     cid = _nova(db)
-    cliente.post(f"/contas-a-pagar/conta/{cid}/cheque-especial", data=_form())
-    r = cliente.post(f"/contas-a-pagar/conta/{cid}/cheque-especial", data=_form(""))
+    cliente.post(f"/cadastros/conta/{cid}/cheque-especial", data=_form())
+    r = cliente.post(f"/cadastros/conta/{cid}/cheque-especial", data=_form(""))
     assert r.status_code == 200 and "removido" in r.text and _config(db) is None
 
 
 def test_limite_vazio_em_outra_conta_nao_mexe_na_config(cliente: TestClient, db: Path) -> None:
     a, b = _nova(db), _nova(db, "Outra")
-    cliente.post(f"/contas-a-pagar/conta/{a}/cheque-especial", data=_form())
-    r = cliente.post(f"/contas-a-pagar/conta/{b}/cheque-especial", data=_form(""))
+    cliente.post(f"/cadastros/conta/{a}/cheque-especial", data=_form())
+    r = cliente.post(f"/cadastros/conta/{b}/cheque-especial", data=_form(""))
     assert r.status_code == 400 and _config(db).conta_id == a  # type: ignore[union-attr]
 
 
 @pytest.mark.parametrize("limite", ["abc", "-5", "0"])
 def test_limite_invalido_nao_grava(cliente: TestClient, db: Path, limite: str) -> None:
     cid = _nova(db)
-    r = cliente.post(f"/contas-a-pagar/conta/{cid}/cheque-especial", data=_form(limite))
+    r = cliente.post(f"/cadastros/conta/{cid}/cheque-especial", data=_form(limite))
     assert r.status_code == 400 and _config(db) is None
 
 
 def test_so_conta_corrente(cliente: TestClient, db: Path) -> None:
     cid = _nova(db, "Cartão", "cartao")
-    r = cliente.post(f"/contas-a-pagar/conta/{cid}/cheque-especial", data=_form())
+    r = cliente.post(f"/cadastros/conta/{cid}/cheque-especial", data=_form())
     assert r.status_code == 400 and "conta corrente" in r.text and _config(db) is None
 
 
 def test_conta_inexistente(cliente: TestClient) -> None:
-    r = cliente.post("/contas-a-pagar/conta/9999/cheque-especial", data=_form())
+    r = cliente.post("/cadastros/conta/9999/cheque-especial", data=_form())
     assert r.status_code == 404
 
 
 def _cadastro(limite: str, tipo: str = "corrente") -> dict[str, str]:
     return {"nome": "Itaú Novo", "tipo": tipo, "instituicao": "", "final_numero": "",
-            "saldo_inicial": "0,00", "data_saldo_inicial": "2026-10-01", "horizonte": "6",
-            "limite_cheque_especial": limite}
+            "saldo_inicial": "0,00", "data_saldo_inicial": "2026-10-01", "limite_cheque_especial": limite}
 
 
 def test_cadastro_com_limite_configura_a_conta_nova(cliente: TestClient, db: Path) -> None:
-    r = cliente.post("/contas-a-pagar/conta", data=_cadastro("1.000,00"))
+    r = cliente.post("/cadastros/conta", data=_cadastro("1.000,00"))
     assert r.status_code == 200
     con = conectar(db)
     try:
@@ -104,12 +103,12 @@ def test_cadastro_com_limite_configura_a_conta_nova(cliente: TestClient, db: Pat
 
 
 def test_cadastro_sem_limite_nao_configura(cliente: TestClient, db: Path) -> None:
-    assert cliente.post("/contas-a-pagar/conta", data=_cadastro("")).status_code == 200
+    assert cliente.post("/cadastros/conta", data=_cadastro("")).status_code == 200
     assert _config(db) is None
 
 
 def test_cadastro_com_limite_em_tipo_errado_nao_cria_conta(cliente: TestClient, db: Path) -> None:
-    r = cliente.post("/contas-a-pagar/conta", data=_cadastro("1.000,00", "poupanca"))
+    r = cliente.post("/cadastros/conta", data=_cadastro("1.000,00", "poupanca"))
     assert r.status_code == 400
     con = conectar(db)
     try:
@@ -120,6 +119,6 @@ def test_cadastro_com_limite_em_tipo_errado_nao_cria_conta(cliente: TestClient, 
 
 def test_tela_mostra_formulario_so_para_conta_corrente(cliente: TestClient, db: Path) -> None:
     cc, cartao = _nova(db), _nova(db, "Cartão", "cartao")
-    html = cliente.get("/contas-a-pagar").text
-    assert f"/contas-a-pagar/conta/{cc}/cheque-especial" in html
-    assert f"/contas-a-pagar/conta/{cartao}/cheque-especial" not in html
+    html = cliente.get("/cadastros").text
+    assert f"/cadastros/conta/{cc}/cheque-especial" in html
+    assert f"/cadastros/conta/{cartao}/cheque-especial" not in html

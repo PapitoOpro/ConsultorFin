@@ -1,0 +1,68 @@
+{% from "_macros.html" import opcoes_categoria, estado_vazio %}
+{% from "_icones.html" import icone %}
+<section id="recorrentes" class="painel secao">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("repeat", 18) }}Contas fixas e receitas recorrentes <span class="selo neutro">{{ recorrentes | length }}</span></h2></div></div>
+  {% if recorrentes %}
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
+    <thead><tr><th>Nome</th><th class="sec">Tipo</th><th class="sec">Dia</th><th class="sec">Conta</th><th class="valor">Valor estimado</th><th class="valor sec">Último valor real</th><th class="sec">Situação</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for r in recorrentes %}
+      <tr>
+        <td class="desc">{{ r.nome }}<span class="mob-info">{{ "Receita" if r.tipo == "entrada" else "Conta fixa" }} · dia {{ r.dia }} · {{ r.conta_nome or "—" }} · {{ "ativa" if r.ativa else "inativa" }}</span></td>
+        <td class="sec"><span class="selo {{ 'entrada' if r.tipo == 'entrada' else 'neutro' }}">{{ "Receita" if r.tipo == "entrada" else "Conta fixa" }}</span></td>
+        <td class="sec">{{ r.dia }}</td>
+        <td class="conta sec">{{ r.conta_nome or "—" }}</td>
+        <td class="valor">{{ r.valor_estimado_centavos | brl }}</td>
+        <td class="valor sec">{% if r.ultimo_real_centavos is none %}—{% else %}{{ r.ultimo_real_centavos | brl }}{% endif %}</td>
+        <td class="sec"><span class="selo {{ 'entrada' if r.ativa else 'neutro' }}">{{ "ativa" if r.ativa else "inativa" }}</span></td>
+        <td>
+          {% if r.ativa %}
+          <form method="post" action="/cadastros/recorrente/{{ r.id }}/desativar" onsubmit="return confirm('Desativar? Os pendentes futuros serão removidos.')">
+            <button type="submit" class="perigo">Desativar</button>
+          </form>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  {{ estado_vazio("Nenhuma conta fixa ou receita recorrente cadastrada.", "repeat") }}
+  {% endif %}
+  <details class="painel-interno">
+    <summary>{{ icone("plus", 16) }}Nova conta fixa ou receita recorrente<span class="resumo-seta">{{ icone("chevron-down", 16) }}</span></summary>
+    <form method="post" action="/cadastros/recorrente">
+      <div class="grade-form">
+        <div class="campo"><label for="r-nome">Nome</label><input id="r-nome" name="nome" maxlength="80" required></div>
+        <div class="campo"><label for="r-tipo">Tipo</label>
+          <select id="r-tipo" name="tipo"><option value="saida">Conta fixa (saída)</option><option value="entrada">Receita (entrada)</option></select></div>
+        <div class="campo"><label for="r-dia">Dia do mês (1-31)</label><input id="r-dia" name="dia" inputmode="numeric" required></div>
+        <div class="campo"><label for="r-valor">Valor estimado</label><input id="r-valor" class="valor" name="valor_estimado" inputmode="decimal" placeholder="0,00" required></div>
+        <div class="campo"><label for="r-conta">Conta</label>
+          <select id="r-conta" name="conta_id" required>{% for c in contas %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
+        <div class="campo cat-sinal" data-sinal="saida"><label for="r-cat-saida">Categoria (conta fixa)</label>
+          <select id="r-cat-saida" data-busca name="categoria_saida"><option value="">Sem categoria</option>
+            {{ opcoes_categoria(categorias_saida) }}</select></div>
+        <div class="campo cat-sinal" data-sinal="entrada"><label for="r-cat-entrada">Categoria (receita)</label>
+          <select id="r-cat-entrada" data-busca name="categoria_entrada"><option value="">Sem categoria</option>
+            {{ opcoes_categoria(categorias_entrada) }}</select></div>
+      </div>
+      <button type="submit">{{ icone("check", 16) }}Cadastrar</button>
+    </form>
+  </details>
+</section>
+<script>
+  (function () {
+    var tipo = document.getElementById("r-tipo");
+    var campos = document.querySelectorAll(".cat-sinal");
+    function atualizar() {
+      campos.forEach(function (c) {
+        var ativo = c.getAttribute("data-sinal") === tipo.value;
+        c.hidden = !ativo;
+        c.querySelector("select").disabled = !ativo;
+      });
+    }
+    tipo.addEventListener("change", atualizar);
+    atualizar();
+  })();
+</script>
