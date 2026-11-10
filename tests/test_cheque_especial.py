@@ -91,6 +91,16 @@ def test_ajuste_manual_substitui_no_mes_e_expira_no_seguinte(con: sqlite3.Connec
     assert r2 is not None and r2.dias_informados is None
 
 
+def test_dias_informados_continuam_contando_nos_dias_seguintes(con: sqlite3.Connection) -> None:
+    c = _conta(con)
+    _lanc(con, c, "2026-11-09", -50000)  # saldo negativo desde antes
+    ce.informar_dias(con, date(2026, 11, 9), 4)
+    r = ce.calcular(con, date(2026, 11, 9))
+    assert r is not None and r.dias_usados == 4
+    r = ce.calcular(con, date(2026, 11, 12))
+    assert r is not None and (r.dias_usados, r.dias_informados) == (7, 4)
+
+
 def test_calcular_sem_config_retorna_none(con: sqlite3.Connection) -> None:
     assert ce.calcular(con, date(2026, 11, 10)) is None
 

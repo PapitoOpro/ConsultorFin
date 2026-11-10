@@ -83,17 +83,20 @@ def informar_dias(con: Any, hoje: date, dias: int) -> None:
     """Dias de uso segundo o banco; vale só no mês de `hoje`."""
     if not 0 <= dias <= 31:
         raise ValueError("Os dias devem ficar entre 0 e 31.")
-    configuracoes.definir(con, CHAVE_DIAS, json.dumps({"mes": f"{hoje.year:04d}-{hoje.month:02d}", "dias": dias}))
+    configuracoes.definir(con, CHAVE_DIAS, json.dumps(
+        {"mes": f"{hoje.year:04d}-{hoje.month:02d}", "dias": dias, "data": hoje.isoformat()}))
 
 
-def _dias_informados(con: Any, hoje: date) -> int | None:
+def _dias_informados(con: Any, hoje: date) -> tuple[int, date] | None:
+    """(dias, data em que foram informados); registro antigo sem data fica congelado em `hoje`."""
     bruto = configuracoes.obter(con, CHAVE_DIAS)
     if not bruto:
         return None
     try:
         d = json.loads(bruto)
         if d["mes"] == f"{hoje.year:04d}-{hoje.month:02d}":
-            return int(d["dias"])
+            data = date.fromisoformat(d["data"]) if d.get("data") else hoje
+            return int(d["dias"]), min(data, hoje)
     except (ValueError, KeyError, TypeError):
         pass
     return None
@@ -129,8 +132,13 @@ def calcular(con: Any, hoje: date) -> ChequeEspecial | None:
     calculados = contar_dias_negativos(inicial, data_inicial, somas, hoje.replace(day=1), hoje)
     saldo_atual = inicial + sum(v for _, v in somas)
     em_uso = max(0, -saldo_atual)
-    informados = _dias_informados(con, hoje)
-    usados = calculados if informados is None else informados
+    ref = _dias_informados(con, hoje)
+    informados = None if ref is None else ref[0]
+    if ref is None:
+        usados = calculados
+    else:  # valor do banco na data informada + dias negativos desde então
+        apos = contar_dias_negativos(inicial, data_inicial, somas, ref[1] + timedelta(days=1), hoje)
+        usados = min(31, ref[0] + apos)
     estado = estado_de(usados, cfg)
     log.info("event=cheque_especial_calculado estado=%s dias=%d", estado, usados)
     return ChequeEspecial(
