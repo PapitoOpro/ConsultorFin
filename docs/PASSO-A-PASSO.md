@@ -155,7 +155,7 @@ Quando a conta chegar:
 3. **Pular este mês** remove só aquele mês; **Desativar** (em Cadastros) para de gerar meses futuros (as vencidas ficam).
 
 ### Casamento com o extrato
-Quando uma conta que você lançou aparece depois no extrato importado, o app propõe a ligação em **Possíveis correspondências** na tela **Importar** (valor parecido, data próxima). Clique em **Confirmar** para ligar os dois: o item vira pago com o valor do banco e não é contado duas vezes. Nada é confirmado sozinho.
+Quando uma conta que você lançou aparece depois no extrato importado, o app propõe a ligação em **Possíveis correspondências no extrato**: na aba **A pagar** de Lançamentos e no resultado da tela **Importar**, logo após importar (valor parecido, data próxima). Clique em **Confirmar** para ligar os dois: o item vira pago com o valor do banco e não é contado duas vezes. Nada é confirmado sozinho.
 
 ## 6. Ler a tela Início
 

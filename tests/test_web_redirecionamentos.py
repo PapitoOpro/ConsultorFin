@@ -100,3 +100,10 @@ def test_painel_links_apontam_para_lancamentos() -> None:
         encoding="utf-8")
     assert "/contas-a-pagar" not in texto and "Contas a pagar" not in texto
     assert texto.count('"link": "/lancamentos?aba=a-pagar", "link_rotulo": "Ver em Lançamentos"') == 2
+
+
+def test_selo_do_menu_e_anunciado_a_leitores_de_tela(cliente: TestClient, db: Path,
+                                                     conta: int) -> None:
+    _pendente(db, conta, "2026-10-01")
+    menu = _menu(cliente.get("/").text)
+    assert '<span class="sr-only">1 vencida</span>' in menu

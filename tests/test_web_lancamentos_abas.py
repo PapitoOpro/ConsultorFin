@@ -345,3 +345,89 @@ def test_pagamento_duplo_e_recusado(cliente: TestClient, db: Path, conta: int) -
     r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "99,00", "data": "2026-10-24"})
     assert r.status_code == 400 and "já está compensado" in r.text
     assert _sql(db, "SELECT valor_centavos FROM lancamentos") == [(-5500,)]
+
+
+def _importar_linhas(db: Path, conta_id: int, linhas: list[tuple[str, str, int]]) -> None:
+    from app.importacao.base import LinhaImportada, ResultadoLeitura
+    from app.importacao.servico import importar
+
+    class _P:
+        def ler(self, conteudo: bytes) -> ResultadoLeitura:
+            return ResultadoLeitura(linhas=[LinhaImportada(*ln) for ln in linhas])
+
+    con = conectar(db)
+    try:
+        importar(con, conta_id, "x.csv", repr(linhas).encode(), _P(), HOJE)
+    finally:
+        con.close()
+
+
+def _com_correspondencia(cliente: TestClient, db: Path, conta: int) -> tuple[str, str]:
+    _importar_linhas(db, conta, [("2026-10-05", "PIX ALUGUEL APTO", -150000)])
+    con = conectar(db)
+    try:
+        criar_recorrente(con, nome="Aluguel", tipo="saida", dia=10,
+                         valor_estimado_centavos=150000, conta_id=conta, categoria_id=None)
+    finally:
+        con.close()
+    html = _aba(cliente, "a-pagar").text
+    m = re.search(r'name="pendente_id" value="(\d+)">\s*<input type="hidden" name="lancamento_id" '
+                  r'value="(\d+)"', html)
+    assert m
+    return m.group(1), m.group(2)
+
+
+def test_correspondencias_so_na_aba_a_pagar(cliente: TestClient, db: Path, conta: int) -> None:
+    _com_correspondencia(cliente, db, conta)
+    html = _aba(cliente, "a-pagar").text
+    assert 'id="correspondencias"' in html and "Possíveis correspondências no extrato" in html
+    assert "PIX ALUGUEL APTO" in html.split('id="correspondencias"')[1]
+    for aba in ("todos", "realizados"):
+        assert 'id="correspondencias"' not in _aba(cliente, aba).text
+
+
+def test_sem_correspondencias_painel_oculto(cliente: TestClient, db: Path, conta: int) -> None:
+    _manual(db, conta, "2026-11-10", "Boleto", -5000)
+    assert 'id="correspondencias"' not in _aba(cliente, "a-pagar").text
+
+
+def test_confirmar_correspondencia_limpa_pendente(cliente: TestClient, db: Path,
+                                                  conta: int) -> None:
+    pend, linha = _com_correspondencia(cliente, db, conta)
+    r = cliente.post("/lancamentos/casamento/confirmar",
+                     data={"pendente_id": pend, "lancamento_id": linha, "voltar": A_PAGAR})
+    assert r.status_code == 200 and "Correspondência confirmada." in r.text
+    assert _aba_ativa(r.text) == "a-pagar"
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos WHERE valor_centavos = -150000"
+                " AND data <= '2026-10-31'") == [(1,)]
+    assert 'id="correspondencias"' not in r.text
+
+
+def test_confirmar_correspondencia_invalida(cliente: TestClient, db: Path, conta: int) -> None:
+    antes = _sql(db, "SELECT COUNT(*) FROM lancamentos")
+    r = cliente.post("/lancamentos/casamento/confirmar",
+                     data={"pendente_id": "x", "lancamento_id": "1", "voltar": A_PAGAR})
+    assert r.status_code == 400 and "inválido" in r.text and "Traceback" not in r.text
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos") == antes
+
+
+def test_fatura_na_aba_a_pagar_oferece_casar_pagamento(cliente: TestClient, db: Path,
+                                                       conta: int) -> None:
+    test_fatura_na_aba_a_pagar_sem_botao_pagar(cliente, db, conta)
+    con = conectar(db)
+    try:
+        repo.inserir_manual(con, conta_id=conta, data="2026-11-09", descricao="PAGTO FATURA CARTAO",
+                            valor_centavos=-10000, tipo="pagamento_fatura", categoria_id=None,
+                            compensado=True, observacao=None)
+        con.commit()
+    finally:
+        con.close()
+    assert "Casar pagamento" in _aba(cliente, "a-pagar").text
+
+
+def test_selects_de_categoria_do_novo_lancamento_com_busca(cliente: TestClient,
+                                                           conta: int) -> None:
+    html = cliente.get("/lancamentos").text
+    for ident in ("n-cat-saida", "n-cat-entrada"):
+        tag = re.search(rf'<select id="{ident}"[^>]*>', html)
+        assert tag and "data-busca" in tag.group(0), ident

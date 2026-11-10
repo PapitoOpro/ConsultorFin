@@ -1,6 +1,6 @@
 {% from "_icones.html" import icone %}
 {% macro item_menu(chave, href, nome, icone_nome, selo=0) -%}
-<a class="item-menu" href="{{ href }}"{% if ativo == chave %} aria-current="page"{% endif %}>{{ icone(icone_nome, 18) }}<span>{{ nome }}</span>{% if selo %}<span class="selo-menu" title="{{ selo }} vencida{{ 's' if selo != 1 }}">{{ selo }}</span>{% endif %}</a>
+<a class="item-menu" href="{{ href }}"{% if ativo == chave %} aria-current="page"{% endif %}>{{ icone(icone_nome, 18) }}<span>{{ nome }}</span>{% if selo %}<span class="selo-menu" aria-hidden="true">{{ selo }}</span><span class="sr-only">{{ selo }} vencida{{ 's' if selo != 1 }}</span>{% endif %}</a>
 {%- endmacro %}
 <!DOCTYPE html>
 <html lang="pt-BR">

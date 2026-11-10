@@ -22,6 +22,34 @@
 {% if aba == 'a-pagar' and n_vencidas %}
 <div class="faixa-vencidas" role="status">{{ icone("alert-triangle", 16) }}<p id="faixa-vencidas">{{ n_vencidas }} {{ "vencida" if n_vencidas == 1 else "vencidas" }} · {{ (total_vencidas_centavos | abs) | brl }}</p></div>
 {% endif %}
+{% if aba == 'a-pagar' and correspondencias %}
+<section id="correspondencias" class="painel secao secao-info">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ icone("arrow-left-right", 18) }}Possíveis correspondências no extrato</h2>
+    <p class="subtitulo">Itens que parecem corresponder a linhas já importadas do extrato. Confirme para não contar o mesmo valor duas vezes; nada é confirmado automaticamente.</p></div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
+    <thead><tr><th class="sec">Conta</th><th>Item</th><th class="valor">Valor</th><th class="sec">Linha do extrato</th><th class="valor sec">Valor</th><th><span class="sr-only">Confirmar</span></th></tr></thead>
+    <tbody>
+    {% for conta_nome, p in correspondencias %}
+      <tr>
+        <td class="conta sec">{{ conta_nome }}</td>
+        <td class="desc">{{ p.pendente_descricao }} <span class="secundario">{{ p.pendente_data | data_br }}</span><span class="mob-info">{{ conta_nome }}<br>Extrato: {{ p.linha_descricao }} · {{ p.linha_data | data_br }} · {{ p.linha_valor | brl }}</span></td>
+        <td class="valor">{{ p.pendente_valor | brl }}</td>
+        <td class="desc sec">{{ p.linha_descricao }} <span class="secundario">{{ p.linha_data | data_br }}</span></td>
+        <td class="valor sec">{{ p.linha_valor | brl }}</td>
+        <td>
+          <form method="post" action="/lancamentos/casamento/confirmar">
+            <input type="hidden" name="voltar" value="{{ voltar }}">
+            <input type="hidden" name="pendente_id" value="{{ p.pendente_id }}">
+            <input type="hidden" name="lancamento_id" value="{{ p.lancamento_id }}">
+            <button type="submit">{{ icone("check", 16) }}Confirmar</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
 <form method="get" action="/lancamentos" class="painel" aria-label="Filtros do extrato">
   <input type="hidden" name="aba" value="{{ aba }}">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Filtros</h2></div></div>

@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from app.dominio import contas_pagar_acoes as acoes
 from app.dominio import lancamentos as dom
 from app.dominio.casamento import MSG_LINHA_NO_EXTRATO, linha_do_extrato_para
-from app.dominio.contas_pagar import resumo_vencidas
+from app.dominio.contas_pagar import correspondencias, resumo_vencidas
 from app.dominio.dinheiro import para_centavos, somar_meses
 from app.dominio.faturas import ids_previstas_orfas
 from app.dominio.faturas_pagamento import (
@@ -102,6 +102,7 @@ def _pagina(request: Request, con: Any, aba: str, filtros: Filtros, *,
         "total_vencidas_centavos": total_vencidas,
         "propostas": _propostas(con, pagina), "casaveis": _casaveis(con, pagina),
         "orfas": ids_previstas_orfas(con),
+        "correspondencias": correspondencias(con) if aba == "a-pagar" else [],
         "aberta": aberta,
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
         "categorias": dom.opcoes_categorias(con),
@@ -168,6 +169,14 @@ def novo(request: Request, con: Any = Depends(get_con), data: str = Form(""), de
             conta_id=conta_id, categoria_id=escolhida or categoria_id, observacao=observacao,
             ja_pago=bool(ja_pago), n_parcelas=n_parcelas, hoje=_hoje(request))
     return executar(request, con, voltar, acao)
+
+
+@router.post("/lancamentos/casamento/confirmar", response_class=HTMLResponse)
+def confirmar_correspondencia(request: Request, con: Any = Depends(get_con),
+                              pendente_id: str = Form(""), lancamento_id: str = Form(""),
+                              voltar: str = Form("")) -> HTMLResponse:
+    return executar(request, con, voltar,
+                    lambda: acoes.confirmar_correspondencia(con, pendente_id, lancamento_id))
 
 
 @router.post("/lancamentos/lote", response_class=HTMLResponse)
