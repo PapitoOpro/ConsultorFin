@@ -107,3 +107,16 @@ def test_selo_do_menu_e_anunciado_a_leitores_de_tela(cliente: TestClient, db: Pa
     _pendente(db, conta, "2026-10-01")
     menu = _menu(cliente.get("/").text)
     assert '<span class="sr-only">1 vencida</span>' in menu
+
+
+def test_requisicao_htmx_nao_consulta_vencidas(cliente: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    chamadas: list[int] = []
+
+    def conta(*_a: Any, **_k: Any) -> int:
+        chamadas.append(1)
+        return 3
+    monkeypatch.setattr("app.main.contar_vencidas", conta)
+    cliente.get("/", headers={"HX-Request": "true"})
+    assert chamadas == []
+    cliente.get("/")
+    assert chamadas

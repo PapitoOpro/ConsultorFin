@@ -282,10 +282,12 @@ def _escapar_like(texto: str) -> str:
 def _where(
     *, de: str | None, ate: str | None, conta_id: int | None, categoria_id: int | None,
     sem_categoria: bool, tipo: str | None, texto: str | None, compensado: bool | None,
+    incluir_previstas: bool = False,
 ) -> tuple[str, list[object]]:
     """WHERE montado só de fragmentos fixos; valores sempre como parâmetros."""
-    # Parcelas previstas pela fatura ficam na aba A pagar de Lançamentos; aqui só as que não vieram na fatura.
-    partes: list[str] = [
+    # Parcelas previstas pela fatura só aparecem na aba A pagar (incluir_previstas); nas demais
+    # abas entram apenas as que não vieram na fatura importada (órfãs).
+    partes: list[str] = [] if incluir_previstas else [
         "(l.origem <> 'fatura_prevista' OR EXISTS (SELECT 1 FROM faturas f"
         " WHERE f.conta_id = l.conta_id AND f.competencia >= substr(l.data, 1, 7)))"]
     params: list[object] = []
@@ -331,6 +333,7 @@ def listar_extrato(
     con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
     categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
     compensado: bool | None, limite: int, deslocamento: int, decrescente: bool = False,
+    incluir_previstas: bool = False,
 ) -> list[sqlite3.Row]:
     """Linhas do extrato por data/id, com conta, categoria e saldo acumulado da conta
     (saldo inicial + compensados até a linha; NULL nos pendentes). fatura_casada_id: fatura
@@ -338,7 +341,7 @@ def listar_extrato(
     fatura_qtd_itens: só na linha da fatura (tipo 'fatura')."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
-                           compensado=compensado)
+                           compensado=compensado, incluir_previstas=incluir_previstas)
     return con.execute(
         _ACUMULADO
         + "SELECT l.*, c.nome AS conta_nome, cat.nome AS categoria_nome, ac.saldo AS saldo_acumulado,"
@@ -358,7 +361,7 @@ def listar_extrato(
 def totais_extrato(
     con: sqlite3.Connection, *, de: str | None, ate: str | None, conta_id: int | None,
     categoria_id: int | None, sem_categoria: bool, tipo: str | None, texto: str | None,
-    compensado: bool | None, excluir_cartao: bool = False,
+    compensado: bool | None, excluir_cartao: bool = False, incluir_previstas: bool = False,
 ) -> sqlite3.Row:
     """Contagem e somas do filtro. Entradas/saídas: só compensados (linha da fatura e
     pagamento_fatura sem casamento contam como saída; o pagamento casado com uma fatura não,
@@ -367,7 +370,7 @@ def totais_extrato(
     fatura (a contagem inclui todas as linhas)."""
     where, params = _where(de=de, ate=ate, conta_id=conta_id, categoria_id=categoria_id,
                            sem_categoria=sem_categoria, tipo=tipo, texto=texto,
-                           compensado=compensado)
+                           compensado=compensado, incluir_previstas=incluir_previstas)
     cartao = " AND (c.tipo <> 'cartao' OR l.tipo = 'fatura')" if excluir_cartao else ""
     return con.execute(
         "SELECT COUNT(*) AS total,"

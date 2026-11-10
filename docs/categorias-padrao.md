@@ -1,6 +1,6 @@
 # Categorias padrão
 
-Lista inicial de categorias do ConsultorFin, definida pelo dono do projeto em 26/10/2026. É a fonte dos dados que o app carrega na primeira execução; depois disso tudo pode ser editado na tela Categorias.
+Lista inicial de categorias do ConsultorFin, definida pelo dono do projeto em 26/10/2026. É a fonte dos dados que o app carrega na primeira execução; depois disso tudo pode ser editado em Cadastros › Categorias.
 
 | Tipo | Categoria | Subcategoria |
 |---|---|---|

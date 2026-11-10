@@ -111,6 +111,7 @@ class Filtros:
     status: str = "todos"
     pagina: int = 1
     recentes_primeiro: bool = False  # ordem do extrato (a tela usa a ordem crescente)
+    incluir_previstas: bool = False  # aba A pagar: mostra também as parcelas previstas pela fatura
 
     @classmethod
     def de_parametros(cls, params: Mapping[str, str], hoje: date) -> "Filtros":
@@ -194,7 +195,8 @@ class PaginaLancamentos:
 def _criterios(f: Filtros) -> dict[str, Any]:
     return {"de": f.de, "ate": f.ate, "conta_id": f.conta_id, "categoria_id": f.categoria_id,
             "sem_categoria": f.sem_categoria, "tipo": f.tipo, "texto": f.texto or None,
-            "compensado": STATUS[f.status]}
+            "compensado": STATUS[f.status],
+            "incluir_previstas": f.incluir_previstas}
 
 
 def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:

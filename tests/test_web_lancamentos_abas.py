@@ -431,3 +431,106 @@ def test_selects_de_categoria_do_novo_lancamento_com_busca(cliente: TestClient,
     for ident in ("n-cat-saida", "n-cat-entrada"):
         tag = re.search(rf'<select id="{ident}"[^>]*>', html)
         assert tag and "data-busca" in tag.group(0), ident
+
+
+# --- parcelas previstas pela fatura (não órfãs) na aba A pagar ---------------------------
+
+def _previstas(db: Path) -> tuple[int, int]:
+    """Cartão sem fatura importada: duas previstas não órfãs (uma vencida, uma futura)."""
+    con = conectar(db)
+    try:
+        cartao = contas.criar_conta(con, "Cartao Prev", "cartao", final_numero="9999")
+        grupo = "22222222-2222-2222-2222-222222222222"
+        vencida = repo.inserir_prevista(
+            con, conta_id=cartao, data="2026-10-01", descricao="SOFA", valor_centavos=-3000,
+            tipo="saida", categoria_id=None, grupo_parcela_uuid=grupo, parcela_atual=2,
+            parcela_total=4)
+        futura = repo.inserir_prevista(
+            con, conta_id=cartao, data="2026-12-05", descricao="SOFA", valor_centavos=-3000,
+            tipo="saida", categoria_id=None, grupo_parcela_uuid=grupo, parcela_atual=3,
+            parcela_total=4)
+        con.commit()
+        return vencida, futura
+    finally:
+        con.close()
+
+
+def test_previstas_aparecem_so_na_aba_a_pagar(cliente: TestClient, db: Path) -> None:
+    vencida, futura = _previstas(db)
+    html = _aba(cliente, "a-pagar").text
+    for lid in (vencida, futura):
+        assert f'id="lancamento-{lid}"' in html
+    assert "/lancamentos/grupo/22222222-2222-2222-2222-222222222222/" not in html
+    for aba in ("todos", "realizados"):
+        txt = _aba(cliente, aba, de="", ate="").text
+        for lid in (vencida, futura):
+            assert f'id="lancamento-{lid}"' not in txt
+
+
+def test_selo_e_faixa_batem_com_as_vencidas_listadas(cliente: TestClient, db: Path,
+                                                     conta: int) -> None:
+    vencida, _ = _previstas(db)
+    _manual(db, conta, "2026-10-02", "Boleto vencido", -5000)
+    html = _aba(cliente, "a-pagar").text
+    linhas = re.findall(r'<tr class="linha[^"]*linha-vencida[^"]*" id="lancamento-(\d+)"', html)
+    assert str(vencida) in linhas and len(linhas) == 2
+    assert re.search(r'id="selo-vencidas"[^>]*>2<', html)
+    assert "2 vencidas" in re.sub(r"\s+", " ", html)
+
+
+# --- ações de grupo, formulário e escape -------------------------------------------------
+
+GRUPO_RUIM = "nao-e-uuid"
+
+
+def test_grupo_invalido_da_erro_em_portugues_e_nao_altera(cliente: TestClient, db: Path,
+                                                          conta: int) -> None:
+    _parcelamento(db, conta, n=3, inicio="2026-11-05")
+    antes = _sql(db, "SELECT id, valor_centavos FROM lancamentos ORDER BY id")
+    for acao, dados in (("excluir", {}), ("editar", {"valor_total": "10,00", "n_parcelas": ""})):
+        r = cliente.post(f"/lancamentos/grupo/{GRUPO_RUIM}/{acao}", data={**dados, "voltar": A_PAGAR})
+        assert r.status_code in (400, 404) and "Traceback" not in r.text
+        assert re.search(r'class="alerta[^"]*erro', r.text)
+    assert _sql(db, "SELECT id, valor_centavos FROM lancamentos ORDER BY id") == antes
+
+
+def test_editar_grupo_com_valor_invalido_nao_altera(cliente: TestClient, db: Path,
+                                                    conta: int) -> None:
+    grupo = _parcelamento(db, conta, n=3, inicio="2026-11-05")
+    antes = _sql(db, "SELECT id, valor_centavos FROM lancamentos ORDER BY id")
+    r = cliente.post(f"/lancamentos/grupo/{grupo}/editar",
+                     data={"valor_total": "abc", "n_parcelas": "", "voltar": A_PAGAR})
+    assert r.status_code == 400 and "Valor inválido" in r.text
+    assert _sql(db, "SELECT id, valor_centavos FROM lancamentos ORDER BY id") == antes
+
+
+@pytest.mark.parametrize("valor,n", [("0,02", "3"), ("100,00", "0"), ("100,00", "abc"),
+                                     ("100,00", "1000")])
+def test_novo_parcelado_invalido_nao_grava(cliente: TestClient, db: Path, conta: int,
+                                           valor: str, n: str) -> None:
+    r = cliente.post("/lancamentos/novo", data={
+        "modo": "parcelado", "data": "2026-11-05", "descricao": "Geladeira", "valor": valor,
+        "sinal": "saida", "conta_id": str(conta), "n_parcelas": n, "voltar": A_PAGAR})
+    assert r.status_code == 400 and "Traceback" not in r.text
+    assert re.search(r'class="alerta[^"]*erro', r.text)
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos") == [(0,)]
+
+
+def test_descricao_pendente_e_escapada_na_aba(cliente: TestClient, db: Path, conta: int) -> None:
+    _manual(db, conta, "2026-11-10", "<script>alert(1)</script>", -5000)
+    html = _aba(cliente, "a-pagar").text
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def test_pagar_com_linha_no_extrato_avisa(cliente: TestClient, db: Path, conta: int) -> None:
+    _importar_linhas(db, conta, [("2026-10-20", "DEB AUT INTERNET FIBRA", -10000)])
+    pid = _manual(db, conta, "2026-10-20", "Internet", -10000)
+    r = cliente.post(f"/lancamentos/{pid}/pagar",
+                     data={"valor": "", "data": "2026-10-20", "voltar": A_PAGAR})
+    assert r.status_code == 200 and "Pagamento registrado." in r.text
+    assert "Existe uma linha no extrato que parece ser este pagamento" in r.text
+    outro = _manual(db, conta, "2026-10-21", "Academia", -9000)
+    r = cliente.post(f"/lancamentos/{outro}/pagar",
+                     data={"valor": "", "data": "2026-10-21", "voltar": A_PAGAR})
+    assert "Existe uma linha no extrato" not in r.text

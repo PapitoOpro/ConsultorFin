@@ -116,3 +116,15 @@ def test_menu_mostra_cadastros_e_nao_categorias(cliente: TestClient) -> None:
     assert 'href="/cadastros"' in html and ">Cadastros<" in html
     assert 'href="/categorias"' not in html
     assert 'href="/contas-a-pagar"' not in html
+
+
+def test_erro_inesperado_em_cadastros_mostra_mensagem_amigavel_e_nao_grava(
+        cliente: TestClient, db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def quebra(con: Any, *_a: Any, **_k: Any) -> Any:
+        con.execute("INSERT INTO contas (nome, tipo) VALUES ('Fantasma', 'corrente')")
+        raise RuntimeError("falha interna")
+    monkeypatch.setattr("app.web.rotas.cadastros.acoes.criar_conta_de_formulario", quebra)
+    r = cliente.post("/cadastros/conta", data={"nome": "Itaú", "tipo": "corrente"})
+    assert r.status_code == 500 and "Não foi possível concluir a operação" in r.text
+    assert "Traceback" not in r.text and "falha interna" not in r.text
+    assert _sql(db, "SELECT COUNT(*) FROM contas") == [(0,)]

@@ -49,6 +49,8 @@ def create_app(caminho_db: Path | None = None) -> FastAPI:
     app.state.dir_relatorios = config.DIR_RELATORIOS  # testes sobrescrevem
     def contexto_menu(request: Request) -> dict[str, int]:
         """Vencidas para o selo do menu; qualquer falha vira 0 (o menu nunca derruba a página)."""
+        if request.headers.get("HX-Request"):  # fragmentos HTMX não renderizam o menu
+            return {"n_vencidas": 0}
         try:
             con = conectar(request.app.state.caminho_db)
             try:

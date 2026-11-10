@@ -63,9 +63,11 @@ def _executar(request: Request, con: Any, secao: str,
         aviso = acao(hoje)
     except ErroLancamento as exc:
         status = 404 if isinstance(exc, NaoEncontrado) else 400
+        con.rollback()
         return _seguro(request, con, secao, erro=str(exc), status=status)
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
         log.error("event=cadastros_falhou erro=%s", type(exc).__name__)
+        con.rollback()
         return _seguro(request, con, secao, erro=MSG_INESPERADO, status=500)
     return _seguro(request, con, secao, aviso=aviso)
 

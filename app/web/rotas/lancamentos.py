@@ -1,6 +1,7 @@
 """Tela Lançamentos: extrato filtrável, edição inline de categoria e ações por linha."""
 import logging
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 from urllib.parse import parse_qsl, urlencode
@@ -58,7 +59,8 @@ def _filtros_da_aba(params: Mapping[str, str], aba: str, hoje: date) -> Filtros:
         padroes = {"status": "pendentes", "de": "", "ate": fim.isoformat()}
     elif aba == "realizados":
         padroes = {"status": "compensados"}
-    return Filtros.de_parametros({**padroes, **params}, hoje)
+    filtros = Filtros.de_parametros({**padroes, **params}, hoje)
+    return replace(filtros, incluir_previstas=True) if aba == "a-pagar" else filtros
 
 
 def _filtros_de(voltar: str, hoje: date) -> tuple[str, Filtros]:
