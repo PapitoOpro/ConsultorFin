@@ -26,6 +26,16 @@ def interpretar_horizonte(texto: str | None) -> int:
     raise ErroLancamento(MSG_HORIZONTE)
 
 
+def resumo_vencidas(con: Any, hoje: date) -> tuple[int, int]:
+    """(quantidade, total com sinal em centavos) das saídas pendentes com data < hoje."""
+    vencidas = vencimentos(con, hoje, 0).vencidas
+    return len(vencidas), _soma(vencidas)
+
+
+def contar_vencidas(con: Any, hoje: date) -> int:
+    return resumo_vencidas(con, hoje)[0]
+
+
 def _soma(linhas: list[Any]) -> int:
     return sum(int(r["valor_centavos"]) for r in linhas)
 

@@ -172,6 +172,10 @@ class LinhaExtrato:
     fatura_id: int | None = None  # linha da fatura (tipo 'fatura'): id da fatura
     fatura_paga: bool = False
     fatura_qtd_itens: int = 0
+    recorrente_id: int | None = None  # pendente gerado por conta fixa/receita recorrente
+    grupo: str | None = None  # grupo_parcela_uuid do parcelamento
+    parcela_atual: int | None = None
+    parcela_total: int | None = None
 
 
 @dataclass(frozen=True)
@@ -220,7 +224,12 @@ def listar(con: Any, filtros: Filtros) -> PaginaLancamentos:
         fatura_casada_id=None if r["fatura_casada_id"] is None else int(r["fatura_casada_id"]),
         fatura_id=None if r["fatura_id"] is None else int(r["fatura_id"]),
         fatura_paga=r["fatura_pagamento_id"] is not None,
-        fatura_qtd_itens=int(r["fatura_qtd_itens"] or 0)) for r in rows]
+        fatura_qtd_itens=int(r["fatura_qtd_itens"] or 0),
+        recorrente_id=None if r["recorrente_id"] is None else int(r["recorrente_id"]),
+        grupo=r["grupo_parcela_uuid"],
+        parcela_atual=None if r["parcela_atual"] is None else int(r["parcela_atual"]),
+        parcela_total=None if r["parcela_total"] is None else int(r["parcela_total"]))
+        for r in rows]
     entradas, saidas = int(t["entradas"]), int(t["saidas"])
     return PaginaLancamentos(
         linhas=linhas, total=total, pagina=pagina, paginas=paginas, entradas_centavos=entradas,
