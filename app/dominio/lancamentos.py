@@ -380,3 +380,34 @@ def criar_manual_de_formulario(
         con, conta_id=conta, data=dia, descricao=descricao,
         valor_centavos=magnitude if sinal == "entrada" else -magnitude, categoria_id=cat,
         compensado=compensado, observacao=observacao.strip()[:500] or None)
+
+
+def criar_avulso_de_formulario(
+    con: Any, *, modo: str, data: str, descricao: str, valor: str, sinal: str, conta_id: str,
+    categoria_id: str, observacao: str, ja_pago: bool, n_parcelas: str, hoje: date,
+) -> str:
+    """Formulário único "Novo lançamento": à vista, parcelado ou recorrente. Devolve o aviso."""
+    from app.dominio import contas_pagar_acoes as acoes  # import tardio: evita ciclo
+
+    if modo not in ("avista", "parcelado", "recorrente"):
+        raise ErroLancamento("Escolha À vista, Parcelado ou Repetir todo mês.")
+    dia = date.fromisoformat(interpretar_data(data))
+    if modo == "avista":
+        if ja_pago and dia > hoje:
+            raise ErroLancamento("Só é possível marcar como pago com data de hoje ou anterior.")
+        criar_manual_de_formulario(
+            con, data=data, descricao=descricao, valor=valor, sinal=sinal, conta_id=conta_id,
+            categoria_id=categoria_id, observacao=observacao, compensado=ja_pago)
+        return "Lançamento criado."
+    if ja_pago:
+        raise ErroLancamento("Só é possível marcar como pago um lançamento à vista.")
+    if modo == "parcelado":
+        if sinal != "saida":
+            raise ErroLancamento("Parcelamento só para saídas.")
+        n = acoes.criar_parcelamento_de_formulario(
+            con, descricao=descricao, valor_total=valor, n_parcelas=n_parcelas,
+            primeiro_vencimento=data, conta_id=conta_id, categoria_id=categoria_id)
+        return "Parcelamento criado: 1 parcela." if n == 1 else f"Parcelamento criado: {n} parcelas."
+    return acoes.criar_recorrente_de_formulario(
+        con, nome=descricao, tipo=sinal, dia=str(dia.day), valor_estimado=valor,
+        conta_id=conta_id, categoria_id=categoria_id)
