@@ -284,7 +284,7 @@ def _where(
     sem_categoria: bool, tipo: str | None, texto: str | None, compensado: bool | None,
 ) -> tuple[str, list[object]]:
     """WHERE montado só de fragmentos fixos; valores sempre como parâmetros."""
-    # Parcelas previstas pela fatura ficam em Contas a pagar; aqui só as que não vieram na fatura.
+    # Parcelas previstas pela fatura ficam na aba A pagar de Lançamentos; aqui só as que não vieram na fatura.
     partes: list[str] = [
         "(l.origem <> 'fatura_prevista' OR EXISTS (SELECT 1 FROM faturas f"
         " WHERE f.conta_id = l.conta_id AND f.competencia >= substr(l.data, 1, 7)))"]

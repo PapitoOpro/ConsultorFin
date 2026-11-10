@@ -1,4 +1,4 @@
-"""Visões da tela Contas a pagar: painel de vencimentos, parcelamentos agrupados, recorrentes."""
+"""Visões da aba A pagar de Lançamentos e de Cadastros: painel de vencimentos, parcelamentos agrupados, recorrentes."""
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any

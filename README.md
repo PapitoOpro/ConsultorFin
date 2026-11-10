@@ -21,7 +21,7 @@ python -m venv .venv
 No Windows manual, use `.venv\Scripts\python` no lugar de `.venv/bin/python`.
 
 ## Telas
-Início, Lançamentos, Importar, Holerites, Contas a pagar e Categorias. Um balão no canto abre o chat do Consultor.
+Início, Lançamentos, Importar, Holerites e Cadastros (contas, contas fixas e categorias). Um balão no canto abre o chat do Consultor.
 
 ## Consultor
 - **Chat no painel** (`CONSULTORFIN_CHAT=1`): conversa com streaming; consultas rodam direto e escritas (importar, casar, categorizar, regras, pagar, criar conta, buscar no Gmail) viram um cartão **Confirmar / Cancelar**. A conversa vive só enquanto o painel está aberto. Pedidos de gráfico geram um **relatório** em nova aba.

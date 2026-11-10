@@ -16,6 +16,7 @@ from app.dominio.recorrentes import criar_recorrente
 from app.importacao.fatura.modelo import FaturaLida, ItemFatura
 from app.main import create_app
 from app.repo import contas
+from app.repo import lancamentos as repo
 
 HOJE = date(2026, 10, 23)
 A_PAGAR = "aba=a-pagar&de=&ate=2027-03-31&status=pendentes"
@@ -298,3 +299,49 @@ def test_fatura_na_aba_a_pagar_sem_botao_pagar(cliente: TestClient, db: Path, co
     html = _aba(cliente, "a-pagar").text
     assert f'id="lancamento-{res.lancamento_id}"' in html
     assert f'action="/lancamentos/{res.lancamento_id}/pagar"' not in html
+
+
+def test_prevista_de_fatura_sem_acoes_de_grupo(cliente: TestClient, db: Path, conta: int) -> None:
+    f = FaturaLida(
+        emissor="Banco Teste", bandeira="Visa", produto="Gold", final_cartao="1234",
+        data_vencimento="2026-11-10", data_fechamento="2026-11-01",
+        total_impresso_centavos=10000, ajustes_resumo_centavos=0,
+        itens=[ItemFatura("2026-10-05", "LOJA FICTICIA", -10000, "compra", None, None, "1234",
+                          None)])
+    con = conectar(db)
+    try:
+        cartao = contas.criar_conta(con, "Cartao Teste", "cartao", final_numero="1234")
+        importar_fatura(con, f, "h1", "f.pdf", cartao, HOJE, [None])
+        prevista = repo.inserir_prevista(
+            con, conta_id=cartao, data="2026-10-15", descricao="SOFA", valor_centavos=-3000,
+            tipo="saida", categoria_id=None, grupo_parcela_uuid="11111111-1111-1111-1111-111111111111",
+            parcela_atual=2, parcela_total=3)
+        con.commit()
+    finally:
+        con.close()
+    html = _aba(cliente, "a-pagar").text
+    assert f'id="lancamento-{prevista}"' in html
+    assert "/lancamentos/grupo/11111111-1111-1111-1111-111111111111/" not in html
+
+
+def test_confirmar_valor_real_de_recorrente_atualiza_futuros(cliente: TestClient, db: Path,
+                                                             conta: int) -> None:
+    _recorrente_gerada(cliente, db, conta)
+    primeiro, = _sql(db, "SELECT id FROM lancamentos WHERE data = '2026-10-15'")[0]
+    antes = _sql(db, "SELECT COUNT(*) FROM lancamentos WHERE estimado = 1")[0][0]
+    r = cliente.post(f"/lancamentos/{primeiro}/pagar",
+                     data={"valor": "1.600,00", "data": "2026-10-23", "voltar": A_PAGAR})
+    assert r.status_code == 200
+    assert "Pagamento registrado." in r.text
+    assert _sql(db, "SELECT estimado, compensado FROM lancamentos WHERE id = ?", primeiro) == [(0, 1)]
+    assert _sql(db, "SELECT COUNT(*) FROM lancamentos WHERE estimado = 1")[0][0] == antes - 1
+    assert _sql(db, "SELECT COUNT(DISTINCT valor_centavos) FROM lancamentos") == [(1,)]
+
+
+def test_pagamento_duplo_e_recusado(cliente: TestClient, db: Path, conta: int) -> None:
+    pid = _manual(db, conta, "2026-10-20", "CONTA X", -5000)
+    ok = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "55,00", "data": "2026-10-23"})
+    assert ok.status_code == 200
+    r = cliente.post(f"/lancamentos/{pid}/pagar", data={"valor": "99,00", "data": "2026-10-24"})
+    assert r.status_code == 400 and "já está compensado" in r.text
+    assert _sql(db, "SELECT valor_centavos FROM lancamentos") == [(-5500,)]

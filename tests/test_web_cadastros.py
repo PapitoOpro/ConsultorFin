@@ -115,4 +115,4 @@ def test_menu_mostra_cadastros_e_nao_categorias(cliente: TestClient) -> None:
     html = cliente.get("/cadastros").text
     assert 'href="/cadastros"' in html and ">Cadastros<" in html
     assert 'href="/categorias"' not in html
-    assert 'href="/contas-a-pagar"' in html
+    assert 'href="/contas-a-pagar"' not in html

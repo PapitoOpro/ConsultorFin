@@ -185,7 +185,7 @@ def test_vencida_e_a_vencer_no_bloco_de_vencimentos(cliente: TestClient, conta: 
     assert "Longe" in venc and "em 8 dias" in venc  # lista = próximos pendentes, sem janela fixa
     assert "1 vencida" in venc and "1 a vencer" in venc  # resumo da janela de 7 dias
     assert venc.index("Internet") < venc.index("Luz") < venc.index("Longe")
-    assert 'href="/contas-a-pagar"' in venc and "Ver todas" in venc
+    assert 'href="/lancamentos?aba=a-pagar"' in venc and "Ver todas" in venc
 
 
 def test_vence_hoje_e_limite_de_seis(cliente: TestClient, conta: int, db: Path) -> None:
@@ -574,7 +574,7 @@ def test_vencimentos_cinco_vencidas_mostra_tres_e_todas_as_a_vencer(
     assert all(f"Venc{i}" in venc for i in range(3)) and "Venc3" not in venc and "Venc4" not in venc
     assert "Dois dias" in venc and "IPTU" in venc and "R$ 320,00" in venc
     assert "Longe" in venc and "em 28 dias" in venc  # 3 + 2 = 5: sobra 1 vaga dos 6
-    assert '<a href="/contas-a-pagar#vencidas">+2 vencidas</a>' in venc
+    assert '<a href="/lancamentos?aba=a-pagar">+2 vencidas</a>' in venc
     assert "a vencer</a>" not in venc
 
 
@@ -583,7 +583,7 @@ def test_vencimentos_mais_de_cinco_a_vencer_mostra_link(cliente: TestClient, con
         _manual(db, conta, date(2026, 10, 24 + (i % 4)), f"Prox{i}", -1000, False)
     venc = _bloco(cliente.get("/?mes=2026-10").text, "Próximos vencimentos")
     assert venc.count("Prox") == 5
-    assert '<a href="/contas-a-pagar#a-vencer">+2 a vencer</a>' in venc
+    assert '<a href="/lancamentos?aba=a-pagar">+2 a vencer</a>' in venc
     assert "vencidas</a>" not in venc and "vencida</a>" not in venc
 
 
@@ -643,7 +643,7 @@ def _cheque(db: Path, conta: int, dias_negativos: int) -> None:
 
 def test_cheque_sem_config_mostra_convite_e_sem_faixa(cliente: TestClient, conta: int) -> None:
     html = cliente.get("/").text
-    assert 'href="/contas-a-pagar#contas"' in html and 'action="/cheque-especial"' not in html
+    assert 'href="/cadastros?secao=contas"' in html and 'action="/cheque-especial"' not in html
     assert 'id="cheque-faixa"' not in html
 
 

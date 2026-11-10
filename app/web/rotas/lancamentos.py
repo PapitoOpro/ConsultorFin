@@ -6,7 +6,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.dominio import contas_pagar_acoes as acoes
 from app.dominio import lancamentos as dom
@@ -130,6 +130,12 @@ def executar(request: Request, con: Any, voltar: str, acao: Callable[[], str],
         log.error("event=lancamentos_falhou erro=%s", type(exc).__name__)
         return _pagina(request, con, aba, filtros, erro=MSG_INESPERADO, status=500)
     return _pagina(request, con, aba, filtros, aviso=aviso, aberta=aberta)
+
+
+@router.get("/contas-a-pagar")
+def contas_a_pagar_antiga() -> RedirectResponse:
+    """A tela Contas a pagar virou a aba A pagar de Lançamentos."""
+    return RedirectResponse("/lancamentos?aba=a-pagar", status_code=303)
 
 
 @router.get("/lancamentos", response_class=HTMLResponse)

@@ -83,6 +83,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .item-menu[aria-current="page"] { background: var(--superficie-2); color: var(--texto); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
 .item-menu[aria-current="page"] .icone { color: var(--primaria); }
 .item-menu .icone { flex: none; }
+.item-menu .selo-menu { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--saida); color: var(--fundo); font-size: 12px; font-weight: 600; text-align: center; line-height: 20px; }
 .botao-menu { display: none; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; color: var(--texto); background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio-pequeno); }
 .botao-menu:hover { background: var(--superficie-2); border-color: var(--texto-auxiliar); filter: none; }
 .botao-menu .icone-fechar { display: none; }

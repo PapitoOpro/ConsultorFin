@@ -1,4 +1,4 @@
-"""Task 3 do redesign: Lançamentos, Importar, Contas a pagar e Categorias no novo design."""
+"""Task 3 do redesign: Lançamentos, Importar e Cadastros no novo design."""
 import re
 from collections.abc import Iterator
 from datetime import date
@@ -15,8 +15,8 @@ from app.dominio.recorrentes import criar_recorrente
 from app.main import create_app
 from app.repo import contas
 
-PAGINAS = ["/lancamentos", "/importar", "/contas-a-pagar", "/categorias"]
-VAZIOS = ["/lancamentos", "/importar", "/contas-a-pagar"]
+PAGINAS = ["/lancamentos", "/lancamentos?aba=a-pagar", "/importar", "/cadastros"]
+VAZIOS = ["/lancamentos", "/lancamentos?aba=a-pagar", "/importar"]
 HOJE = date.today()
 
 
@@ -126,13 +126,11 @@ def test_formularios_mantem_action_e_method(cheio: TestClient) -> None:
     imp = forms("/importar")
     for par in [("/importar/previa", "post"), ("/importar/conta", "post"), ("/importar/conta/saldo", "post")]:
         assert par in imp
-    cp = forms("/contas-a-pagar")
-    for par in [("/contas-a-pagar", "get"), ("/contas-a-pagar/parcelamento", "post"),
-                ("/contas-a-pagar/recorrente", "post"), ("/contas-a-pagar/conta", "post")]:
-        assert par in cp
-    assert any(a and "/grupo/" in a and a.endswith("/excluir") for a, _ in cp)
-    cat = forms("/categorias")
-    assert ("/categorias/criar", "post") in cat
+    apagar = forms("/lancamentos?aba=a-pagar")
+    assert any(a and "/grupo/" in a and a.endswith("/excluir") for a, _ in apagar)
+    assert ("/cadastros/conta", "post") in forms("/cadastros")
+    assert ("/cadastros/recorrente", "post") in forms("/cadastros?secao=recorrentes")
+    assert ("/categorias/criar", "post") in forms("/cadastros?secao=categorias")
 
 
 @pytest.mark.parametrize("rota", VAZIOS)
@@ -170,7 +168,5 @@ def test_dropzone_com_input_oculto_visualmente_e_foco_no_input(vazio: TestClient
 
 
 def test_celular_colunas_secundarias_viram_texto_junto_da_descricao(cheio: TestClient) -> None:
-    html = cheio.get("/contas-a-pagar").text
-    assert 'class="mob-info">Vence em' in html and '<th class="sec">Vencimento</th>' in html
     lanc = cheio.get("/lancamentos").text
     assert 'class="mob-valor' in lanc

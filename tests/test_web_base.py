@@ -24,7 +24,7 @@ def test_inicio_ok_e_lang(cliente: TestClient) -> None:
     r = cliente.get("/")
     assert r.status_code == 200
     assert 'lang="pt-BR"' in r.text
-    for rota in ("/lancamentos", "/importar", "/contas-a-pagar"):
+    for rota in ("/lancamentos", "/importar", "/cadastros"):
         assert f'href="{rota}"' in r.text
 
 

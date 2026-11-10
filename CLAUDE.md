@@ -80,7 +80,7 @@ feita no servidor do app, sem rede).
 | Idioma da interface | Português brasileiro |
 | Moeda e datas | R$ 1.234,56 e DD/MM/AAAA na tela; ISO (AAAA-MM-DD) no banco |
 | Interface | FastAPI + Jinja2 + HTMX, gráficos em ECharts local (sem CDN) |
-| Telas | Início, Lançamentos, Importar, Holerites, Contas a pagar, Categorias, Relatório (`/relatorio/<id>`) |
+| Telas | Início, Lançamentos, Importar, Holerites, Cadastros, Relatório (`/relatorio/<id>`) |
 | Consultor | Claude Code: terminal web (ttyd/tmux) e chat próprio no painel (`CONSULTORFIN_CHAT=1`, `claude -p` com porteiro em `app/chat/guarda.py`) |
 | Produção | VPS Oracle (systemd + Cloudflare Tunnel + Cloudflare Access); deploy = `git pull` + restart; backup semanal cifrado (rclone) |
 | Gmail | Somente leitura (`gmail.readonly`); fila de faturas na tela Importar; token em `data/` fora do Git |
@@ -262,7 +262,7 @@ referência quando existir.
 
 ## 8. Telas
 
-Menu lateral: Início, Lançamentos, Importar, Holerites, Contas a pagar, Categorias. Balão flutuante abre o
+Menu lateral: Início, Lançamentos, Importar, Holerites, Cadastros (contas, contas fixas e categorias). Balão flutuante abre o
 chat do Consultor. Detalhes de uso: `docs/PASSO-A-PASSO.md`. Resumo das telas centrais:
 
 **Início (visão geral)**

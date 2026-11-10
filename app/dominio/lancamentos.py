@@ -313,8 +313,8 @@ def excluir_manual(con: Any, lancamento_id: int, hoje: date | None = None) -> No
                              "Para removê-los, desfaça a importação.")
     if row["recorrente_id"] is not None:
         raise ErroLancamento("Este lançamento é de uma conta fixa ou receita recorrente e seria "
-                             "recriado. Para não pagá-lo neste mês, use \"Pular este mês\" em "
-                             "Contas a pagar.")
+                             "recriado. Para não pagá-lo neste mês, use \"Pular este mês\" na "
+                             "aba A pagar de Lançamentos.")
     with transacao(con):
         liberar_vinculo_do_lancamento(con, lancamento_id, hoje)
         repo.excluir(con, lancamento_id)

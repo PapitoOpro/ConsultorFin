@@ -208,7 +208,7 @@
               <button type="submit" class="secundario">{{ icone("chevron-right", 16) }}Pular este mês</button>
             </form>
             {% endif %}
-            {% if l.grupo %}
+            {% if l.grupo and l.origem != 'fatura_prevista' %}
             <form method="post" action="/lancamentos/grupo/{{ l.grupo }}/editar">
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <p class="acao-titulo">Parcelamento ({{ l.parcela_atual }}/{{ l.parcela_total }})</p>
