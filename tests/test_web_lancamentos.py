@@ -104,7 +104,7 @@ def test_busca_sem_acento_e_sem_caixa(cliente: TestClient, db: Path, conta: int)
     assert _linhas(_get(cliente, texto="padaria").text) == 2
     cliente.post("/lancamentos/novo", data={
         "data": "2026-10-10", "descricao": "Café da manhã", "valor": "10,00", "sinal": "saida",
-        "conta_id": str(conta), "compensado": "1"})
+        "conta_id": str(conta), "ja_pago": "1"})
     assert _linhas(_get(cliente, texto="CAFE DA MANHA").text) == 1
     assert _linhas(_get(cliente, texto="café").text) == 2  # "CAFE DA ESQUINA" e "Café da manhã"
 
@@ -112,7 +112,7 @@ def test_busca_sem_acento_e_sem_caixa(cliente: TestClient, db: Path, conta: int)
 def test_texto_com_percentual_e_literal(cliente: TestClient, conta: int) -> None:
     cliente.post("/lancamentos/novo", data={
         "data": "2026-10-10", "descricao": "Desconto 10% loja", "valor": "5,00", "sinal": "saida",
-        "conta_id": str(conta), "compensado": "1"})
+        "conta_id": str(conta), "ja_pago": "1"})
     assert _linhas(_get(cliente, texto="%").text) == 1
     assert _linhas(_get(cliente, texto="_").text) == 0
     assert _linhas(_get(cliente, texto="10%").text) == 1
@@ -237,7 +237,7 @@ def test_marcar_pagamento_fatura_e_reverter(cliente: TestClient, db: Path, conta
 
 def _novo(c: TestClient, conta: int, **extra: str) -> Any:
     dados = {"data": "2026-10-10", "descricao": "Lanche manual", "valor": "12,34", "sinal": "saida",
-             "conta_id": str(conta), "compensado": "1", **extra}
+             "conta_id": str(conta), "ja_pago": "1", **extra}
     return c.post("/lancamentos/novo", data=dados)
 
 

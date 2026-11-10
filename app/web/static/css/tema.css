@@ -686,6 +686,12 @@ tr.fatura-itens > td { padding: 8px 8px 16px 24px; border-left: 3px solid var(--
 .tabela-itens-fatura table { font-size: 13px; }
 .linha-prevista td { opacity: .78; }
 .linha-prevista td.desc { font-style: italic; }
+/* Lançamentos: pendente vencido e faixa da aba A pagar */
+.linha-vencida td:first-child { box-shadow: inset 3px 0 0 var(--saida); }
+.linha-vencida td.data-linha { color: var(--saida); font-weight: 600; }
+.faixa-vencidas { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 12px; color: var(--saida); font-size: 13px; font-weight: 600; border: 1px solid var(--saida); border-radius: var(--raio-pequeno); }
+.faixa-vencidas p { margin: 0; }
+.abas a .selo { margin-left: 6px; }
 .aviso-pagamento { display: flex; align-items: flex-start; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--alerta); white-space: normal; overflow-wrap: anywhere; }
 .aviso-pagamento .icone { flex: none; margin-top: 2px; }
 .casar-inline { margin-top: 6px; }

@@ -14,7 +14,16 @@
 </div>
 {% endblock %}
 {% block conteudo %}
+<nav class="abas" aria-label="Visões do extrato">
+  {% for chave, rotulo in abas.items() %}
+  <a href="/lancamentos?aba={{ chave }}" class="{{ 'ativa' if aba == chave }}"{% if aba == chave %} aria-current="true"{% endif %}>{{ rotulo }}{% if chave == 'a-pagar' and n_vencidas %}<span class="selo saida" id="selo-vencidas">{{ n_vencidas }}</span><span class="sr-only"> {{ "vencida" if n_vencidas == 1 else "vencidas" }}</span>{% endif %}</a>
+  {% endfor %}
+</nav>
+{% if aba == 'a-pagar' and n_vencidas %}
+<div class="faixa-vencidas" role="status">{{ icone("alert-triangle", 16) }}<p id="faixa-vencidas">{{ n_vencidas }} {{ "vencida" if n_vencidas == 1 else "vencidas" }} · {{ (total_vencidas_centavos | abs) | brl }}</p></div>
+{% endif %}
 <form method="get" action="/lancamentos" class="painel" aria-label="Filtros do extrato">
+  <input type="hidden" name="aba" value="{{ aba }}">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Filtros</h2></div></div>
   <div class="filtros">
     <div class="campo"><label for="f-de">De</label><input id="f-de" type="date" name="de" value="{{ filtros.de or '' }}"></div>
@@ -53,11 +62,16 @@
 <p class="nota-totais">{{ icone("info", 14) }} Totais consideram apenas lançamentos compensados; transferências ficam de fora e pagamentos de fatura contam como saída. Contas de cartão só entram nos totais ao filtrar por uma delas.</p>
 
 <details class="painel painel-recolhivel" id="novo-lancamento">
-  <summary><span class="resumo-icone">{{ icone("plus", 18) }}</span>Novo lançamento manual<span class="resumo-seta">{{ icone("chevron-down", 18) }}</span></summary>
+  <summary><span class="resumo-icone">{{ icone("plus", 18) }}</span>Novo lançamento<span class="resumo-seta">{{ icone("chevron-down", 18) }}</span></summary>
   <form method="post" action="/lancamentos/novo">
     <input type="hidden" name="voltar" value="{{ voltar }}">
     <div class="grade-form">
-      <div class="campo"><label for="n-data">Data</label><input id="n-data" type="date" name="data" value="{{ hoje }}" required></div>
+      <div class="campo radios" role="group" aria-labelledby="n-modo"><span class="rotulo-campo" id="n-modo">Forma</span>
+        <label><input type="radio" name="modo" value="avista" checked> À vista</label>
+        <label><input type="radio" name="modo" value="parcelado"> Parcelado em N</label>
+        <label><input type="radio" name="modo" value="recorrente"> Repetir todo mês</label></div>
+      <div class="campo" data-modo="parcelado"><label for="n-parcelas">Número de parcelas</label><input id="n-parcelas" type="number" name="n_parcelas" min="1" max="120" step="1" value="2" required></div>
+      <div class="campo"><label for="n-data">Data</label><input id="n-data" type="date" name="data" value="{{ hoje }}" data-hoje="{{ hoje }}" required></div>
       <div class="campo"><label for="n-desc">Descrição</label><input id="n-desc" name="descricao" maxlength="200" required></div>
       <div class="campo"><label for="n-valor">Valor</label><input id="n-valor" class="valor" name="valor" inputmode="decimal" placeholder="0,00" required></div>
       <div class="campo radios" role="group" aria-labelledby="n-sinal"><span class="rotulo-campo" id="n-sinal">Sinal</span>
@@ -71,10 +85,10 @@
       <div class="campo cat-sinal" data-sinal="entrada"><label for="n-cat-entrada">Categoria (entrada)</label>
         <select id="n-cat-entrada" data-busca name="categoria_entrada"><option value="">Sem categoria</option>
           {{ opcoes_categoria(categorias_entrada) }}</select></div>
-      <div class="campo"><label for="n-obs">Observação</label><input id="n-obs" name="observacao" maxlength="500"></div>
-      <div class="campo"><label><input type="checkbox" name="compensado" value="1"> Já compensado</label></div>
+      <div class="campo" data-modo="avista"><label for="n-obs">Observação</label><input id="n-obs" name="observacao" maxlength="500"></div>
+      <div class="campo" data-modo="avista"><label><input type="checkbox" id="n-ja-pago" name="ja_pago" value="1" checked> Já pago</label></div>
     </div>
-    <p class="campo-ajuda mb-3">Use vírgula para os centavos (ex.: 1.234,56). Campos obrigatórios: data, descrição, valor e conta.</p>
+    <p class="campo-ajuda mb-3">Use vírgula para os centavos (ex.: 1.234,56). Campos obrigatórios: data, descrição, valor e conta. Parcelado: o valor é o total, só para saídas, e a data é o 1º vencimento. Repetir todo mês: cria uma conta fixa (ou receita) que vence no dia da data escolhida.</p>
     <button type="submit">{{ icone("check", 16) }}Criar lançamento</button>
   </form>
 </details>
@@ -99,12 +113,13 @@
     </tr></thead>
     <tbody>
     {% for l in pagina.linhas %}
+    {% set vencida = not l.compensado and l.valor_centavos < 0 and l.data < hoje %}
     {% if l.fatura_id is not none %}
       {% set fid = l.fatura_id %}{% set expandida = aberta == fid %}
-      <tr class="linha linha-fatura" id="lancamento-{{ l.id }}">
+      <tr class="linha linha-fatura{{ ' linha-vencida' if vencida }}" id="lancamento-{{ l.id }}">
         <td class="col-marcar"><button type="button" class="botao-expandir" data-fatura-toggle aria-expanded="{{ 'true' if expandida else 'false' }}" aria-controls="itens-fatura-{{ fid }}" aria-label="Itens da fatura de {{ l.conta_nome }}"{% if not expandida %} hx-get="/faturas/{{ fid }}/itens?voltar={{ voltar | urlencode }}" hx-target="#itens-fatura-{{ fid }}-corpo" hx-trigger="click once"{% endif %}>{{ icone("chevron-down", 16) }}</button></td>
         <td class="data-linha sec">{{ l.data | data_br }}</td>
-        <td class="desc"><span class="fatura-titulo">{{ icone("credit-card", 16) }}Fatura {{ l.conta_nome }} · venc. {{ l.data[8:10] }}/{{ l.data[5:7] }}</span>{% if l.fatura_paga %}<span class="selo entrada">paga</span>{% else %}<span class="selo">a pagar</span>{% endif %}
+        <td class="desc"><span class="fatura-titulo">{{ icone("credit-card", 16) }}Fatura {{ l.conta_nome }} · venc. {{ l.data[8:10] }}/{{ l.data[5:7] }}</span>{% if l.fatura_paga %}<span class="selo entrada">paga</span>{% else %}<span class="selo">a pagar</span>{% endif %}{% if vencida %}<span class="selo saida">vencida</span>{% endif %}
           <span class="mob-info">{{ l.fatura_qtd_itens }} {{ "item" if l.fatura_qtd_itens == 1 else "itens" }} · {{ tipos[l.tipo] }}<br><strong class="mob-valor saida">{{ l.valor_centavos | brl }}</strong></span></td>
         <td class="conta sec">{{ l.conta_nome }}</td>
         <td class="categoria fatura-sem-categoria"><span class="secundario" title="A fatura não tem categoria; os itens têm.">— · {{ l.fatura_qtd_itens }} {{ "item" if l.fatura_qtd_itens == 1 else "itens" }}</span></td>
@@ -135,10 +150,10 @@
           <p class="sr-only" role="status" id="itens-fatura-{{ fid }}-status"></p></td>
       </tr>
     {% else %}
-      <tr class="linha{{ ' linha-prevista' if l.origem == 'fatura_prevista' }}" id="lancamento-{{ l.id }}">
+      <tr class="linha{{ ' linha-prevista' if l.origem == 'fatura_prevista' }}{{ ' linha-vencida' if vencida }}" id="lancamento-{{ l.id }}">
         <td class="col-marcar"><input type="checkbox" form="lote" name="ids" value="{{ l.id }}" aria-label="Selecionar lançamento {{ l.id }}"></td>
         <td class="data-linha sec">{{ l.data | data_br }}</td>
-        <td class="desc">{{ l.descricao }}{% if not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.origem == 'fatura_prevista' %}<span class="selo info" title="Parcela futura prevista pela fatura (valor estimado)">prevista</span>{% if l.id in orfas %}<span class="selo saida" title="A fatura deste mês já foi importada e não trouxe esta parcela">não apareceu na fatura</span>{% endif %}{% elif l.estimado %}<span class="selo">estimado</span>{% endif %}{% if l.tipo == 'pagamento_fatura' %}{% if l.fatura_casada_id is not none %}<span class="selo roxo">fatura casada</span>{% elif casaveis.get(l.id) %}{% set fc = casaveis[l.id] %}<span class="aviso-pagamento">{{ icone("alert-triangle", 12) }}não casado — conta como despesa até casar</span>
+        <td class="desc">{{ l.descricao }}{% if l.parcela_atual %} ({{ l.parcela_atual }}/{{ l.parcela_total }}){% endif %}{% if vencida %}<span class="selo saida">vencida</span>{% elif not l.compensado %}<span class="selo">pendente</span>{% endif %}{% if l.origem == 'fatura_prevista' %}<span class="selo info" title="Parcela futura prevista pela fatura (valor estimado)">prevista</span>{% if l.id in orfas %}<span class="selo saida" title="A fatura deste mês já foi importada e não trouxe esta parcela">não apareceu na fatura</span>{% endif %}{% elif l.estimado %}<span class="selo">estimado</span>{% endif %}{% if l.tipo == 'pagamento_fatura' %}{% if l.fatura_casada_id is not none %}<span class="selo roxo">fatura casada</span>{% elif casaveis.get(l.id) %}{% set fc = casaveis[l.id] %}<span class="aviso-pagamento">{{ icone("alert-triangle", 12) }}não casado — conta como despesa até casar</span>
           <form method="post" action="/faturas/{{ fc.fatura_id }}/pagamento/confirmar" class="casar-inline">
             <input type="hidden" name="voltar" value="{{ voltar }}"><input type="hidden" name="lancamento_id" value="{{ l.id }}">
             <button type="submit" class="secundario">{{ icone("check", 14) }}Casar com a fatura venc. {{ fc.data_vencimento | data_br }}</button>
@@ -184,7 +199,26 @@
               <p class="acao-titulo">Pagamento</p>
               <input class="valor" name="valor" value="{{ (l.valor_centavos | abs) | brl }}" aria-label="Valor real">
               <input type="date" name="data" value="{{ hoje }}" aria-label="Data do pagamento" required>
-              <button type="submit" class="secundario">{{ icone("check", 16) }}Marcar como pago</button>
+              <button type="submit" class="secundario">{{ icone("check", 16) }}{{ 'Confirmar valor e pagar' if l.recorrente_id else 'Marcar como pago' }}</button>
+            </form>
+            {% endif %}
+            {% if l.recorrente_id and not l.compensado %}
+            <form method="post" action="/lancamentos/{{ l.id }}/pular">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <button type="submit" class="secundario">{{ icone("chevron-right", 16) }}Pular este mês</button>
+            </form>
+            {% endif %}
+            {% if l.grupo %}
+            <form method="post" action="/lancamentos/grupo/{{ l.grupo }}/editar">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <p class="acao-titulo">Parcelamento ({{ l.parcela_atual }}/{{ l.parcela_total }})</p>
+              <input class="valor" name="valor_total" placeholder="Novo total das pendentes" aria-label="Novo total das parcelas pendentes">
+              <input name="n_parcelas" inputmode="numeric" placeholder="Nº de pendentes" aria-label="Nova quantidade de parcelas pendentes" size="6">
+              <button type="submit" class="secundario">{{ icone("pencil", 16) }}Editar pendentes do parcelamento</button>
+            </form>
+            <form method="post" action="/lancamentos/grupo/{{ l.grupo }}/excluir" onsubmit="return confirm('Excluir as parcelas pendentes deste parcelamento?')">
+              <input type="hidden" name="voltar" value="{{ voltar }}">
+              <button type="submit" class="perigo">{{ icone("trash", 16) }}Excluir pendentes do parcelamento</button>
             </form>
             {% endif %}
             {% if l.id in orfas %}
@@ -194,7 +228,7 @@
               <button type="submit" class="perigo" title="Apagar só esta parcela prevista">{{ icone("trash", 16) }}Descartar</button>
             </form>
             {% endif %}
-            {% if l.origem == 'manual' %}
+            {% if l.origem == 'manual' and not l.recorrente_id %}
             <form method="post" action="/lancamentos/{{ l.id }}/excluir">
               <input type="hidden" name="voltar" value="{{ voltar }}">
               <button type="submit" class="perigo" title="Excluir este lançamento manual">{{ icone("trash", 16) }}Excluir</button>
@@ -208,6 +242,8 @@
     {% endfor %}
     </tbody>
   </table></div>
+  {% elif aba == 'a-pagar' %}
+  {{ estado_vazio("Nenhuma conta a pagar nos próximos 6 meses.", "calendar-clock") }}
   {% else %}
   {{ estado_vazio("Nenhum lançamento encontrado para este filtro.", "receipt", "/importar", "Importar extrato") }}
   {% endif %}
@@ -232,6 +268,29 @@
     }
     radios.forEach(function (r) { r.addEventListener("change", atualizar); });
     atualizar();
+
+    /* forma do novo lançamento: nº de parcelas só em Parcelado; "Já pago" só em À vista,
+       marcado por padrão quando a data é hoje ou passada */
+    var modos = document.querySelectorAll('input[name="modo"]');
+    var porModo = document.querySelectorAll("[data-modo]");
+    var dataNovo = document.getElementById("n-data");
+    var jaPago = document.getElementById("n-ja-pago");
+    function atualizarModo() {
+      var modo = "avista";
+      modos.forEach(function (r) { if (r.checked) { modo = r.value; } });
+      porModo.forEach(function (c) {
+        var ativo = c.getAttribute("data-modo") === modo;
+        c.hidden = !ativo;
+        c.querySelector("input").disabled = !ativo;
+      });
+    }
+    modos.forEach(function (r) { r.addEventListener("change", atualizarModo); });
+    if (dataNovo && jaPago) {
+      dataNovo.addEventListener("change", function () {
+        jaPago.checked = dataNovo.value !== "" && dataNovo.value <= dataNovo.getAttribute("data-hoje");
+      });
+    }
+    atualizarModo();
 
     /* "Novo lançamento" no cabeçalho abre o painel e leva o foco ao primeiro campo */
     var abrir = document.getElementById("abrir-novo");
