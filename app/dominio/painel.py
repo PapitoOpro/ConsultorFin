@@ -243,7 +243,7 @@ def resumo_inicio(con: Any, hoje: date, ano: int, mes: int, horizonte: int,
         vazio=not lista or painel.total_lancamentos(con) == 0, contas=lista,
         saldo_total_centavos=total, entradas_centavos=entradas_do_mes(con, ano, mes),
         saidas_centavos=despesas_do_mes(con, ano, mes), venc=vencimentos(con, hoje, janela_dias),
-        categorias=gastos_por_categoria(con, ano, mes), ano=ano, mes=mes,
+        categorias=gastos_por_categoria(con, ano, mes, por_pagamento=False), ano=ano, mes=mes,
         fechamento=fechamento_do_mes(con, hoje, ano, mes),
         cheque_especial=cheque_especial.calcular(con, hoje))
 
