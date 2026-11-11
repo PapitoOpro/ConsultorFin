@@ -320,7 +320,7 @@
   <p class="secundario">Nenhuma saída neste mês</p>
   {% endfor %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="total tabela-curta"><tbody><tr><td>Total por categoria</td><td class="valor saida">{{ resumo.categorias|sum(attribute='total_centavos')|brl }}</td></tr></tbody></table></div>
-  <p class="secundario">Compras agrupadas pela data da compra. Pago no mês (caixa, inclui faturas pagas): {{ resumo.saidas_centavos|brl }}.</p>
+  <p class="secundario">Critério de caixa: compras de fatura entram no mês em que a fatura é paga (a data mostrada é a da compra).</p>
 </section>
 </div>
 {% endif %}
