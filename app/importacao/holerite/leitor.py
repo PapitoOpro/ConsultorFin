@@ -147,6 +147,9 @@ def _item_da_linha(linha: list[Palavra], lim_ref: float, lim_desc: float,
 
 def interpretar(palavras: list[Palavra]) -> HoleriteLido:
     """Interpreta as palavras de uma via do holerite. Função pura."""
+    from app.importacao.holerite import leitor_demonstrativo as demo  # evita import circular
+    if demo.eh_demonstrativo(_linhas([p for p in palavras if p.texto.strip()])):
+        return demo.interpretar_demonstrativo(palavras)
     validas = [p for p in palavras if p.texto.strip() and p.x0 < _X_RUIDO]
     linhas = _linhas(validas)
 
@@ -198,7 +201,9 @@ def ler_holerite(conteudo: bytes) -> HoleriteLido:
     """PDF em memória -> HoleriteLido. Falhas de leitura viram HoleriteIlegivel. Só a 1ª
     página é lida: outra página com a tabela de itens (vários holerites) é recusada."""
     paginas = abrir_pdf(conteudo)
-    if any(_cabecalho(linha) for pagina in paginas[1:] for linha in _linhas(pagina)):
+    from app.importacao.holerite import leitor_demonstrativo as demo
+    if any(_cabecalho(linha) or demo._cabecalho(linha)
+           for pagina in paginas[1:] for linha in _linhas(pagina)):
         raise LayoutNaoSuportado(_MSG_PAGINAS)
     try:
         return interpretar(paginas[0])
