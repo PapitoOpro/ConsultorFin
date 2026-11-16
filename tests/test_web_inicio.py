@@ -647,8 +647,14 @@ def test_cheque_sem_config_mostra_convite_e_sem_faixa(cliente: TestClient, conta
     assert 'id="cheque-faixa"' not in html
 
 
+def _devendo(db: Path, conta: int) -> None:
+    """Deixa a conta no negativo (o saldo do extrato de exemplo é R$ 1.409,14)."""
+    _manual(db, conta, HOJE, "Saque no cheque", -150000, True)
+
+
 def test_cheque_atencao_mostra_faixa_e_dialog(cliente: TestClient, db: Path, conta: int) -> None:
     _cheque(db, conta, 8)
+    _devendo(db, conta)
     html = cliente.get("/").text
     assert 'id="cheque-faixa"' in html and "8 de 10" in html
     assert 'data-estado="atencao"' in html
@@ -656,8 +662,17 @@ def test_cheque_atencao_mostra_faixa_e_dialog(cliente: TestClient, db: Path, con
 
 def test_cheque_esgotado(cliente: TestClient, db: Path, conta: int) -> None:
     _cheque(db, conta, 10)
+    _devendo(db, conta)
     html = cliente.get("/").text
     assert "acabaram" in html and 'data-estado="esgotado"' in html
+
+
+def test_cheque_esgotado_com_conta_quitada_sem_faixa_nem_dialog(
+        cliente: TestClient, db: Path, conta: int) -> None:
+    _cheque(db, conta, 10)  # dias do mês já gastos, mas o saldo voltou ao positivo
+    html = cliente.get("/").text
+    assert 'id="cheque-faixa"' not in html and 'id="cheque-dialogo"' not in html
+    assert 'id="cheque-card"' in html
 
 
 def test_cheque_ok_sem_faixa_nem_dialog(cliente: TestClient, db: Path, conta: int) -> None:

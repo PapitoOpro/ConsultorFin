@@ -90,7 +90,7 @@
 
 {% set ch = resumo.cheque_especial %}
 {% if erro_cheque %}<div class="alerta" role="alert">{{ erro_cheque }}</div>{% endif %}
-{% if ch and ch.estado != 'ok' %}
+{% if ch and ch.estado != 'ok' and ch.em_uso_centavos > 0 %}
 <div id="cheque-faixa" class="faixa-cheque {{ ch.estado }}" role="alert">
   {{ icone("alert-triangle", 18) }}
   <p><strong>Cheque especial: {{ ch.dias_usados }} de {{ ch.config.dias_isentos }} dias sem juros usados.</strong>
