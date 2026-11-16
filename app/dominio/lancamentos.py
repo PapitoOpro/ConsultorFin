@@ -56,6 +56,8 @@ def criar_lancamento_manual(
 POR_PAGINA = 50
 MAX_LOTE = 500
 TIPOS = ("entrada", "saida", "transferencia", "pagamento_fatura", "ajuste")
+ORIGENS_ROTULO = {"importado": "Extrato importado", "manual": "Manual", "fatura": "Fatura",
+                  "fatura_prevista": "Parcela prevista", "holerite": "Holerite"}
 TIPOS_FILTRO = (*TIPOS, TIPO_FATURA)  # o filtro aceita a fatura; a edição de tipo, não
 MSG_FATURA_SEM_CATEGORIA = "A linha da fatura não tem categoria: categorize os itens dela."
 STATUS: dict[str, bool | None] = {"todos": None, "pendentes": False, "compensados": True}
@@ -109,6 +111,7 @@ class Filtros:
     tipo: str | None = None
     texto: str = ""
     status: str = "todos"
+    origem: str | None = None
     pagina: int = 1
     recentes_primeiro: bool = False  # ordem do extrato (a tela usa a ordem crescente)
     incluir_previstas: bool = False  # aba A pagar: mostra também as parcelas previstas pela fatura
@@ -128,6 +131,9 @@ class Filtros:
         cat = params.get("categoria_id", "").strip()
         tipo = params.get("tipo", "").strip()
         status = params.get("status", "").strip() or "todos"
+        origem = params.get("origem", "").strip()
+        if origem and origem not in ORIGENS_ROTULO:
+            raise ErroLancamento("Origem inválida.")
         if tipo and tipo not in TIPOS_FILTRO:
             raise ErroLancamento("Tipo inválido.")
         if status not in STATUS:
@@ -141,7 +147,8 @@ class Filtros:
             conta_id=interpretar_id(conta, "Conta") if conta else None,
             categoria_id=None if not cat or cat == "sem" else interpretar_id(cat, "Categoria"),
             sem_categoria=cat == "sem", tipo=tipo or None,
-            texto=params.get("texto", "").strip()[:100], status=status, pagina=pagina)
+            texto=params.get("texto", "").strip()[:100], status=status, origem=origem or None,
+            pagina=pagina)
 
     def como_parametros(self, pagina: int | None = None) -> dict[str, str]:
         """Query string equivalente (de/ate sempre explícitos)."""
@@ -150,7 +157,7 @@ class Filtros:
             "conta_id": "" if self.conta_id is None else str(self.conta_id),
             "categoria_id": "sem" if self.sem_categoria else (
                 "" if self.categoria_id is None else str(self.categoria_id)),
-            "tipo": self.tipo or "", "texto": self.texto, "status": self.status,
+            "tipo": self.tipo or "", "texto": self.texto, "status": self.status, "origem": self.origem or "",
             "pagina": str(pagina or self.pagina)}
 
 
@@ -195,7 +202,7 @@ class PaginaLancamentos:
 def _criterios(f: Filtros) -> dict[str, Any]:
     return {"de": f.de, "ate": f.ate, "conta_id": f.conta_id, "categoria_id": f.categoria_id,
             "sem_categoria": f.sem_categoria, "tipo": f.tipo, "texto": f.texto or None,
-            "compensado": STATUS[f.status],
+            "compensado": STATUS[f.status], "origem": f.origem,
             "incluir_previstas": f.incluir_previstas}
 
 

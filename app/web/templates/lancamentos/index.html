@@ -77,6 +77,10 @@
       <select id="f-tipo" name="tipo"><option value="">Todos</option>
         {% for chave, rotulo in tipos.items() %}<option value="{{ chave }}"{{ " selected" if filtros.tipo == chave }}>{{ rotulo }}</option>{% endfor %}
       </select></div>
+    <div class="campo"><label for="f-origem">Origem</label>
+      <select id="f-origem" name="origem"><option value="">Todas</option>
+        {% for chave, rotulo in origens.items() %}<option value="{{ chave }}"{{ " selected" if filtros.origem == chave }}>{{ rotulo }}</option>{% endfor %}
+      </select></div>
     <div class="campo"><label for="f-status">Status</label>
       <select id="f-status" name="status">
         <option value="todos"{{ " selected" if filtros.status == "todos" }}>Todos</option>

@@ -129,3 +129,20 @@ def test_interpretar_id_concorda_genero(rotulo: str, msg: str) -> None:
     with pytest.raises(ErroLancamento) as exc:
         interpretar_id("x", rotulo)
     assert str(exc.value) == msg
+
+
+def test_filtro_por_origem(con: sqlite3.Connection, conta: int) -> None:
+    _m(con, conta, 1, "Manual um", -1000)
+    con.execute(
+        "INSERT INTO lancamentos (uuid, conta_id, data, descricao, valor_centavos, tipo,"
+        " chave_deduplicacao, origem, compensado) VALUES ('u1', ?, '2026-03-02', 'Do banco',"
+        " -2000, 'saida', 'k1', 'importado', 1)", (conta,))
+    base = {"de": "2026-03-01", "ate": "2026-03-31"}
+    hoje = date(2026, 3, 15)
+    todos = listar(con, Filtros.de_parametros(base, hoje))
+    so_importado = listar(con, Filtros.de_parametros({**base, "origem": "importado"}, hoje))
+    assert todos.total == 2
+    assert [l.descricao for l in so_importado.linhas] == ["Do banco"]
+    assert so_importado.saidas_centavos == 2000
+    with pytest.raises(ErroLancamento):
+        Filtros.de_parametros({"origem": "xpto"}, hoje)

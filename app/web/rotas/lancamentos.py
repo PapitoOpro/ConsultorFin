@@ -109,7 +109,7 @@ def _pagina(request: Request, con: Any, aba: str, filtros: Filtros, *,
         "ativo": "lancamentos", "pagina": pagina, "filtros": filtros, "contas": contas.listar(con),
         "categorias": dom.opcoes_categorias(con),
         "categorias_saida": dom.opcoes_categorias(con, "saida"),
-        "categorias_entrada": dom.opcoes_categorias(con, "entrada"), "tipos": TIPOS_ROTULO, "aviso": aviso,
+        "categorias_entrada": dom.opcoes_categorias(con, "entrada"), "tipos": TIPOS_ROTULO, "origens": dom.ORIGENS_ROTULO, "aviso": aviso,
         "erro": erro, "voltar": urlencode(base), "hoje": hoje.isoformat(),
         "anterior": urlencode({**base, "pagina": str(pagina.pagina - 1)}) if pagina.pagina > 1 else None,
         "proxima": urlencode({**base, "pagina": str(pagina.pagina + 1)})
