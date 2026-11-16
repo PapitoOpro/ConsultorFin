@@ -29,6 +29,7 @@
   --info: #4DA3FF;
   --roxo: #A78BFA;
   /* degraus de cinza dos gráficos: o acento marca só o item que importa */
+  --cat-0: #3987e5; --cat-1: #d95926; --cat-2: #199e70; --cat-3: #c98500; --cat-4: #d55181; --cat-5: #9085e9;
   --cinza-1: #c9c9cd; --cinza-2: #a1a1a6; --cinza-3: #7b7b80; --cinza-4: #5c5c61; --cinza-5: #46464a;
   /* forma e movimento */
   --raio: 12px;
@@ -291,8 +292,8 @@ details.linha-acoes form { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6
 .legenda-rosca .valor { color: var(--texto); font-family: var(--fonte-dados); font-weight: 400; }
 .amostra { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--texto-secundario); }
 /* mesmas cores da rosca (CATEGORICA em graficos-tema.js) */
-.amostra.c0 { background: #3987e5; } .amostra.c1 { background: #d95926; } .amostra.c2 { background: #199e70; }
-.amostra.c3 { background: #c98500; } .amostra.c4 { background: #d55181; } .amostra.c5 { background: #9085e9; }
+.amostra.c0 { background: var(--cat-0); } .amostra.c1 { background: var(--cat-1); } .amostra.c2 { background: var(--cat-2); }
+.amostra.c3 { background: var(--cat-3); } .amostra.c4 { background: var(--cat-4); } .amostra.c5 { background: var(--cat-5); }
 /* listas de movimentos e vencimentos */
 .lista-mov, .lista-venc, .contas-lista { list-style: none; margin: 0; padding: 0; }
 .lista-mov li, .lista-venc li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--borda); }
@@ -954,4 +955,13 @@ th[aria-sort="descending"] .relatorio-ordenar::after { content: " ▼"; }
   .dashboard .grade-kpi > :nth-child(3) { animation-delay: 100ms; }
   .dashboard .grade-kpi > :nth-child(4) { animation-delay: 150ms; }
   .dashboard .grade-3 .grafico.pequeno { height: 170px; }
+}
+
+/* ===== dashboard no celular (deve ficar por último: vence a especificidade de .dashboard) ===== */
+@media (max-width: 640px) {
+  .dashboard .grade-kpi { grid-template-columns: minmax(0, 1fr); }
+  .dashboard .kpi-destaque > .valor.numero { font-size: 30px; }
+  .dashboard .grade-kpi .kpi:not(.kpi-destaque) .numero { font-size: 24px; }
+  .dashboard .kpi-contas .numero { font-size: 12px; white-space: nowrap; }
+  .cheque-valor .numero { white-space: nowrap; }
 }
