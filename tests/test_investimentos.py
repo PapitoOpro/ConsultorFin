@@ -17,6 +17,7 @@ from app.db import conectar, migrar
 from app.dominio import investimentos as dom
 from app.importacao.clear import ClearIlegivel, ler_extrato_clear, parece_extrato_clear
 from app.main import create_app
+from app.repo.investimentos import todos as repo_todos
 
 # (movimentação, liquidação, descrição, valor, saldo) do mais recente para o mais antigo
 LINHAS: list[tuple[date, date, str, float, float]] = [
@@ -302,3 +303,30 @@ def test_consultor_traz_carteira(db: Path, capsys: pytest.CaptureFixture[str]) -
     r = json.loads(capsys.readouterr().out)
     assert r["sem_extrato"] is True and r["carteira"]["total_centavos"] == 21285
     assert r["carteira"]["ativos"][0]["codigo"] == "IDXX11"
+
+
+def test_resultado_diario_conta_so_dias_operados(con: Any) -> None:
+    dom.importar_extrato(con, ler_extrato_clear(xlsx()), "a.xlsx", datetime(2026, 11, 19))
+    e = dom.resultado_diario(repo_todos(con))
+    assert [(d.data, d.liquido_centavos) for d in e.dias] == [("2026-11-18", 3200 - 31 - 100)]
+    assert (e.positivos, e.negativos, e.taxa_acerto, e.total_centavos) == (1, 0, 100, 3069)
+    assert e.melhor == e.pior
+
+
+def test_resultado_diario_vazio_e_com_perda() -> None:
+    assert dom.resultado_diario([]).taxa_acerto is None
+    linhas = [{"data": "2026-11-16", "categoria": "day_trade", "valor_centavos": -2100},
+              {"data": "2026-11-16", "categoria": "custos", "valor_centavos": -322},
+              {"data": "2026-11-17", "categoria": "day_trade", "valor_centavos": 2200},
+              {"data": "2026-11-17", "categoria": "custos", "valor_centavos": -71},
+              {"data": "2026-11-17", "categoria": "ativos", "valor_centavos": -60487}]
+    e = dom.resultado_diario(linhas)
+    assert [d.liquido_centavos for d in e.dias] == [-2422, 2129]
+    assert e.taxa_acerto == 50 and e.pior.data == "2026-11-16" and e.melhor.data == "2026-11-17"
+
+
+def test_tela_mostra_calendario_do_day_trade(cliente: TestClient) -> None:
+    assert "inv-calendario" not in cliente.get("/investimentos").text
+    _enviar(cliente, xlsx())
+    t = cliente.get("/investimentos").text
+    assert 'id="inv-calendario"' in t and "Taxa de acerto" in t and "2026-11-18" in t

@@ -33,7 +33,9 @@ def _pagina(request: Request, con: Any, *, erro: str | None = None,
     if categoria not in dom.CATEGORIAS:
         categoria = None
     atual = next((m for m in r.meses if m.mes == mes), None)
+    diario = dom.resultado_diario(repo.todos(con))
     ctx = {
+        "diario": diario, "dias_json": json.dumps(dom.dias_json(diario)),
         "ativo": "investimentos", "erro": erro, "resultado": resultado, "posicao": posicao,
         "resumo": r, "mes": mes, "atual": atual, "categoria": categoria,
         "categorias": dom.CATEGORIAS, "carteira": dom.carteira_atual(con),
@@ -56,7 +58,8 @@ def investimentos(request: Request, con: Any = Depends(get_con)) -> HTMLResponse
             {"ativo": "investimentos", "erro": "Não foi possível carregar os investimentos.",
              "resumo": dom.ResumoInvestimentos(), "mes": None, "atual": None, "categoria": None,
              "categorias": dom.CATEGORIAS, "lancamentos": [], "importacoes": [], "grafico": "[]",
-             "resultado": None, "posicao": None, "carteira": None}, status_code=500)
+             "resultado": None, "posicao": None, "carteira": None,
+             "diario": dom.resultado_diario([]), "dias_json": "[]"}, status_code=500)
 
 
 @router.post("/investimentos/importar", response_class=HTMLResponse)

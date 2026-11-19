@@ -221,3 +221,46 @@ def carteira_json(c: Carteira) -> dict[str, Any]:
          "quantidade": l["quantidade"], **_din("preco", int(l["preco_centavos"])),
          **_din("valor", int(l["valor_centavos"]))} for l in c.ativos],
         **_din("total", c.total_centavos)}
+
+
+@dataclass(frozen=True)
+class DiaDayTrade:
+    data: str
+    liquido_centavos: int
+
+
+@dataclass(frozen=True)
+class EstatisticaDayTrade:
+    dias: list[DiaDayTrade]
+    positivos: int
+    negativos: int
+    melhor: DiaDayTrade | None
+    pior: DiaDayTrade | None
+    total_centavos: int
+
+    @property
+    def taxa_acerto(self) -> int | None:
+        operados = self.positivos + self.negativos
+        return None if operados == 0 else round(100 * self.positivos / operados)
+
+
+def resultado_diario(linhas: list[Any]) -> EstatisticaDayTrade:
+    """Resultado líquido do day-trade por dia (ajuste + IRRF + custos BM&F) e estatísticas."""
+    por_dia: dict[str, int] = {}
+    for l in linhas:
+        if l["categoria"] in ("day_trade", "custos"):
+            por_dia[l["data"]] = por_dia.get(l["data"], 0) + int(l["valor_centavos"])
+    # só dias com ajuste de day-trade contam como dia operado (custo de nota de bolsa não)
+    operados = {l["data"] for l in linhas if l["categoria"] == "day_trade"}
+    dias = [DiaDayTrade(d, v) for d, v in sorted(por_dia.items()) if d in operados]
+    return EstatisticaDayTrade(
+        dias=dias, positivos=sum(1 for d in dias if d.liquido_centavos > 0),
+        negativos=sum(1 for d in dias if d.liquido_centavos < 0),
+        melhor=max(dias, key=lambda d: d.liquido_centavos, default=None),
+        pior=min(dias, key=lambda d: d.liquido_centavos, default=None),
+        total_centavos=sum(d.liquido_centavos for d in dias))
+
+
+def dias_json(e: EstatisticaDayTrade) -> list[dict[str, Any]]:
+    return [{"data": d.data, "valor_centavos": d.liquido_centavos, "valor": formatar_brl(d.liquido_centavos)}
+            for d in e.dias]
