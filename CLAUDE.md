@@ -22,7 +22,7 @@ Padrão: vale sempre que o usuário perguntar ou pedir algo sobre as próprias f
 - Holerites: `holerites [--ano AAAA] [--item TERMO]` e `holerites ver ID` (somente leitura). Holerite em PDF só se importa pelo painel (Importar → Holerite): o PDF nunca passa pelo Claude e o `importar` do consultor recusa `.pdf`.
 - `resumo`, `vencimentos` e `projecao` também criam, uma única vez, os lançamentos estimados das contas fixas do período. Mencione isso só se o usuário perguntar.
 - Relatórios com gráfico são pedidos ao consultor (skill `relatorio`) e abrem em nova aba.
-- Investimentos (corretora Clear): `investimentos [--mes AAAA-MM]` (somente leitura; valores a custo, separado das finanças pessoais). O extrato .xlsx só se importa pelo painel (Importar → Investimentos).
+- Investimentos (corretora Clear): `investimentos [--mes AAAA-MM]` (somente leitura; aplicado a custo, mais `carteira` a mercado da posição B3; separado das finanças pessoais). O extrato e a posição .xlsx só se importam pelo painel (Importar → Investimentos).
 - Skills disponíveis: saldo, holerite, investimentos, vencimentos, projecao, gastos, importar, categorizar, painel, faturas-gmail, relatorio.
 
 ## Segurança
@@ -162,11 +162,11 @@ Acesso ao banco só por `db.py` e `repo/`.
 
 ## 6. Esquema do banco
 
-O esquema atual vem de `app/db.py` (15 migrações). Além das tabelas abaixo (versão inicial, simplificada),
+O esquema atual vem de `app/db.py` (16 migrações). Além das tabelas abaixo (versão inicial, simplificada),
 existem: `faturas` e `fatura_itens` (fatura de cartão e seus itens, com resíduo e vínculo ao pagamento),
 `holerites` e `holerite_itens`, `titulares`, `recorrentes` e `recorrentes_pulados`, `fila_faturas`
 (fila do Gmail: só emissor/final/vencimento/hash), `senhas_pdf` (senhas cifradas por emissor e final do cartão),
-`configuracoes` e `chaves_quitadas`, `inv_lancamentos` e `inv_importacoes` (extrato da corretora, módulo Investimentos, independente das contas). `lancamentos` ganhou status (pendente/compensado, `data_compensacao`),
+`configuracoes` e `chaves_quitadas`, `inv_lancamentos`, `inv_importacoes` e `inv_posicoes` (extrato e posição da corretora, módulo Investimentos, independente das contas). `lancamentos` ganhou status (pendente/compensado, `data_compensacao`),
 parcelamento e vínculo com fatura. Categorias têm tipo (entrada/saída) e dois níveis (`pai_id`).
 
 ```sql

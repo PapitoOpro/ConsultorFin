@@ -318,6 +318,10 @@ def investimentos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any
     if mes is not None and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", mes):
         raise dom_lanc.ErroLancamento("Mês inválido. Use AAAA-MM.")
     r = dom_inv.resumo(con)
+    cart = dom_inv.carteira_atual(con)
+    carteira = {} if cart is None else {"carteira": dom_inv.carteira_json(cart)}
+    if r.vazio and cart is not None:
+        return {"nota": NOTA_INVESTIMENTOS, "sem_extrato": True, **carteira}
     if r.vazio:
         return {"vazio": True, "mensagem": "Nenhum extrato da corretora importado ainda "
                 "(Importar → Investimentos)."}
@@ -325,5 +329,5 @@ def investimentos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any
     atual = next(m for m in r.meses if m.mes == escolhido)
     return {"nota": NOTA_INVESTIMENTOS, "mes": escolhido, "mes_pedido_existe": mes in (None, escolhido),
             **dinheiro("saldo_caixa", r.saldo_caixa), **data("ate", r.ultima_data),
-            "mes_atual": dom_inv.mes_json(atual),
+            "mes_atual": dom_inv.mes_json(atual), **carteira,
             "meses": [dom_inv.mes_json(m) for m in r.meses]}

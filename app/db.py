@@ -537,10 +537,29 @@ def _migracao_15(con: sqlite3.Connection) -> None:
     con.execute("CREATE INDEX idx_inv_lancamentos_data ON inv_lancamentos(data, ordem)")
 
 
+def _migracao_16(con: sqlite3.Connection) -> None:
+    """Posição de custódia da B3: um retrato por data e conta (reimportar a mesma data substitui)."""
+    con.execute(
+        "CREATE TABLE inv_posicoes ("
+        " id INTEGER PRIMARY KEY,"
+        " data TEXT NOT NULL,"
+        " conta_corretora TEXT NOT NULL,"
+        " codigo TEXT NOT NULL,"
+        " produto TEXT NOT NULL,"
+        " classe TEXT NOT NULL,"
+        " quantidade REAL NOT NULL,"
+        " preco_centavos INTEGER NOT NULL,"
+        " valor_centavos INTEGER NOT NULL,"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (data, conta_corretora, codigo))"
+    )
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
     _migracao_13, _migracao_14, _migracao_15,
+    _migracao_16,
 ]
 
 

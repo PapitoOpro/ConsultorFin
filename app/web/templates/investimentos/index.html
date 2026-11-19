@@ -20,11 +20,33 @@
 {% endif %}
 
 <form method="post" action="/investimentos/importar" enctype="multipart/form-data" class="painel" data-carregando>
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar extrato da Clear</h2><p class="subtitulo">Planilha .xlsx exportada da Clear, até 5 MB. Reenviar um período já importado não duplica nada.</p></div></div>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar extrato da Clear ou posição da B3</h2><p class="subtitulo">Planilha .xlsx: o extrato da conta Clear ou a posição de custódia da B3 (posicao-….xlsx), até 5 MB. O app reconhece sozinho. Reenviar o extrato não duplica nada; reenviar a posição do mesmo dia a substitui.</p></div></div>
   <div class="grade-form"><div class="campo"><label for="inv-arquivo">Arquivo (.xlsx)</label>
     <input id="inv-arquivo" name="arquivo" type="file" accept=".xlsx" required></div></div>
   <div class="acoes-form"><button type="submit">{{ icone("upload", 16) }}Importar<span class="spinner" aria-hidden="true"></span></button></div>
 </form>
+
+{% if posicao %}
+{% call alerta("sucesso") %}Posição de {{ posicao.data|data_br }} importada: {{ posicao.ativos }} ativo{{ 's' if posicao.ativos != 1 }}, total {{ posicao.total_centavos|brl }}.{% endcall %}
+{% endif %}
+
+{% if carteira %}
+<section class="painel" aria-label="Carteira atual">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Carteira atual</h2><p class="subtitulo">Posição de custódia da B3 em {{ carteira.data|data_br }}, a preço de fechamento.</p></div></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Carteira"><table class="tabela-curta">
+    <thead><tr><th>Ativo</th><th class="sec">Tipo</th><th class="valor">Quantidade</th><th class="valor sec">Preço</th><th class="valor">Valor</th></tr></thead>
+    <tbody>{% for a in carteira.ativos %}
+      <tr><td class="desc"><strong>{{ a.codigo }}</strong><span class="mob-info">{{ a.produto }}</span></td>
+        <td class="sec">{{ a.classe }}</td><td class="valor">{{ '%g'|format(a.quantidade) }}</td>
+        <td class="valor sec">{{ a.preco_centavos|brl }}</td><td class="valor">{{ a.valor_centavos|brl }}</td></tr>
+    {% endfor %}</tbody>
+    <tfoot><tr><th colspan="4">Total a mercado</th><th class="valor">{{ carteira.total_centavos|brl }}</th></tr></tfoot>
+  </table></div>
+  {% if resumo.meses %}
+  <p class="secundario">Aplicado em ativos, a custo, pelo extrato: {{ resumo.meses[-1].aplicado_acum|brl }}. Operações ainda não liquidadas podem não aparecer na posição da B3; a diferença entre os dois valores também inclui ganhos e perdas.</p>
+  {% endif %}
+</section>
+{% endif %}
 
 {% if resumo.vazio %}
 {{ estado_vazio("Nenhum extrato importado ainda. Envie o extrato da Clear acima.", "trending-up") }}

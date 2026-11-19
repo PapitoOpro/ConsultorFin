@@ -60,7 +60,7 @@ def _abrir(conteudo: bytes) -> list[tuple[Any, ...]]:
     if conteudo[:2] != b"PK":
         raise ClearIlegivel("Envie o extrato da Clear em .xlsx.")
     try:
-        wb = load_workbook(io.BytesIO(conteudo), read_only=True, data_only=True)
+        wb = load_workbook(io.BytesIO(conteudo), data_only=True)
         ws = wb.worksheets[0]
         return [tuple(r) for r in ws.iter_rows(values_only=True, max_row=_MAX_LINHAS)]
     except Exception as exc:  # noqa: BLE001 - qualquer falha vira mensagem amigável

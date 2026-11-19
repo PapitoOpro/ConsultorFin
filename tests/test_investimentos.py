@@ -208,3 +208,97 @@ def test_consultor_investimentos(db: Path, capsys: pytest.CaptureFixture[str]) -
     assert r["mes"] == "2026-10" and r["mes_atual"]["aportes_centavos"] == 10000
     codigo, r = rodar("investimentos", "--mes", "10/2026")
     assert codigo != 0 and "erro" in r
+
+
+# ---- posição de custódia da B3 --------------------------------------------------------------
+from app.importacao.b3_posicao import (  # noqa: E402
+    PosicaoIlegivel, data_do_nome, ler_posicao_b3, parece_posicao_b3)
+
+ABAS_B3 = {
+    "Acoes": (["Produto", "Instituição", "Conta", "Código de Negociação", "Tipo", "Quantidade",
+               "Preço de Fechamento", "Valor Atualizado"],
+              [("ACME3 - ACME INVENTADA", "X", "13712591", "ACME3", "ON", 3, 13.15, 39.45)]),
+    "ETF": (["Produto", "Instituição", "Conta", "Código de Negociação", "Tipo", "Quantidade",
+             "Preço de Fechamento", "Valor Atualizado"],
+            [("IDXX11 - INDICE INVENTADO", "X", "13712591", "IDXX11", "Ações", 3, 57.8, 173.4)]),
+}
+
+
+def xlsx_b3(abas: dict[str, Any] = ABAS_B3, conta: str | None = None) -> bytes:
+    wb = Workbook()
+    wb.remove(wb.active)
+    for titulo, (cab, linhas) in abas.items():
+        ws = wb.create_sheet(titulo)
+        ws.append(cab)
+        for l in linhas:
+            ws.append([conta if (conta is not None and i == 2) else v for i, v in enumerate(l)])
+        ws.append([])
+        ws.append([""] * (len(cab) - 1) + ["Total"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_leitor_b3_le_todas_as_abas_e_data_do_nome() -> None:
+    p = ler_posicao_b3(xlsx_b3(), "posicao-2026-11-19-16-25-15.xlsx")
+    assert p.data == "2026-11-19" and p.conta == "13712591"
+    assert [(a.codigo, a.quantidade, a.valor_centavos) for a in p.ativos] == [
+        ("ACME3", 3.0, 3945), ("IDXX11", 3.0, 17340)]
+    assert p.ativos[0].classe == "Acoes" and p.ativos[1].preco_centavos == 5780
+    assert data_do_nome("qualquer.xlsx") is None and data_do_nome("posicao-2026-13-40.xlsx") is None
+
+
+def test_b3_nao_confunde_com_extrato_clear() -> None:
+    assert parece_posicao_b3(xlsx_b3()) and not parece_extrato_clear(xlsx_b3())
+    assert parece_extrato_clear(xlsx()) and not parece_posicao_b3(xlsx())
+    with pytest.raises(PosicaoIlegivel):
+        ler_posicao_b3(xlsx_b3(conta="abc"), "posicao-2026-11-19.xlsx")
+
+
+def test_importar_posicao_substitui_a_mesma_data_e_guarda_historico(con: Any) -> None:
+    p = ler_posicao_b3(xlsx_b3(), "posicao-2026-11-19-1.xlsx")
+    assert dom.importar_posicao(con, p, datetime(2026, 11, 19)).total_centavos == 21285
+    dom.importar_posicao(con, p, datetime(2026, 11, 19, 18))
+    assert con.execute("SELECT COUNT(*) FROM inv_posicoes").fetchone()[0] == 2
+    outra = dict(ABAS_B3)
+    outra["ETF"] = (ABAS_B3["ETF"][0], [("IDXX11 - X", "X", "13712591", "IDXX11", "A", 4, 60.0, 240.0)])
+    dom.importar_posicao(con, ler_posicao_b3(xlsx_b3(outra), "posicao-2026-11-20-1.xlsx"),
+                         datetime(2026, 11, 20))
+    c = dom.carteira_atual(con)
+    assert c is not None and c.data == "2026-11-20" and c.total_centavos == 3945 + 24000
+    assert c.ativos[0]["codigo"] == "IDXX11"  # maior valor primeiro
+    assert con.execute("SELECT COUNT(DISTINCT data) FROM inv_posicoes").fetchone()[0] == 2
+
+
+def test_web_importa_posicao_e_mostra_carteira(cliente: TestClient) -> None:
+    r = cliente.post("/investimentos/importar",
+                     files={"arquivo": ("posicao-2026-11-19-16-25-15.xlsx", xlsx_b3())})
+    assert r.status_code == 200 and "Posição de 19/11/2026 importada" in r.text
+    assert "Carteira atual" in r.text and "ACME3" in r.text and "R$ 212,85" in r.text
+    _enviar(cliente, xlsx())
+    assert "Aplicado em ativos, a custo" in cliente.get("/investimentos").text
+
+
+def test_web_arquivo_xlsx_desconhecido(cliente: TestClient) -> None:
+    wb = Workbook()
+    wb.active["A1"] = "qualquer"
+    buf = io.BytesIO()
+    wb.save(buf)
+    r = cliente.post("/investimentos/importar", files={"arquivo": ("x.xlsx", buf.getvalue())})
+    assert r.status_code == 400 and "Não reconheci" in r.text
+
+
+def test_consultor_traz_carteira(db: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    con = conectar(db)
+    try:
+        migrar(con)
+        dom.importar_posicao(con, ler_posicao_b3(xlsx_b3(), "posicao-2026-11-19-1.xlsx"),
+                             datetime(2026, 11, 19))
+        con.commit()
+    finally:
+        con.close()
+    capsys.readouterr()
+    assert cli.main(["investimentos", "--db", str(db), "--hoje", "2026-11-19"]) == 0
+    r = json.loads(capsys.readouterr().out)
+    assert r["sem_extrato"] is True and r["carteira"]["total_centavos"] == 21285
+    assert r["carteira"]["ativos"][0]["codigo"] == "IDXX11"

@@ -154,10 +154,10 @@
 
 <div data-painel-aba="investimentos" hidden>
 <form method="post" action="/investimentos/importar" enctype="multipart/form-data" class="painel" id="investimentos" data-carregando>
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar extrato da corretora (Clear)</h2><p class="subtitulo">Planilha .xlsx exportada da Clear. Fica na tela Investimentos, separada das contas. Reenviar um período já importado não duplica nada.</p></div></div>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar extrato da corretora (Clear) ou posição da B3</h2><p class="subtitulo">Planilha .xlsx do extrato da Clear ou a posição de custódia da B3 (posicao-….xlsx). Fica na tela Investimentos, separada das contas. O app reconhece o tipo sozinho.</p></div></div>
   <div class="grade-form"><div class="campo"><label for="inv-arquivo-imp">Arquivo (.xlsx, até 5 MB)</label>
     <input id="inv-arquivo-imp" name="arquivo" type="file" accept=".xlsx" required></div></div>
-  <div class="acoes-form"><button type="submit">{{ icone("upload", 16) }}Importar extrato da Clear<span class="spinner" aria-hidden="true"></span></button>
+  <div class="acoes-form"><button type="submit">{{ icone("upload", 16) }}Importar<span class="spinner" aria-hidden="true"></span></button>
     <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo o extrato, aguarde…</p></div>
 </form>
 </div>

@@ -182,3 +182,42 @@ def mes_json(m: MesInv) -> dict[str, Any]:
             **_din("aplicado_acum", m.aplicado_acum),
             **_din("aportes_liquidos_acum", m.aportes_liquidos_acum),
             **_din("resultado_acum", m.resultado_acum), **_din("saldo_caixa", m.saldo_caixa)}
+
+
+@dataclass(frozen=True)
+class ResultadoPosicao:
+    data: str
+    ativos: int
+    total_centavos: int
+
+
+def importar_posicao(con: sqlite3.Connection, posicao: Any, agora: datetime) -> ResultadoPosicao:
+    """Grava o retrato da carteira (mesma data e conta: substitui). Sem commit."""
+    data = posicao.data or agora.date().isoformat()
+    repo.substituir_posicao(
+        con, data=data, conta_corretora=posicao.conta, criado_em=agora.isoformat(),
+        ativos=[(a.codigo, a.produto, a.classe, a.quantidade, a.preco_centavos, a.valor_centavos)
+                for a in posicao.ativos])
+    return ResultadoPosicao(data, len(posicao.ativos), sum(a.valor_centavos for a in posicao.ativos))
+
+
+@dataclass(frozen=True)
+class Carteira:
+    data: str
+    ativos: list[Any]
+    total_centavos: int
+
+
+def carteira_atual(con: sqlite3.Connection) -> Carteira | None:
+    linhas = repo.ultima_posicao(con)
+    if not linhas:
+        return None
+    return Carteira(linhas[0]["data"], linhas, sum(int(l["valor_centavos"]) for l in linhas))
+
+
+def carteira_json(c: Carteira) -> dict[str, Any]:
+    return {"data": c.data, "ativos": [
+        {"codigo": l["codigo"], "produto": l["produto"], "classe": l["classe"],
+         "quantidade": l["quantidade"], **_din("preco", int(l["preco_centavos"])),
+         **_din("valor", int(l["valor_centavos"]))} for l in c.ativos],
+        **_din("total", c.total_centavos)}

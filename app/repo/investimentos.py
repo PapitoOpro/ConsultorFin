@@ -57,3 +57,26 @@ def listar(con: sqlite3.Connection, categoria: str | None = None, mes: str | Non
 def listar_importacoes(con: sqlite3.Connection, limite: int = 10) -> list[sqlite3.Row]:
     return con.execute("SELECT * FROM inv_importacoes ORDER BY id DESC LIMIT ?",
                        (limite,)).fetchall()
+
+
+def substituir_posicao(con: sqlite3.Connection, *, data: str, conta_corretora: str,
+                       ativos: list[tuple[str, str, str, float, int, int]], criado_em: str) -> None:
+    """Troca o retrato da data/conta. `ativos`: (codigo, produto, classe, quantidade, preco, valor)."""
+    con.execute("DELETE FROM inv_posicoes WHERE data = ? AND conta_corretora = ?",
+                (data, conta_corretora))
+    con.executemany(
+        "INSERT INTO inv_posicoes (data, conta_corretora, codigo, produto, classe, quantidade,"
+        " preco_centavos, valor_centavos, criado_em) VALUES (?,?,?,?,?,?,?,?,?)",
+        [(data, conta_corretora, *a, criado_em) for a in ativos])
+
+
+def ultima_posicao(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Ativos do retrato mais recente (maior valor primeiro)."""
+    return con.execute(
+        "SELECT * FROM inv_posicoes WHERE data = (SELECT MAX(data) FROM inv_posicoes)"
+        " ORDER BY valor_centavos DESC, codigo").fetchall()
+
+
+def datas_de_posicao(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    return con.execute("SELECT data, SUM(valor_centavos) AS total_centavos FROM inv_posicoes"
+                       " GROUP BY data ORDER BY data").fetchall()
