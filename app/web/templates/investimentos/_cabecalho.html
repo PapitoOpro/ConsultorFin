@@ -1,0 +1,10 @@
+<div class="cabecalho-titulo"><h1>Investimentos</h1><p class="subtitulo">Extrato e carteira da corretora. Fica separado das finanças do dia a dia: não entra em saldo, projeção nem gastos.</p></div>
+<nav class="abas" aria-label="Seções de investimentos">
+  <a href="/investimentos{{ '?mes=' ~ mes if mes }}" class="{{ 'ativa' if secao == 'resumo' }}"{% if secao == 'resumo' %} aria-current="page"{% endif %}>Resumo</a>
+  <a href="/investimentos/lancamentos{{ '?mes=' ~ mes if mes }}" class="{{ 'ativa' if secao == 'lancamentos' }}"{% if secao == 'lancamentos' %} aria-current="page"{% endif %}>Lançamentos</a>
+</nav>
+{% if resumo.meses %}
+<nav class="abas filtro-periodo" aria-label="Mês">
+  {% for m in resumo.meses|reverse %}<a href="{{ base_url }}?mes={{ m.mes }}" class="{{ 'ativa' if m.mes == mes }}"{% if m.mes == mes %} aria-current="true"{% endif %}>{{ m.mes[5:7] }}/{{ m.mes[:4] }}</a>{% endfor %}
+</nav>
+{% endif %}

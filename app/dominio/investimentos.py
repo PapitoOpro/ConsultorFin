@@ -97,7 +97,8 @@ class MesInv:
     aportes: int = 0
     resgates: int = 0
     day_trade_bruto: int = 0
-    custos: int = 0
+    irrf: int = 0     # imposto retido no day-trade (negativo)
+    taxas: int = 0    # corretagem, emolumentos e demais custos das operações (negativo)
     proventos: int = 0
     ativos: int = 0   # soma com sinal (compra = negativo)
     outros: int = 0
@@ -106,6 +107,10 @@ class MesInv:
     aportes_liquidos_acum: int = 0
     aplicado_acum: int = 0       # valor aplicado em ativos, a custo (positivo)
     resultado_acum: int = 0      # day-trade líquido + proventos + outros
+
+    @property
+    def custos(self) -> int:
+        return self.irrf + self.taxas
 
     @property
     def day_trade_liquido(self) -> int:
@@ -142,7 +147,10 @@ def agregar(linhas: list[Any]) -> ResumoInvestimentos:
         elif cat == "day_trade":
             m.day_trade_bruto += v
         elif cat == "custos":
-            m.custos += v
+            if "irrf" in sem_acento(l["descricao"] if "descricao" in l.keys() else ""):
+                m.irrf += v
+            else:
+                m.taxas += v
         elif cat == "proventos":
             m.proventos += v
         elif cat == "ativos":
@@ -178,6 +186,7 @@ def _din(campo: str, centavos: int) -> dict[str, Any]:
 def mes_json(m: MesInv) -> dict[str, Any]:
     return {"mes": m.mes, **_din("aportes", m.aportes), **_din("resgates", m.resgates),
             **_din("day_trade_bruto", m.day_trade_bruto), **_din("custos", m.custos),
+            **_din("irrf", m.irrf), **_din("taxas", m.taxas),
             **_din("day_trade_liquido", m.day_trade_liquido), **_din("proventos", m.proventos),
             **_din("aplicado_acum", m.aplicado_acum),
             **_din("aportes_liquidos_acum", m.aportes_liquidos_acum),

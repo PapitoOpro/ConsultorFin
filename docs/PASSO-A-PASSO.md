@@ -112,7 +112,7 @@ Módulo separado das finanças do dia a dia: não entra em saldo, projeção nem
 1. Na Clear, exporte o extrato da conta em Excel (.xlsx).
 2. No painel, vá em **Importar → Investimentos** (ou direto em **Investimentos**) e envie o arquivo. Reenviar um período já importado não duplica nada.
 3. Opcional: na B3 (Área do Investidor), baixe a posição de custódia (`posicao-….xlsx`) e envie no mesmo lugar. O app reconhece o tipo sozinho, guarda um retrato por data (reenviar o mesmo dia substitui) e mostra a **Carteira atual** com quantidade e valor a preço de fechamento.
-4. A tela **Investimentos** mostra o saldo em caixa, o que você aportou, o resultado líquido do day-trade (depois de IRRF e custos), os proventos e a evolução mês a mês.
+4. A tela **Investimentos** tem duas abas no mesmo menu: **Resumo** e **Lançamentos** (lista completa por mês, filtrável por categoria). O Resumo mostra o saldo em caixa, o que você aportou, o resultado líquido do day-trade (depois de IRRF e custos), os proventos, quanto você gastou com **taxas e impostos** (IRRF e taxas, por mês e no total), o calendário do day-trade dia a dia e a evolução mês a mês.
 
 Os valores aplicados em ativos são **a custo** (soma das notas de bolsa); a carteira vem a preço de mercado só da posição da B3. Não há preço médio por ativo. No consultor, pergunte "como estão meus investimentos?".
 

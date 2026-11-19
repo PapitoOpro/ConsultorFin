@@ -4,14 +4,7 @@
 {% block titulo %}Investimentos{% endblock %}
 {% block cabecalho %}<script src="/static/js/echarts.min.js?v={{ versao_static }}" defer></script>
 <script src="/static/js/investimentos.js?v={{ versao_static }}" defer></script>{% endblock %}
-{% block cabecalho_pagina %}
-<div class="cabecalho-titulo"><h1>Investimentos</h1><p class="subtitulo">Extrato da corretora Clear. Fica separado das finanças do dia a dia: não entra em saldo, projeção nem gastos.</p></div>
-{% if resumo.meses %}
-<nav class="abas filtro-periodo" aria-label="Mês">
-  {% for m in resumo.meses|reverse %}<a href="/investimentos?mes={{ m.mes }}" class="{{ 'ativa' if m.mes == mes }}"{% if m.mes == mes %} aria-current="true"{% endif %}>{{ m.mes[5:7] }}/{{ m.mes[:4] }}</a>{% endfor %}
-</nav>
-{% endif %}
-{% endblock %}
+{% block cabecalho_pagina %}{% include "investimentos/_cabecalho.html" %}{% endblock %}
 {% block conteudo %}
 {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
 {% if resultado %}
@@ -66,6 +59,33 @@
     <span class="kpi-variacao">aplicado em ativos (a custo): {{ atual.aplicado_acum|brl }}</span></div>
 </section>
 
+<section class="painel" aria-label="Taxas e impostos">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Taxas e impostos</h2><p class="subtitulo">O que as operações custaram: IRRF (imposto retido no day-trade) e taxas (corretagem, emolumentos e demais custos das notas). O IRRF é adiantamento do imposto de renda do day-trade; a DARF do mês é calculada à parte.</p></div></div>
+  <div class="grade-kpi" aria-label="Taxas e impostos de {{ mes[5:7] }}/{{ mes[:4] }}">
+    <div class="kpi kpi-destaque"><div class="rotulo">Total no mês</div>
+      <div class="valor numero {{ 'saida' if atual.custos < 0 }}">{{ atual.custos|brl }}</div>
+      <span class="kpi-variacao">{% if atual.day_trade_bruto > 0 and atual.custos < 0 %}{{ ((-atual.custos * 200 + atual.day_trade_bruto) // (2 * atual.day_trade_bruto)) }}% do ganho bruto do day-trade{% else %}{{ mes[5:7] }}/{{ mes[:4] }}{% endif %}</span></div>
+    <div class="kpi"><div class="rotulo">IRRF no mês</div>
+      <div class="valor numero {{ 'saida' if atual.irrf < 0 }}">{{ atual.irrf|brl }}</div>
+      <span class="kpi-variacao">imposto retido</span></div>
+    <div class="kpi"><div class="rotulo">Taxas no mês</div>
+      <div class="valor numero {{ 'saida' if atual.taxas < 0 }}">{{ atual.taxas|brl }}</div>
+      <span class="kpi-variacao">corretagem e emolumentos</span></div>
+    <div class="kpi"><div class="rotulo">Total desde o início</div>
+      <div class="valor numero {{ 'saida' if total_custos < 0 }}">{{ total_custos|brl }}</div>
+      <span class="kpi-variacao">IRRF {{ total_irrf|brl }} · taxas {{ total_taxas|brl }}</span></div>
+  </div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Taxas e impostos por mês"><table class="tabela-curta">
+    <thead><tr><th>Mês</th><th class="valor">IRRF</th><th class="valor">Taxas</th><th class="valor">Total</th><th class="valor sec">Day-trade bruto</th></tr></thead>
+    <tbody>{% for m in resumo.meses|reverse %}
+      <tr><td>{{ m.mes[5:7] }}/{{ m.mes[:4] }}</td><td class="valor {{ 'saida' if m.irrf < 0 }}">{{ m.irrf|brl }}</td>
+        <td class="valor {{ 'saida' if m.taxas < 0 }}">{{ m.taxas|brl }}</td>
+        <td class="valor {{ 'saida' if m.custos < 0 }}"><strong>{{ m.custos|brl }}</strong></td>
+        <td class="valor sec">{{ m.day_trade_bruto|brl }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+
 {% if diario.dias %}
 <section class="painel" aria-label="Day-trade dia a dia">
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Day-trade, dia a dia</h2><p class="subtitulo">Resultado líquido de cada dia operado (depois de IRRF e custos). Verde ganhou, vermelho perdeu, mais forte quanto maior o valor.</p></div></div>
@@ -100,27 +120,6 @@
         <td class="valor">{{ m.saldo_caixa|brl }}</td></tr>
     {% endfor %}</tbody>
   </table></div>
-</section>
-
-<section class="painel" aria-label="Lançamentos">
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Lançamentos de {{ mes[5:7] }}/{{ mes[:4] }}</h2></div>
-    <form method="get" action="/investimentos" class="filtros"><input type="hidden" name="mes" value="{{ mes }}">
-      <label class="sr-only" for="inv-cat">Categoria</label>
-      <select id="inv-cat" name="categoria" onchange="this.form.submit()">
-        <option value="">Todas as categorias</option>
-        {% for k, v in categorias.items() %}<option value="{{ k }}"{% if k == categoria %} selected{% endif %}>{{ v }}</option>{% endfor %}
-      </select><noscript><button type="submit">Filtrar</button></noscript></form></div>
-  {% if lancamentos %}
-  <div class="tabela-rolavel tabela-extrato" tabindex="0" role="region" aria-label="Lançamentos da corretora"><table class="tabela-curta">
-    <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th class="valor">Valor</th><th class="valor sec">Saldo</th></tr></thead>
-    <tbody>{% for l in lancamentos %}
-      <tr><td>{{ l.data|data_br }}</td><td class="desc">{{ l.descricao }}</td>
-        <td><span class="selo neutro">{{ categorias[l.categoria] }}</span></td>
-        <td class="valor {{ 'entrada' if l.valor_centavos > 0 else 'saida' if l.valor_centavos < 0 }}">{{ l.valor_centavos|brl }}</td>
-        <td class="valor sec">{{ l.saldo_centavos|brl }}</td></tr>
-    {% endfor %}</tbody>
-  </table></div>
-  {% else %}{{ estado_vazio("Nenhum lançamento nesta seleção.", "inbox") }}{% endif %}
 </section>
 {% endif %}
 {% endblock %}

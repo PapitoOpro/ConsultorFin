@@ -24,27 +24,41 @@ MSG_DESCONHECIDO = ("Não reconheci o arquivo. Envie o extrato da conta Clear ou
                     "custódia da B3 (posicao-….xlsx).")
 
 
+LIMITE_LANCAMENTOS = 500
+ERRO_CARREGAR = "Não foi possível carregar os investimentos."
+
+
+def _render(request: Request, nome: str, ctx: dict[str, Any], status: int = 200) -> HTMLResponse:
+    base = {"ativo": "investimentos", "erro": None, "categorias": dom.CATEGORIAS}
+    return request.app.state.templates.TemplateResponse(
+        request, f"investimentos/{nome}", {**base, **ctx}, status_code=status)
+
+
 def _pagina(request: Request, con: Any, *, erro: str | None = None,
             resultado: dom.ResultadoImportacao | None = None,
             posicao: dom.ResultadoPosicao | None = None, status: int = 200) -> HTMLResponse:
     r = dom.resumo(con)
     mes = dom.mes_padrao(r, request.query_params.get("mes"))
-    categoria = request.query_params.get("categoria")
-    if categoria not in dom.CATEGORIAS:
-        categoria = None
     atual = next((m for m in r.meses if m.mes == mes), None)
     diario = dom.resultado_diario(repo.todos(con))
-    ctx = {
+    return _render(request, "index.html", {
+        "secao": "resumo", "base_url": "/investimentos", "erro": erro, "resultado": resultado,
+        "posicao": posicao, "resumo": r, "mes": mes, "atual": atual,
         "diario": diario, "dias_json": json.dumps(dom.dias_json(diario)),
-        "ativo": "investimentos", "erro": erro, "resultado": resultado, "posicao": posicao,
-        "resumo": r, "mes": mes, "atual": atual, "categoria": categoria,
-        "categorias": dom.CATEGORIAS, "carteira": dom.carteira_atual(con),
-        "lancamentos": repo.listar(con, categoria=categoria, mes=mes) if mes else [],
-        "importacoes": repo.listar_importacoes(con, 5),
+        "carteira": dom.carteira_atual(con),
+        "total_irrf": sum(m.irrf for m in r.meses), "total_taxas": sum(m.taxas for m in r.meses),
+        "total_custos": sum(m.custos for m in r.meses),
         "grafico": json.dumps([dom.mes_json(m) for m in r.meses]),
-    }
-    return request.app.state.templates.TemplateResponse(
-        request, "investimentos/index.html", ctx, status_code=status)
+    }, status)
+
+
+def _erro_carregar(request: Request, nome: str, secao: str) -> HTMLResponse:
+    return _render(request, nome, {
+        "secao": secao, "base_url": "/investimentos", "erro": ERRO_CARREGAR,
+        "resumo": dom.ResumoInvestimentos(), "mes": None, "atual": None, "categoria": None,
+        "lancamentos": [], "limitado": False, "total_filtro": None, "grafico": "[]",
+        "resultado": None, "posicao": None, "carteira": None, "diario": dom.resultado_diario([]),
+        "dias_json": "[]", "total_irrf": 0, "total_taxas": 0, "total_custos": 0}, 500)
 
 
 @router.get("/investimentos", response_class=HTMLResponse)
@@ -53,13 +67,26 @@ def investimentos(request: Request, con: Any = Depends(get_con)) -> HTMLResponse
         return _pagina(request, con)
     except Exception as exc:  # noqa: BLE001 - nunca expor stack trace
         log.error("event=investimentos_falhou erro=%s", type(exc).__name__)
-        return request.app.state.templates.TemplateResponse(
-            request, "investimentos/index.html",
-            {"ativo": "investimentos", "erro": "Não foi possível carregar os investimentos.",
-             "resumo": dom.ResumoInvestimentos(), "mes": None, "atual": None, "categoria": None,
-             "categorias": dom.CATEGORIAS, "lancamentos": [], "importacoes": [], "grafico": "[]",
-             "resultado": None, "posicao": None, "carteira": None,
-             "diario": dom.resultado_diario([]), "dias_json": "[]"}, status_code=500)
+        return _erro_carregar(request, "index.html", "resumo")
+
+
+@router.get("/investimentos/lancamentos", response_class=HTMLResponse)
+def lancamentos(request: Request, con: Any = Depends(get_con)) -> HTMLResponse:
+    try:
+        r = dom.resumo(con)
+        mes = dom.mes_padrao(r, request.query_params.get("mes"))
+        categoria = request.query_params.get("categoria")
+        if categoria not in dom.CATEGORIAS:
+            categoria = None
+        linhas = repo.listar(con, categoria=categoria, mes=mes, limite=LIMITE_LANCAMENTOS) if mes else []
+        return _render(request, "lancamentos.html", {
+            "secao": "lancamentos", "base_url": "/investimentos/lancamentos", "resumo": r,
+            "mes": mes, "categoria": categoria, "lancamentos": linhas,
+            "limitado": len(linhas) >= LIMITE_LANCAMENTOS,
+            "total_filtro": sum(int(l["valor_centavos"]) for l in linhas) if linhas else None})
+    except Exception as exc:  # noqa: BLE001
+        log.error("event=investimentos_lancamentos_falhou erro=%s", type(exc).__name__)
+        return _erro_carregar(request, "lancamentos.html", "lancamentos")
 
 
 @router.post("/investimentos/importar", response_class=HTMLResponse)

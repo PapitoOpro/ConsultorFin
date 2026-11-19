@@ -159,7 +159,8 @@ def test_tela_vazia_e_importacao_pela_web(cliente: TestClient) -> None:
     r = _enviar(cliente, xlsx())
     assert r.status_code == 200
     assert "Extrato importado" in r.text and "Day-trade líquido" in r.text
-    assert "a custo" in r.text and "Resultado day-trade" in r.text
+    assert "a custo" in r.text and "Taxas e impostos" in r.text
+    assert "AJUSTE DAY-TRADE" not in r.text  # lançamentos ficam em tela própria
     assert "NOME INVENTADO" not in r.text
     r = _enviar(cliente, xlsx())
     assert f"0 novos, {len(LINHAS)} já existentes" in r.text
@@ -167,9 +168,10 @@ def test_tela_vazia_e_importacao_pela_web(cliente: TestClient) -> None:
 
 def test_filtro_por_categoria_e_mes(cliente: TestClient) -> None:
     _enviar(cliente, xlsx())
-    r = cliente.get("/investimentos?mes=2026-11&categoria=proventos")
+    r = cliente.get("/investimentos/lancamentos?mes=2026-11&categoria=proventos")
     assert "RENDIMENTOS DE CLIENTES" in r.text and "AJUSTE DAY-TRADE" not in r.text
-    assert cliente.get("/investimentos?mes=lixo&categoria=xx").status_code == 200
+    assert "Total da seleção" in r.text and "R$ 0,40" in r.text
+    assert cliente.get("/investimentos/lancamentos?mes=lixo&categoria=xx").status_code == 200
 
 
 @pytest.mark.parametrize("nome,conteudo", [("e.csv", b"a;b"), ("e.xlsx", b"nao e planilha"),
@@ -330,3 +332,28 @@ def test_tela_mostra_calendario_do_day_trade(cliente: TestClient) -> None:
     _enviar(cliente, xlsx())
     t = cliente.get("/investimentos").text
     assert 'id="inv-calendario"' in t and "Taxa de acerto" in t and "2026-11-18" in t
+
+
+def test_lancamentos_em_tela_propria_no_mesmo_menu(cliente: TestClient) -> None:
+    vazio = cliente.get("/investimentos/lancamentos")
+    assert vazio.status_code == 200 and "Nenhum extrato importado" in vazio.text
+    _enviar(cliente, xlsx())
+    t = cliente.get("/investimentos/lancamentos").text
+    assert "AJUSTE DAY-TRADE" in t and 'aria-current="page">Lançamentos' in t
+    assert 'href="/investimentos?mes=' in t and 'aria-current="page" class' not in t
+    assert 'aria-current="page"' in cliente.get("/investimentos").text  # menu lateral e aba Resumo
+
+
+def test_taxas_e_impostos_separam_irrf_de_taxas(con: Any) -> None:
+    dom.importar_extrato(con, ler_extrato_clear(xlsx()), "a.xlsx", datetime(2026, 11, 19))
+    nov = dom.resumo(con).meses[1]
+    assert (nov.irrf, nov.taxas, nov.custos) == (-31, -100, -131)
+    j = dom.mes_json(nov)
+    assert j["irrf_centavos"] == -31 and j["taxas_centavos"] == -100
+
+
+def test_tela_mostra_taxas_e_impostos(cliente: TestClient) -> None:
+    _enviar(cliente, xlsx())
+    t = cliente.get("/investimentos").text
+    assert "Taxas e impostos" in t and "IRRF no mês" in t and "Taxas no mês" in t
+    assert "- R$ 1,31" in t and "Total desde o início" in t
