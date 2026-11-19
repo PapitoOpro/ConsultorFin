@@ -26,6 +26,7 @@ STATUS: dict[str, str] = {
     "lancamentos": "Buscando lançamentos…",
     "faturas": "Consultando faturas…",
     "holerites": "Consultando holerites…",
+    "investimentos": "Consultando investimentos…",
     "contas": "Consultando contas…",
     "categorias": "Consultando categorias…",
     "relatorio": "Montando o relatório…",

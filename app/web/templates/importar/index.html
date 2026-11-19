@@ -15,6 +15,7 @@
   <button type="button" role="tab" data-aba="extratos">Extratos</button>
   <button type="button" role="tab" data-aba="faturas">Faturas</button>
   <button type="button" role="tab" data-aba="holerites">Holerites</button>
+  <button type="button" role="tab" data-aba="investimentos">Investimentos</button>
   <button type="button" role="tab" data-aba="historico">Histórico</button>
 </nav>
 
@@ -151,6 +152,16 @@
 
 </div>
 
+<div data-painel-aba="investimentos" hidden>
+<form method="post" action="/investimentos/importar" enctype="multipart/form-data" class="painel" id="investimentos" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar extrato da corretora (Clear)</h2><p class="subtitulo">Planilha .xlsx exportada da Clear. Fica na tela Investimentos, separada das contas. Reenviar um período já importado não duplica nada.</p></div></div>
+  <div class="grade-form"><div class="campo"><label for="inv-arquivo-imp">Arquivo (.xlsx, até 5 MB)</label>
+    <input id="inv-arquivo-imp" name="arquivo" type="file" accept=".xlsx" required></div></div>
+  <div class="acoes-form"><button type="submit">{{ icone("upload", 16) }}Importar extrato da Clear<span class="spinner" aria-hidden="true"></span></button>
+    <p class="aviso-carregando" role="status">{{ icone("clock", 16) }}Lendo o extrato, aguarde…</p></div>
+</form>
+</div>
+
 <div data-painel-aba="holerites" hidden>
 <form method="post" action="/holerites/previa" enctype="multipart/form-data" class="painel" id="holerite" data-carregando>
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar holerite (PDF)</h2><p class="subtitulo">Adiantamento ou folha mensal em PDF. Nada é gravado agora: você confere uma prévia antes de confirmar.</p></div></div>
@@ -234,7 +245,7 @@
     }
     botoes.forEach(function (b) { b.addEventListener("click", function () { mostrar(b.getAttribute("data-aba")); }); });
     var hash = location.hash.replace("#", "");
-    var porHash = { fatura: "faturas", "fila-faturas": "faturas", "senhas-guardadas": "faturas", holerite: "holerites" };
+    var porHash = { fatura: "faturas", "fila-faturas": "faturas", "senhas-guardadas": "faturas", holerite: "holerites", investimentos: "investimentos" };
     mostrar(porHash[hash] || inicial);
   })();
 </script>

@@ -105,6 +105,16 @@ Na importação da fatura, marque **Lembrar a senha deste cartão**: depois que 
 
 **Privacidade:** os valores ficam só no seu computador; o nome do arquivo não é guardado. No consultor (Claude Code) só há consulta: "mostra meus holerites", "quanto paguei de pensão em 2026?" (`holerites --item`). A importação é só pelo painel.
 
+## Investimentos (extrato da corretora Clear)
+
+Módulo separado das finanças do dia a dia: não entra em saldo, projeção nem gastos.
+
+1. Na Clear, exporte o extrato da conta em Excel (.xlsx).
+2. No painel, vá em **Importar → Investimentos** (ou direto em **Investimentos**) e envie o arquivo. Reenviar um período já importado não duplica nada.
+3. A tela **Investimentos** mostra o saldo em caixa, o que você aportou, o resultado líquido do day-trade (depois de IRRF e custos), os proventos e a evolução mês a mês.
+
+Os valores aplicados em ativos são **a custo** (soma das notas de bolsa), não a preço de mercado: o extrato não traz a carteira nem as cotações. No consultor, pergunte "como estão meus investimentos?".
+
 ## 4. Organizar os lançamentos
 
 Em **Lançamentos**:

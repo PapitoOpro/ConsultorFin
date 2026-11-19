@@ -27,7 +27,7 @@ from pathlib import Path
 
 CAMINHO: Path = Path(__file__).resolve()
 CONSULTAS: tuple[str, ...] = ("saldos", "resumo", "vencimentos", "projecao", "gastos", "lancamentos",
-                              "faturas", "holerites", "contas", "categorias", "relatorio")
+                              "faturas", "holerites", "investimentos", "contas", "categorias", "relatorio")
 ESCRITAS: tuple[str, ...] = ("importar", "casar", "categorizar", "regra", "pagar", "criar-conta", "gmail-buscar")
 PREFIXOS: tuple[str, ...] = (".venv/Scripts/python", ".venv/bin/python")
 PERMITIR = "allow"
@@ -46,6 +46,7 @@ OPCOES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "lancamentos": (("--de", "--ate", "--conta", "--categoria", "--tipo", "--status", "--texto", "--limite"), ()),
     "faturas": (("--conta",), ()),
     "holerites": (("--ano", "--item"), ()),
+    "investimentos": (("--mes",), ()),
     "relatorio": (("--spec",), ()),  # no chat: só `exemplo` ou o heredoc (ver decidir)
     "contas": ((), ()),
     "categorias": ((), ()),

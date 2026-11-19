@@ -12,7 +12,7 @@ PAGINAS = {
     "/": "Início", "/lancamentos": "Lançamentos", "/importar": "Importar",
     "/cadastros": "Cadastros", "/holerites": "Holerites",
 }
-HREFS = ("/", "/lancamentos", "/importar", "/cadastros", "/holerites")
+HREFS = ("/", "/lancamentos", "/importar", "/cadastros", "/holerites", "/investimentos")
 
 
 @pytest.fixture
@@ -97,7 +97,7 @@ def test_shell_pagina(cliente: TestClient, rota: str) -> None:
     r = cliente.get(rota)
     assert r.status_code == 200
     assert 'lang="pt-BR"' in r.text
-    assert len(re.findall(r'<a [^>]*class="[^"]*\bitem-menu\b', r.text)) == 5
+    assert len(re.findall(r'<a [^>]*class="[^"]*\bitem-menu\b', r.text)) == 6
     for h in HREFS:
         assert f'href="{h}"' in r.text
     ativos = re.findall(r'<a [^>]*aria-current="page"[^>]*>', r.text)

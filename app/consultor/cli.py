@@ -112,6 +112,8 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("id", nargs="?", default=None)
     s.add_argument("--ano", default=None)
     s.add_argument("--item", default=None)
+    s = sub.add_parser("investimentos", help="Corretora Clear: resumo do mês e evolução (somente leitura).")
+    s.add_argument("--mes", default=None)
     s = sub.add_parser("relatorio", help="Gera um relatório com gráficos (somente leitura).")
     s.add_argument("acao", nargs="?", choices=["exemplo"], default=None)
     s.add_argument("--spec", default=None, help="Arquivo da especificação, ou - para ler da entrada.")
@@ -206,6 +208,7 @@ COMANDOS: dict[str, Comando] = {
     "lancamentos": _lancamentos,
     "faturas": _faturas,
     "holerites": _holerites,
+    "investimentos": lambda con, hoje, a: consultas.investimentos(con, hoje, a.mes),
     "relatorio": _relatorio,
     "contas": lambda con, hoje, a: consultas.contas(con, hoje),
     "categorias": lambda con, hoje, a: consultas.categorias(con, hoje),

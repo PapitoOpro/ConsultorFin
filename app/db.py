@@ -505,10 +505,42 @@ def _migracao_14(con: sqlite3.Connection) -> None:
     )
 
 
+def _migracao_15(con: sqlite3.Connection) -> None:
+    """Investimentos (extrato da corretora): módulo independente das contas e lançamentos."""
+    con.execute(
+        "CREATE TABLE inv_importacoes ("
+        " id INTEGER PRIMARY KEY,"
+        " arquivo_nome TEXT NOT NULL,"
+        " conta_corretora TEXT NOT NULL,"
+        " periodo_inicio TEXT NOT NULL,"
+        " periodo_fim TEXT NOT NULL,"
+        " total_lidos INTEGER NOT NULL,"
+        " total_novos INTEGER NOT NULL,"
+        " criado_em TEXT NOT NULL)"
+    )
+    con.execute(
+        "CREATE TABLE inv_lancamentos ("
+        " id INTEGER PRIMARY KEY,"
+        " uuid TEXT UNIQUE NOT NULL,"
+        " conta_corretora TEXT NOT NULL,"
+        " data TEXT NOT NULL,"
+        " data_liquidacao TEXT NOT NULL,"
+        " descricao TEXT NOT NULL,"
+        " valor_centavos INTEGER NOT NULL,"
+        " saldo_centavos INTEGER NOT NULL,"
+        " categoria TEXT NOT NULL CHECK (categoria IN"
+        " ('aporte','resgate','day_trade','custos','ativos','proventos','outros')),"
+        " ordem INTEGER NOT NULL,"
+        " chave TEXT UNIQUE NOT NULL,"
+        " importacao_id INTEGER NOT NULL REFERENCES inv_importacoes(id))"
+    )
+    con.execute("CREATE INDEX idx_inv_lancamentos_data ON inv_lancamentos(data, ordem)")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
-    _migracao_13, _migracao_14,
+    _migracao_13, _migracao_14, _migracao_15,
 ]
 
 

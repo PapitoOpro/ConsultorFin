@@ -4,6 +4,7 @@ Somente `resumo`, `vencimentos` e `projecao` escrevem: materializam as contas fi
 recorrentes (`gerar_recorrentes`, idempotente, como a tela Início) e informam quantas criaram em
 `recorrentes_geradas`. As demais são puramente leitura.
 """
+import re
 from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
@@ -12,6 +13,7 @@ from app import config
 from app.dominio import categorias as dom_categorias
 from app.dominio import faturas as dom_faturas
 from app.dominio import holerites as dom_hol
+from app.dominio import investimentos as dom_inv
 from app.dominio import lancamentos as dom_lanc
 from app.dominio import painel, projecao as dom_proj
 from app.dominio.dinheiro import formatar_brl, iso_para_br
@@ -305,3 +307,23 @@ def holerite_detalhe(con: Any, holerite_id: int) -> dict[str, Any]:
          **dinheiro("valor", int(i["valor_centavos"])), "referencia": i["referencia"],
          "categoria_id": i["categoria_id"], "categoria": nomes.get(i["categoria_id"])}
         for i in itens]}
+
+
+NOTA_INVESTIMENTOS = ("valores a custo (soma das notas de bolsa), não a preço de mercado; "
+                      "módulo separado das finanças pessoais")
+
+
+def investimentos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any]:
+    """Corretora Clear: resumo do mês pedido (padrão: o mais recente) e evolução mensal. Só leitura."""
+    if mes is not None and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", mes):
+        raise dom_lanc.ErroLancamento("Mês inválido. Use AAAA-MM.")
+    r = dom_inv.resumo(con)
+    if r.vazio:
+        return {"vazio": True, "mensagem": "Nenhum extrato da corretora importado ainda "
+                "(Importar → Investimentos)."}
+    escolhido = dom_inv.mes_padrao(r, mes)
+    atual = next(m for m in r.meses if m.mes == escolhido)
+    return {"nota": NOTA_INVESTIMENTOS, "mes": escolhido, "mes_pedido_existe": mes in (None, escolhido),
+            **dinheiro("saldo_caixa", r.saldo_caixa), **data("ate", r.ultima_data),
+            "mes_atual": dom_inv.mes_json(atual),
+            "meses": [dom_inv.mes_json(m) for m in r.meses]}

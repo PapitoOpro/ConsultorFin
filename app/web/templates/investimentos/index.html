@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "_macros.html" import estado_vazio, alerta %}
+{% from "_icones.html" import icone %}
+{% block titulo %}Investimentos{% endblock %}
+{% block cabecalho %}<script src="/static/js/echarts.min.js?v={{ versao_static }}" defer></script>
+<script src="/static/js/investimentos.js?v={{ versao_static }}" defer></script>{% endblock %}
+{% block cabecalho_pagina %}
+<div class="cabecalho-titulo"><h1>Investimentos</h1><p class="subtitulo">Extrato da corretora Clear. Fica separado das finanças do dia a dia: não entra em saldo, projeção nem gastos.</p></div>
+{% if resumo.meses %}
+<nav class="abas filtro-periodo" aria-label="Mês">
+  {% for m in resumo.meses|reverse %}<a href="/investimentos?mes={{ m.mes }}" class="{{ 'ativa' if m.mes == mes }}"{% if m.mes == mes %} aria-current="true"{% endif %}>{{ m.mes[5:7] }}/{{ m.mes[:4] }}</a>{% endfor %}
+</nav>
+{% endif %}
+{% endblock %}
+{% block conteudo %}
+{% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
+{% if resultado %}
+{% call alerta("sucesso") %}Extrato importado ({{ resultado.periodo_inicio|data_br }} a {{ resultado.periodo_fim|data_br }}): {{ resultado.novos }} novo{{ 's' if resultado.novos != 1 }}, {{ resultado.ignorados }} já existente{{ 's' if resultado.ignorados != 1 }}.{% endcall %}
+{% if resultado.aviso %}{% call alerta() %}{{ resultado.aviso }}{% endcall %}{% endif %}
+{% endif %}
+
+<form method="post" action="/investimentos/importar" enctype="multipart/form-data" class="painel" data-carregando>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Importar extrato da Clear</h2><p class="subtitulo">Planilha .xlsx exportada da Clear, até 5 MB. Reenviar um período já importado não duplica nada.</p></div></div>
+  <div class="grade-form"><div class="campo"><label for="inv-arquivo">Arquivo (.xlsx)</label>
+    <input id="inv-arquivo" name="arquivo" type="file" accept=".xlsx" required></div></div>
+  <div class="acoes-form"><button type="submit">{{ icone("upload", 16) }}Importar<span class="spinner" aria-hidden="true"></span></button></div>
+</form>
+
+{% if resumo.vazio %}
+{{ estado_vazio("Nenhum extrato importado ainda. Envie o extrato da Clear acima.", "trending-up") }}
+{% else %}
+<section class="grade-kpi" aria-label="Resumo de {{ mes[5:7] }}/{{ mes[:4] }}">
+  <div class="kpi kpi-destaque"><div class="rotulo">Saldo em caixa na corretora</div>
+    <div class="valor numero">{{ resumo.saldo_caixa|brl }}</div>
+    <span class="kpi-variacao">até {{ resumo.ultima_data|data_br }}</span></div>
+  <div class="kpi"><div class="rotulo">Aportado no mês</div>
+    <div class="valor numero">{{ atual.aportes_liquidos|brl }}</div>
+    <span class="kpi-variacao">total aportado: {{ atual.aportes_liquidos_acum|brl }}</span></div>
+  <div class="kpi"><div class="rotulo">Day-trade líquido no mês</div>
+    <div class="valor numero {{ 'entrada' if atual.day_trade_liquido > 0 else 'saida' if atual.day_trade_liquido < 0 }}">{{ atual.day_trade_liquido|brl }}</div>
+    <span class="kpi-variacao">bruto {{ atual.day_trade_bruto|brl }} · custos {{ atual.custos|brl }}</span></div>
+  <div class="kpi"><div class="rotulo">Proventos no mês</div>
+    <div class="valor numero entrada">{{ atual.proventos|brl }}</div>
+    <span class="kpi-variacao">aplicado em ativos (a custo): {{ atual.aplicado_acum|brl }}</span></div>
+</section>
+
+<section class="painel" aria-label="Evolução mês a mês">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Evolução mês a mês</h2><p class="subtitulo">Valores a custo (soma das notas de bolsa), não a preço de mercado.</p></div></div>
+  <div id="inv-grafico" class="grafico grande" role="img" aria-label="Aportes acumulados, aplicado em ativos e resultado acumulado por mês" data-meses="{{ grafico }}"></div>
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela mensal"><table class="tabela-curta">
+    <thead><tr><th>Mês</th><th class="valor">Aportes</th><th class="valor">Day-trade líq.</th><th class="valor sec">Proventos</th><th class="valor sec">Aplicado (acum.)</th><th class="valor">Resultado (acum.)</th><th class="valor">Caixa</th></tr></thead>
+    <tbody>{% for m in resumo.meses|reverse %}
+      <tr><td>{{ m.mes[5:7] }}/{{ m.mes[:4] }}</td><td class="valor">{{ m.aportes_liquidos|brl }}</td>
+        <td class="valor {{ 'entrada' if m.day_trade_liquido > 0 else 'saida' if m.day_trade_liquido < 0 }}">{{ m.day_trade_liquido|brl }}</td>
+        <td class="valor sec">{{ m.proventos|brl }}</td><td class="valor sec">{{ m.aplicado_acum|brl }}</td>
+        <td class="valor {{ 'entrada' if m.resultado_acum > 0 else 'saida' if m.resultado_acum < 0 }}">{{ m.resultado_acum|brl }}</td>
+        <td class="valor">{{ m.saldo_caixa|brl }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+
+<section class="painel" aria-label="Lançamentos">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Lançamentos de {{ mes[5:7] }}/{{ mes[:4] }}</h2></div>
+    <form method="get" action="/investimentos" class="filtros"><input type="hidden" name="mes" value="{{ mes }}">
+      <label class="sr-only" for="inv-cat">Categoria</label>
+      <select id="inv-cat" name="categoria" onchange="this.form.submit()">
+        <option value="">Todas as categorias</option>
+        {% for k, v in categorias.items() %}<option value="{{ k }}"{% if k == categoria %} selected{% endif %}>{{ v }}</option>{% endfor %}
+      </select><noscript><button type="submit">Filtrar</button></noscript></form></div>
+  {% if lancamentos %}
+  <div class="tabela-rolavel tabela-extrato" tabindex="0" role="region" aria-label="Lançamentos da corretora"><table class="tabela-curta">
+    <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th class="valor">Valor</th><th class="valor sec">Saldo</th></tr></thead>
+    <tbody>{% for l in lancamentos %}
+      <tr><td>{{ l.data|data_br }}</td><td class="desc">{{ l.descricao }}</td>
+        <td><span class="selo neutro">{{ categorias[l.categoria] }}</span></td>
+        <td class="valor {{ 'entrada' if l.valor_centavos > 0 else 'saida' if l.valor_centavos < 0 }}">{{ l.valor_centavos|brl }}</td>
+        <td class="valor sec">{{ l.saldo_centavos|brl }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}{{ estado_vazio("Nenhum lançamento nesta seleção.", "inbox") }}{% endif %}
+</section>
+{% endif %}
+{% endblock %}
