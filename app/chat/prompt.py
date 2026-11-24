@@ -9,7 +9,7 @@ from app import config
 
 NOTA_CHAT = """Modo chat: não há skills e as consultas ficam sem `--help`; só os subcomandos do consultor estão disponíveis. Nunca tente ler arquivos.
 Pedido de gráfico ou relatório: siga as instruções de `relatorio` abaixo (somente a forma com heredoc); o chat mostra o cartão do relatório, então não repita o endereço.
-Escritas (`importar --confirmar`, `casar`, `categorizar`, `regra`, `pagar`, `criar-conta`, `gmail-buscar`) o usuário confirma no painel, por um cartão Confirmar/Cancelar.
+Escritas (`importar --confirmar`, `casar`, `categorizar`, `regra`, `pagar`, `criar-conta`, `gmail-buscar`, `gmail-notas`) o usuário confirma no painel, por um cartão Confirmar/Cancelar.
 Se um comando de escrita for negado, diga que aguarda a confirmação do usuário no painel; nunca cite nem repita o comando.
 Nunca mencione comandos, SQL nem JSON ao usuário."""
 

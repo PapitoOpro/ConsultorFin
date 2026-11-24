@@ -5,10 +5,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
+from app.dominio import cofre_senhas
 from app.dominio import investimentos as dom
+from app.dominio import notas_negociacao as dom_notas
 from app.importacao.b3_posicao import PosicaoIlegivel, ler_posicao_b3, parece_posicao_b3
 from app.importacao.clear import ClearIlegivel, ler_extrato_clear, parece_extrato_clear
 from app.repo import investimentos as repo
@@ -36,14 +38,17 @@ def _render(request: Request, nome: str, ctx: dict[str, Any], status: int = 200)
 
 def _pagina(request: Request, con: Any, *, erro: str | None = None,
             resultado: dom.ResultadoImportacao | None = None,
-            posicao: dom.ResultadoPosicao | None = None, status: int = 200) -> HTMLResponse:
+            posicao: dom.ResultadoPosicao | None = None, aviso: str | None = None,
+            status: int = 200) -> HTMLResponse:
     r = dom.resumo(con)
     mes = dom.mes_padrao(r, request.query_params.get("mes"))
     atual = next((m for m in r.meses if m.mes == mes), None)
     diario = dom.resultado_diario(repo.todos(con))
     return _render(request, "index.html", {
         "secao": "resumo", "base_url": "/investimentos", "erro": erro, "resultado": resultado,
-        "posicao": posicao, "resumo": r, "mes": mes, "atual": atual,
+        "posicao": posicao, "aviso": aviso, "resumo": r,
+        "notas": dom_notas.notas_json(con), "senha_notas": bool(cofre_senhas.candidatas(
+            con, dom_notas.EMISSOR_COFRE, dom_notas.FINAL_COFRE)), "mes": mes, "atual": atual,
         "diario": diario, "dias_json": json.dumps(dom.dias_json(diario)),
         "carteira": dom.carteira_atual(con),
         "total_irrf": sum(m.irrf for m in r.meses), "total_taxas": sum(m.taxas for m in r.meses),
@@ -57,7 +62,8 @@ def _erro_carregar(request: Request, nome: str, secao: str) -> HTMLResponse:
         "secao": secao, "base_url": "/investimentos", "erro": ERRO_CARREGAR,
         "resumo": dom.ResumoInvestimentos(), "mes": None, "atual": None, "categoria": None,
         "lancamentos": [], "limitado": False, "total_filtro": None, "grafico": "[]",
-        "resultado": None, "posicao": None, "carteira": None, "diario": dom.resultado_diario([]),
+        "resultado": None, "posicao": None, "aviso": None, "notas": [], "senha_notas": False,
+        "carteira": None, "diario": dom.resultado_diario([]),
         "dias_json": "[]", "total_irrf": 0, "total_taxas": 0, "total_custos": 0}, 500)
 
 
@@ -116,3 +122,22 @@ def importar(request: Request, arquivo: UploadFile = File(...),
         log.error("event=investimentos_importacao_falhou erro=%s", type(exc).__name__)
         return _pagina(request, con, erro=MSG_FALHA, status=500)
     return _pagina(request, con, erro=MSG_DESCONHECIDO, status=400)
+
+
+@router.post("/investimentos/senha-notas", response_class=HTMLResponse)
+def senha_notas(request: Request, senha: str = Form(""), con: Any = Depends(get_con)) -> HTMLResponse:
+    """Guarda (cifrada) a senha dos PDFs de notas de negociação; nunca é exibida nem registrada."""
+    senha = senha.strip()
+    if not senha or len(senha) > 64:
+        return _pagina(request, con, erro="Informe a senha das notas (até 64 caracteres).", status=400)
+    try:
+        guardou = cofre_senhas.guardar(con, dom_notas.EMISSOR_COFRE, dom_notas.FINAL_COFRE, senha)
+        con.commit()
+    except Exception as exc:  # noqa: BLE001
+        con.rollback()
+        log.error("event=senha_notas_falhou erro=%s", type(exc).__name__)
+        return _pagina(request, con, erro="Não foi possível guardar a senha.", status=500)
+    if not guardou:
+        return _pagina(request, con, erro="Não foi possível guardar a senha agora.", status=500)
+    log.info("event=senha_notas_guardada")
+    return _pagina(request, con, aviso="Senha das notas guardada. O agente já pode importar as notas do Gmail.")

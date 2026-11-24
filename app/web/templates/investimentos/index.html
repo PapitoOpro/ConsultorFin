@@ -7,6 +7,7 @@
 {% block cabecalho_pagina %}{% include "investimentos/_cabecalho.html" %}{% endblock %}
 {% block conteudo %}
 {% if erro %}{% call alerta("erro") %}{{ erro }}{% endcall %}{% endif %}
+{% if aviso %}{% call alerta("sucesso") %}{{ aviso }}{% endcall %}{% endif %}
 {% if resultado %}
 {% call alerta("sucesso") %}Extrato importado ({{ resultado.periodo_inicio|data_br }} a {{ resultado.periodo_fim|data_br }}): {{ resultado.novos }} novo{{ 's' if resultado.novos != 1 }}, {{ resultado.ignorados }} já existente{{ 's' if resultado.ignorados != 1 }}.{% endcall %}
 {% if resultado.aviso %}{% call alerta() %}{{ resultado.aviso }}{% endcall %}{% endif %}
@@ -18,6 +19,26 @@
     <input id="inv-arquivo" name="arquivo" type="file" accept=".xlsx" required></div></div>
   <div class="acoes-form"><button type="submit">{{ icone("upload", 16) }}Importar<span class="spinner" aria-hidden="true"></span></button></div>
 </form>
+
+<section class="painel" aria-label="Notas de negociação">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Notas de negociação da Clear</h2><p class="subtitulo">O agente busca as notas no Gmail e as importa sozinho. Para abrir os PDFs ele usa a senha abaixo, guardada cifrada (nunca exibida nem enviada ao Claude). {{ 'Senha cadastrada.' if senha_notas else 'Nenhuma senha cadastrada ainda.' }}</p></div></div>
+  <form method="post" action="/investimentos/senha-notas" autocomplete="off">
+    <div class="grade-form"><div class="campo"><label for="inv-senha-notas">Senha dos PDFs das notas</label>
+      <input id="inv-senha-notas" name="senha" type="password" maxlength="64" autocomplete="off" required></div></div>
+    <div class="acoes-form"><button type="submit" class="secundario">{{ icone("check", 16) }}Guardar senha</button></div>
+  </form>
+  {% if notas %}
+  <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Notas importadas"><table class="tabela-curta">
+    <thead><tr><th>Pregão</th><th>Nota</th><th class="valor">Negócios</th><th class="valor">Ajuste</th><th class="valor">Custos</th><th class="valor">IRRF</th><th class="valor">Líquido</th></tr></thead>
+    <tbody>{% for n in notas %}
+      <tr><td class="data-linha">{{ n.data|data_br }}</td><td>{{ n.numero }}</td><td class="valor">{{ n.negocios }}</td>
+        <td class="valor">{{ n.ajuste_day_trade_centavos|brl }}</td><td class="valor">{{ n.custos_centavos|brl }}</td><td class="valor">{{ n.irrf_centavos|brl }}</td>
+        <td class="valor {{ 'entrada' if n.liquido_centavos > 0 else 'saida' }}">{{ n.liquido_centavos|brl }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <p class="campo-ajuda">{{ icone("info", 14) }} As notas ficam à parte: não somam nos totais do extrato (o extrato já traz o day-trade na liquidação).</p>
+  {% endif %}
+</section>
 
 {% if posicao %}
 {% call alerta("sucesso") %}Posição de {{ posicao.data|data_br }} importada: {{ posicao.ativos }} ativo{{ 's' if posicao.ativos != 1 }}, total {{ posicao.total_centavos|brl }}.{% endcall %}

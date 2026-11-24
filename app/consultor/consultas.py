@@ -16,7 +16,7 @@ from app.dominio import holerites as dom_hol
 from app.dominio import investimentos as dom_inv
 from app.dominio import lancamentos as dom_lanc
 from app.dominio import painel, projecao as dom_proj
-from app.dominio.dinheiro import formatar_brl, iso_para_br
+from app.dominio.dinheiro import formatar_brl, iso_para_br, somar_meses
 from app.dominio.normalizacao import normalizar_descricao
 from app.dominio.recorrentes import gerar_recorrentes
 from app.dominio.saldo import saldo_atual
@@ -331,3 +331,15 @@ def investimentos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any
             **dinheiro("saldo_caixa", r.saldo_caixa), **data("ate", r.ultima_data),
             "mes_atual": dom_inv.mes_json(atual), **carteira,
             "meses": [dom_inv.mes_json(m) for m in r.meses]}
+
+
+def notas(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any]:
+    """Notas de negociação da Clear já importadas no mês (padrão: o corrente). Só leitura."""
+    from app.dominio.notas_negociacao import notas_json
+    ano, m = painel.interpretar_mes(mes, hoje)
+    inicio = date(ano, m, 1)
+    fim = somar_meses(inicio, 1) - timedelta(days=1)
+    lista = notas_json(con, inicio.isoformat(), fim.isoformat())
+    return {"nota": NOTA_INVESTIMENTOS, "mes": f"{ano:04d}-{m:02d}", "total": len(lista),
+            **dinheiro("liquido_total", sum(int(n["liquido_centavos"]) for n in lista)),
+            "notas": lista}

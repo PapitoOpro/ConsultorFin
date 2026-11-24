@@ -144,6 +144,11 @@ def construir_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("gmail-buscar", help="Busca faturas de cartão no Gmail e enfileira os PDFs.")
     s.add_argument("--mes", default=None)
     s.add_argument("--ate", default=None)
+    s = sub.add_parser("gmail-notas", help="Busca notas de negociação da Clear no Gmail e importa.")
+    s.add_argument("--mes", default=None)
+    s.add_argument("--ate", default=None)
+    s = sub.add_parser("notas", help="Notas de negociação da Clear já importadas (somente leitura).")
+    s.add_argument("--mes", default=None)
     return p
 
 
@@ -209,6 +214,7 @@ COMANDOS: dict[str, Comando] = {
     "faturas": _faturas,
     "holerites": _holerites,
     "investimentos": lambda con, hoje, a: consultas.investimentos(con, hoje, a.mes),
+    "notas": lambda con, hoje, a: consultas.notas(con, hoje, a.mes),
     "relatorio": _relatorio,
     "contas": lambda con, hoje, a: consultas.contas(con, hoje),
     "categorias": lambda con, hoje, a: consultas.categorias(con, hoje),
@@ -227,6 +233,7 @@ ESCRITAS: dict[str, Comando] = {
     "criar-conta": lambda con, hoje, a: operacoes.criar_conta(
         con, a.nome, a.tipo, a.saldo_inicial, a.data_saldo),
     "gmail-buscar": lambda con, hoje, a: operacoes.gmail_buscar(con, hoje, a.mes, a.ate),
+    "gmail-notas": lambda con, hoje, a: operacoes.gmail_notas(con, hoje, a.mes, a.ate),
 }
 
 

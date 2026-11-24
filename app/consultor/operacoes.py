@@ -10,6 +10,7 @@ from app.consultor.consultas import data, dinheiro
 from app.gmail.cliente import ClienteGmail, ErroGmail
 from app.dominio.dinheiro import iso_para_br, somar_meses
 from app.dominio.fila_faturas import buscar_para_fila
+from app.dominio.notas_negociacao import buscar_e_importar
 from app.dominio.painel import interpretar_mes
 from app.dominio import contas_pagar_acoes as acoes
 from app.dominio.casamento import confirmar_casamento, propostas_com_detalhes
@@ -237,3 +238,31 @@ def gmail_buscar(con: Any, hoje: date, mes: str | None, ate_mes: str | None) -> 
             "ja_importadas": resumo.ja_importadas, "ignoradas": resumo.ignoradas,
             "recuperadas": resumo.recuperadas, "faturas": resumo.faturas,
             "por_emissor": resumo.por_emissor, "limite_atingido": resumo.limite_atingido}
+
+
+def gmail_notas(con: Any, hoje: date, mes: str | None, ate_mes: str | None) -> dict[str, Any]:
+    """Busca as notas de negociação da Clear no Gmail e as importa (senha do cofre). Só contagens."""
+    ano, m = interpretar_mes(mes, hoje)
+    ano_f, m_f = interpretar_mes(ate_mes, hoje) if ate_mes else (ano, m)
+    meses = (ano_f - ano) * 12 + (m_f - m) + 1
+    if not 1 <= meses <= MAX_MESES_GMAIL:
+        raise ErroLancamento(MSG_INTERVALO)
+    try:
+        r = buscar_e_importar(con, _cliente_gmail(), date(ano, m, 1),
+                              somar_meses(date(ano_f, m_f, 1), 1), datetime.now())
+    except ErroGmail as exc:
+        raise ErroLancamento(str(exc)) from None
+    except (sqlite3.Error, OSError):
+        raise
+    except Exception as exc:  # noqa: BLE001 - resposta malformada: sem texto de exceção/e-mail
+        log.warning("event=gmail_notas_falhou erro=%s", type(exc).__name__)
+        raise ErroLancamento(MSG_GMAIL_LEITURA) from None
+    periodo = f"{ano:04d}-{m:02d}" if meses == 1 else f"{ano:04d}-{m:02d} a {ano_f:04d}-{m_f:02d}"
+    out: dict[str, Any] = {"ok": True, "periodo": periodo, "encontradas": r.encontradas,
+                           "novas": r.novas, "ja_importadas": r.ja_importadas,
+                           "ilegiveis": r.ilegiveis, "sem_senha": r.sem_senha,
+                           "limite_atingido": r.limite_atingido}
+    if r.sem_senha:
+        out["aviso"] = ("Há notas que não abriram: cadastre ou corrija a senha das notas da Clear "
+                        "na tela Investimentos.")
+    return out

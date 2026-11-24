@@ -555,11 +555,42 @@ def _migracao_16(con: sqlite3.Connection) -> None:
     )
 
 
+def _migracao_17(con: sqlite3.Connection) -> None:
+    """Notas de negociação da corretora (só números, data, negócios e totais; sem dados pessoais)."""
+    con.execute(
+        "CREATE TABLE inv_notas ("
+        " id INTEGER PRIMARY KEY,"
+        " numero TEXT NOT NULL,"
+        " data TEXT NOT NULL,"
+        " ajuste_day_trade_centavos INTEGER NOT NULL,"
+        " custos_centavos INTEGER NOT NULL,"
+        " irrf_centavos INTEGER NOT NULL,"
+        " liquido_centavos INTEGER NOT NULL,"
+        " criado_em TEXT NOT NULL,"
+        " UNIQUE (numero, data))"
+    )
+    con.execute(
+        "CREATE TABLE inv_notas_negocios ("
+        " id INTEGER PRIMARY KEY,"
+        " nota_id INTEGER NOT NULL REFERENCES inv_notas(id) ON DELETE CASCADE,"
+        " ordem INTEGER NOT NULL,"
+        " lado TEXT NOT NULL CHECK (lado IN ('C','V')),"
+        " mercadoria TEXT NOT NULL,"
+        " vencimento TEXT NOT NULL,"
+        " quantidade INTEGER NOT NULL,"
+        " preco_centavos INTEGER NOT NULL,"
+        " tipo TEXT NOT NULL,"
+        " valor_centavos INTEGER NOT NULL,"
+        " taxa_centavos INTEGER NOT NULL)"
+    )
+    con.execute("CREATE INDEX idx_inv_notas_data ON inv_notas(data)")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
     _migracao_13, _migracao_14, _migracao_15,
-    _migracao_16,
+    _migracao_16, _migracao_17,
 ]
 
 

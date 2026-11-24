@@ -27,8 +27,8 @@ from pathlib import Path
 
 CAMINHO: Path = Path(__file__).resolve()
 CONSULTAS: tuple[str, ...] = ("saldos", "resumo", "vencimentos", "projecao", "gastos", "lancamentos",
-                              "faturas", "holerites", "investimentos", "contas", "categorias", "relatorio")
-ESCRITAS: tuple[str, ...] = ("importar", "casar", "categorizar", "regra", "pagar", "criar-conta", "gmail-buscar")
+                              "faturas", "holerites", "investimentos", "notas", "contas", "categorias", "relatorio")
+ESCRITAS: tuple[str, ...] = ("importar", "casar", "categorizar", "regra", "pagar", "criar-conta", "gmail-buscar", "gmail-notas")
 PREFIXOS: tuple[str, ...] = (".venv/Scripts/python", ".venv/bin/python")
 PERMITIR = "allow"
 NEGAR = "deny"
@@ -47,6 +47,7 @@ OPCOES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "faturas": (("--conta",), ()),
     "holerites": (("--ano", "--item"), ()),
     "investimentos": (("--mes",), ()),
+    "notas": (("--mes",), ()),
     "relatorio": (("--spec",), ()),  # no chat: só `exemplo` ou o heredoc (ver decidir)
     "contas": ((), ()),
     "categorias": ((), ()),
@@ -57,6 +58,7 @@ OPCOES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "pagar": (("--lancamento", "--valor", "--data"), ()),
     "criar-conta": (("--nome", "--tipo", "--saldo-inicial", "--data-saldo"), ()),
     "gmail-buscar": (("--mes", "--ate"), ()),
+    "gmail-notas": (("--mes", "--ate"), ()),
 }
 _VER_ID = re.compile(r"ver|\d{1,9}")
 # subcomando -> (padrão de cada posicional, quantidade máxima)

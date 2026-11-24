@@ -645,3 +645,13 @@ def test_confirmar_categoria_invalida_nao_importa(cliente: TestClient, db: Path)
                                                   "categorias": ["999999"] + [""] * 17})
     assert "Categoria inválida" in r.text
     assert _total(db) == 0
+
+
+def test_senha_das_notas_guardada_sem_vazar(cliente: TestClient, db: Path, tmp_path: Path,
+                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.config.caminho_chave_senhas", lambda: tmp_path / "k.key")
+    r = cliente.post("/investimentos/senha-notas", data={"senha": "sen-ha-secreta"})
+    assert r.status_code == 200 and "Senha das notas guardada" in r.text
+    assert "sen-ha-secreta" not in r.text
+    assert _consulta(db, "SELECT COUNT(*) FROM senhas_pdf") == [(1,)]
+    assert cliente.post("/investimentos/senha-notas", data={"senha": " "}).status_code == 400

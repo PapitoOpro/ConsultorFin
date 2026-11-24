@@ -89,3 +89,23 @@ def test_gmail_buscar_json_tem_faturas_por_emissor_e_limite(db, capsys, monkeypa
     _, _, saida = rodar(capsys, db, "gmail-buscar", "--mes", "2026-10")
     assert saida["faturas"] == 1 and saida["por_emissor"] == {"Nubank": 1}
     assert saida["limite_atingido"] is False and saida["recuperadas"] == 0
+
+
+def test_gmail_notas_sem_senha_traduz_aviso(db, capsys, monkeypatch) -> None:
+    class Notas(Falso):
+        def buscar(self, de, ate, limite=50, remetentes_termos=()):
+            return [Mensagem("m1", "Clear <noreply@clear.com.br>", "Nota de Negociação", "",
+                             (Anexo("a1", "x.pdf", 10),))]
+
+        def baixar_anexo(self, mensagem_id, anexo_id):
+            return b"%PDF-1.4\n/Encrypt\nx"
+
+    monkeypatch.setattr(operacoes, "_cliente_gmail", lambda: Notas())
+    codigo, bruto, saida = rodar(capsys, db, "gmail-notas", "--mes", "2026-11")
+    assert codigo == 0 and saida["sem_senha"] == 1 and saida["novas"] == 0
+    assert "senha" in saida["aviso"]
+
+
+def test_notas_lista_vazia(db, capsys) -> None:
+    codigo, _, saida = rodar(capsys, db, "notas", "--mes", "2026-11")
+    assert codigo == 0 and saida["total"] == 0 and saida["notas"] == []

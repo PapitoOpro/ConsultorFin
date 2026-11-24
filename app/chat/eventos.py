@@ -39,6 +39,7 @@ DESCRICOES: dict[str, str] = {
     "pagar": "Registrar pagamento",
     "criar-conta": "Criar conta",
     "gmail-buscar": "Buscar faturas no Gmail",
+    "gmail-notas": "Importar notas da Clear do Gmail",
 }
 LIMITE_TEXTO_CARTAO = 60
 _SUBCOMANDO = re.compile(r"-m app\.consultor ([a-z-]+)")
@@ -66,6 +67,13 @@ def _gmail(o: dict[str, str | bool]) -> str:
     return f"Buscar faturas no Gmail (mês {_limpo(mes, 20)})" if mes else "Buscar faturas no Gmail (mês atual)"
 
 
+def _gmail_notas(o: dict[str, str | bool]) -> str:
+    if o.get("--ate"):
+        return f"Importar notas da Clear ({_limpo(o.get('--mes') or 'mês atual', 20)} até {_limpo(o['--ate'], 20)})"
+    mes = o.get("--mes")
+    return f"Importar notas da Clear (mês {_limpo(mes, 20)})" if mes else "Importar notas da Clear (mês atual)"
+
+
 def _importar(o: dict[str, str | bool]) -> str:
     arquivo = _limpo(re.split(r"[\\/]", str(o.get("--arquivo", "")))[-1])
     acao = "Importar o arquivo" if o.get("--confirmar") else "Simular a importação do arquivo"
@@ -90,6 +98,7 @@ _DESCREVER: dict[str, Callable[[dict[str, str | bool]], str]] = {
                        f"categoria {_limpo(o.get('--categoria'), 20)}",
     "casar": lambda o: f"Casar pendente #{_limpo(o.get('--pendente'), 20)} com a linha #{_limpo(o.get('--linha'), 20)}",
     "gmail-buscar": _gmail,
+    "gmail-notas": _gmail_notas,
 }
 
 
