@@ -1,6 +1,7 @@
 """Detecção do formato do arquivo de extrato."""
 
 from app.importacao.base import FormatoNaoSuportado, Parser
+from app.importacao.bradesco_csv import ParserBradescoCsv, tem_cabecalho_bradesco
 from app.importacao.itau_csv import ParserItauCsv, tem_cabecalho_itau
 from app.importacao.itau_pdf import ParserItauPdf, tem_extrato_itau_pdf
 from app.importacao.ofx import MSG_CARTAO, ParserOfx, tem_cabecalho_ofc, tem_cabecalho_ofx, tem_cartao
@@ -20,6 +21,8 @@ def detectar(conteudo: bytes, nome: str) -> Parser | None:
         raise FormatoNaoSuportado(MSG_OFC)
     if nome.lower().endswith(".csv") and tem_cabecalho_itau(conteudo):
         return ParserItauCsv()
+    if nome.lower().endswith(".csv") and tem_cabecalho_bradesco(conteudo):
+        return ParserBradescoCsv()
     if nome.lower().endswith(".pdf") and tem_extrato_itau_pdf(conteudo):
         return ParserItauPdf()
     return None
