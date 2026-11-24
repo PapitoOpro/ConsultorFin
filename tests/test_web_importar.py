@@ -607,3 +607,41 @@ def test_previa_fixture_com_rotulo_lancamentos_sem_bloco_de_erros(cliente: TestC
     assert r.status_code == 200
     assert "Erros de leitura" not in r.text
     assert "18 novos" in r.text and "0 com erro" in r.text
+
+
+def _cat(db: Path, nome: str, tipo: str = "saida") -> int:
+    from app.dominio.categorias import criar_categoria
+    con = conectar(db)
+    try:
+        return criar_categoria(con, nome, tipo)
+    finally:
+        con.close()
+
+
+def test_previa_lista_todas_as_linhas_com_categoria(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    _cat(db, "Mercado")
+    r = _upload(cliente, "extrato.csv", FIXTURE.read_bytes(), conta)
+    assert r.text.count('name="categorias"') == 18
+    assert "Mercado" in r.text
+
+
+def test_confirmar_grava_categoria_escolhida_por_linha(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    cat = _cat(db, "Mercado")
+    prev = _upload(cliente, "extrato.csv", FIXTURE.read_bytes(), conta)
+    escolhas = [str(cat)] + [""] * 17
+    r = cliente.post("/importar/confirmar", data={"token": _token(prev.text), "conta_id": str(conta),
+                                                  "categorias": escolhas})
+    assert r.status_code == 200
+    assert _consulta(db, f"SELECT COUNT(*) FROM lancamentos WHERE categoria_id = {cat}") == [(1,)]
+    assert _total(db) == 18
+
+
+def test_confirmar_categoria_invalida_nao_importa(cliente: TestClient, db: Path) -> None:
+    conta = _conta(db)
+    prev = _upload(cliente, "extrato.csv", FIXTURE.read_bytes(), conta)
+    r = cliente.post("/importar/confirmar", data={"token": _token(prev.text), "conta_id": str(conta),
+                                                  "categorias": ["999999"] + [""] * 17})
+    assert "Categoria inválida" in r.text
+    assert _total(db) == 0

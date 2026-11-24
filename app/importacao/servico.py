@@ -1,6 +1,7 @@
 """Orquestra a importação de extratos com deduplicação, numa única transação."""
 import hashlib
 import json
+from collections.abc import Mapping
 from typing import Any
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
@@ -12,7 +13,7 @@ from app.dominio.normalizacao import normalizar_descricao, so_letras
 from app.dominio.casamento import PropostaCasamento, propostas_com_detalhes  # noqa: F401 - reexport
 from app.dominio.dinheiro import formatar_brl, iso_para_br
 from app.importacao.base import ErroLeitura, LinhaImportada, Parser, ResultadoLeitura
-from app.repo import configuracoes, contas, faturas, importacoes, lancamentos
+from app.repo import categorias as repo_categorias, configuracoes, contas, faturas, importacoes, lancamentos
 
 
 class ArquivoJaImportado(Exception):
@@ -156,7 +157,10 @@ def conta_detectada(con: Any, conteudo: bytes, parser: Parser) -> int | None:
 
 
 def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
-             parser: Parser, hoje: date) -> ResumoImportacao:
+             parser: Parser, hoje: date,
+             categorias: Mapping[int, int] | None = None) -> ResumoImportacao:
+    """`categorias`: índice da linha do arquivo -> categoria escolhida na prévia (só vale para
+    lançamentos novos; vence as regras automáticas)."""
     arquivo_hash = hashlib.sha256(conteudo).hexdigest()
     conta_uuid = contas.uuid_da_conta(con, conta_id)
     if importacoes.existe_ativa_com_hash(con, conta_id, arquivo_hash):
@@ -173,15 +177,17 @@ def importar(con: Any, conta_id: int, nome_arquivo: str, conteudo: bytes,
         imp_id = importacoes.criar(con, conta_id, nome_arquivo, arquivo_hash,
                                    datetime.combine(hoje, time()))
         vistas: dict[tuple[str, int, str], int] = {}
-        for l, chave, legada in _com_chaves(conta_uuid, leitura.linhas):
+        for idx, (l, chave, legada) in enumerate(_com_chaves(conta_uuid, leitura.linhas)):
             parecida = _ja_existe_parecida(con, conta_id, l, vistas, imp_id)  # sempre: conta ocorrências
             if _ja_existe(con, chave, legada) or parecida:
                 ignorados += 1
                 continue
-            lancamentos.inserir_importado(con, conta_id, imp_id, l.data, l.descricao,
+            lid = lancamentos.inserir_importado(con, conta_id, imp_id, l.data, l.descricao,
                                           l.valor_centavos, classificar_tipo(l.descricao, l.valor_centavos,
                                                              titular, padroes),
                                           chave)
+            if categorias and idx in categorias:
+                repo_categorias.definir_categoria_do_lancamento(con, lid, categorias[idx])
             novos += 1
         aplicar_regras(con, imp_id)
         datas = [l.data for l in leitura.linhas]

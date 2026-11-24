@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import alerta, etapas %}
+{% from "_macros.html" import alerta, etapas, opcoes_categoria %}
 {% from "_icones.html" import icone %}
 {% block titulo %}Prévia da importação{% endblock %}
 {% block mensagens %}
@@ -71,15 +71,19 @@
 </section>
 {% endif %}
 
-<section class="painel" aria-label="Primeiras linhas">
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Primeiras linhas</h2></div></div>
-  {% if amostra %}
+<section class="painel" aria-label="{{ 'Lançamentos do arquivo' if pode_confirmar else 'Primeiras linhas' }}">
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>{{ 'Lançamentos do arquivo' if pode_confirmar else 'Primeiras linhas' }}</h2>
+    {% if pode_confirmar %}<p class="subtitulo">Escolha a categoria de cada linha, se quiser. Vale só para lançamentos novos; linhas sem escolha seguem as regras automáticas.</p>{% endif %}</div></div>
+  {% set linhas_tabela = leitura.linhas if pode_confirmar else amostra %}
+  {% if linhas_tabela %}
   <div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela com rolagem horizontal"><table class="tabela-curta">
-    <thead><tr><th>Data</th><th>Descrição</th><th class="valor">Valor</th></tr></thead>
+    <thead><tr><th>Data</th><th>Descrição</th><th class="valor">Valor</th>{% if pode_confirmar %}<th>Categoria</th>{% endif %}</tr></thead>
     <tbody>
-    {% for l in amostra %}
+    {% for l in linhas_tabela %}
       <tr><td class="data-linha">{{ l.data | data_br }}</td><td class="quebra">{{ l.descricao }}</td>
-          <td class="valor {{ 'saida' if l.valor_centavos < 0 else 'entrada' }}">{{ l.valor_centavos | brl }}</td></tr>
+          <td class="valor {{ 'saida' if l.valor_centavos < 0 else 'entrada' }}">{{ l.valor_centavos | brl }}</td>
+          {% if pode_confirmar %}<td><select name="categorias" form="form-confirmar" data-busca aria-label="Categoria da linha {{ loop.index }}">
+            <option value="">Sem categoria</option>{{ opcoes_categoria(categorias_entrada if l.valor_centavos >= 0 else categorias_saida) }}</select></td>{% endif %}</tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -89,7 +93,7 @@
 </section>
 
 {% if pode_confirmar %}
-<form method="post" action="/importar/confirmar" class="painel" data-carregando>
+<form method="post" action="/importar/confirmar" id="form-confirmar" class="painel" data-carregando>
   <div class="painel-cabecalho"><div class="painel-titulo"><h2>Confirmar importação</h2><p class="subtitulo">Os lançamentos novos serão gravados na conta escolhida.</p></div></div>
   <input type="hidden" name="token" value="{{ token }}">
   <input type="hidden" name="conta_id" value="{{ conta_id }}">

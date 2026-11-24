@@ -29,7 +29,7 @@ Cadastre as duas contas correntes e os cartões que você usa. Cartões não ent
 
 1. No internet banking do Itaú, baixe o extrato da conta corrente em **OFX** (recomendado: vem direto do banco, sem conversão), de dias inteiros (não corte um dia ao meio). Alternativa: baixe em Excel e salve como **CSV** (o que funcionava antes).
 2. Abra **Importar**, escolha a **Conta de destino** e envie o arquivo (**Ver prévia**).
-3. Confira a prévia: primeiras linhas já formatadas (R$ e DD/MM/AAAA), erros de leitura destacados e o resumo (novos / já existentes / erros). Nada é gravado ainda.
+3. Confira a prévia: todas as linhas já formatadas (R$ e DD/MM/AAAA), erros de leitura destacados e o resumo (novos / já existentes / erros). Se quiser, escolha a **categoria** de cada linha ali mesmo (vale só para lançamentos novos; sem escolha, valem as regras automáticas). Nada é gravado ainda.
 4. Clique em **Confirmar importação**.
 5. Na tela de resultado, veja a **Conciliação de saldo**:
    - "Saldo confere com o banco": o saldo calculado bate com os saldos do extrato. É o resultado esperado.

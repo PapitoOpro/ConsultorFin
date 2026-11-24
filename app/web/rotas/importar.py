@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from app.dominio import cofre_senhas
 from app.dominio.casamento import confirmar_casamento
 from app.dominio.dinheiro import ValorMuitoAlto, para_centavos
-from app.dominio.lancamentos import interpretar_id
+from app.dominio.lancamentos import interpretar_id, opcoes_categorias
 from app.dominio.saldo import ajustar_saldo_inicial, comparar_saldo_informado, conciliar, saldo_inicial_e_estimativa, texto_saldo_informado
 from app.importacao.base import FormatoNaoSuportado, Parser, ResultadoLeitura
 from app.importacao.deteccao import detectar, exigir_ofx_valido
@@ -138,6 +138,8 @@ def _previa(request: Request, con: Any, token: str, envio: Envio, conta_txt: str
         conta_id = int(lista_contas[0]["id"])
     ctx = {**base, "conta_id": conta_id, "detectada": detectada is not None and detectada == conta_id,
            "leitura": leitura, "amostra": leitura.linhas[:LINHAS_PREVIA], "resumo": None,
+           "categorias_saida": opcoes_categorias(con, "saida"),
+           "categorias_entrada": opcoes_categorias(con, "entrada"),
            "ja_importado": None, "bloqueio": None,
            "sugestao": leitura.saldo_anterior, "sugestao_estimada": False, "estimativa_sem_prefill": None}
     estimado = leitura.saldo_anterior_estimado
@@ -251,10 +253,29 @@ def ajustar_saldo(request: Request, con: Any = Depends(get_con), conta_id: str =
         return _pagina_inicial(request, con, erro=e.mensagem, status=e.status)
 
 
+def _categorias_escolhidas(con: Any, valores: list[str], total: int) -> dict[int, int]:
+    """Categoria por linha (lista alinhada às linhas do arquivo; '' = sem escolha)."""
+    if not any(v.strip() for v in valores):
+        return {}
+    if len(valores) != total:
+        raise ErroImportacao("As categorias não correspondem às linhas do arquivo. Envie o arquivo novamente.")
+    validas = {cid for cid, _, _ in opcoes_categorias(con)}
+    escolhidas: dict[int, int] = {}
+    for i, v in enumerate(valores):
+        v = v.strip()
+        if not v:
+            continue
+        if not (v.isascii() and v.isdigit() and int(v) in validas):
+            raise ErroImportacao("Categoria inválida. Envie o arquivo novamente.")
+        escolhidas[i] = int(v)
+    return escolhidas
+
+
 @router.post("/importar/confirmar", response_class=HTMLResponse)
 def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form(""),
               conta_id: str = Form(""), mapa_data: str = Form(""), mapa_descricao: str = Form(""),
-              mapa_valor: str = Form("")) -> HTMLResponse:
+              mapa_valor: str = Form(""), categorias: list[str] = Form(default_factory=list)
+              ) -> HTMLResponse:
     try:
         envio = _envio(request, token)
         conta = _conta_id(con, conta_id)
@@ -266,9 +287,10 @@ def confirmar(request: Request, con: Any = Depends(get_con), token: str = Form("
         leitura = _ler(parser, envio.conteudo)
         if not leitura.linhas:
             raise ErroImportacao("Nenhuma linha válida encontrada no arquivo; nada foi importado.")
+        escolhidas = _categorias_escolhidas(con, categorias, len(leitura.linhas))
         try:
             resumo = importar(con, conta, envio.nome, envio.conteudo, parser,
-                              request.app.state.hoje_fn())
+                              request.app.state.hoje_fn(), escolhidas)
         except (ArquivoJaImportado, LancamentosAnterioresAoSaldoInicial) as exc:
             raise ErroImportacao(str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - transacao() já fez rollback
