@@ -48,7 +48,7 @@ def _pagina(request: Request, con: Any, *, erro: str | None = None,
     return _render(request, "index.html", {
         "secao": "resumo", "base_url": "/investimentos", "erro": erro, "resultado": resultado,
         "posicao": posicao, "aviso": aviso, "provisorios": provisorios, "resumo": r,
-        "notas": dom_notas.notas_json(con), "senha_notas": bool(cofre_senhas.candidatas(
+        "notas": dom_notas.notas_json(con, f"{mes}-01", f"{mes}-31") if mes else [], "senha_notas": bool(cofre_senhas.candidatas(
             con, dom_notas.EMISSOR_COFRE, dom_notas.FINAL_COFRE)), "mes": mes, "atual": atual,
         "diario": diario, "dias_json": json.dumps(dom.dias_json(diario)),
         "carteira": dom.carteira_atual(con),

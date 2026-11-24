@@ -21,7 +21,7 @@
 </form>
 
 <section class="painel" aria-label="Notas de negociação">
-  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Notas de negociação da Clear</h2><p class="subtitulo">O agente busca as notas no Gmail e as importa sozinho. Para abrir os PDFs ele usa a senha abaixo, guardada cifrada (nunca exibida nem enviada ao Claude). {{ 'Senha cadastrada.' if senha_notas else 'Nenhuma senha cadastrada ainda.' }}</p></div></div>
+  <div class="painel-cabecalho"><div class="painel-titulo"><h2>Notas de negociação da Clear{% if mes %} · {{ mes[5:7] }}/{{ mes[:4] }}{% endif %}</h2><p class="subtitulo">O agente busca as notas no Gmail e as importa sozinho. Para abrir os PDFs ele usa a senha abaixo, guardada cifrada (nunca exibida nem enviada ao Claude). {{ 'Senha cadastrada.' if senha_notas else 'Nenhuma senha cadastrada ainda.' }}</p></div></div>
   <form method="post" action="/investimentos/senha-notas" autocomplete="off">
     <div class="grade-form"><div class="campo"><label for="inv-senha-notas">Senha dos PDFs das notas</label>
       <input id="inv-senha-notas" name="senha" type="password" maxlength="64" autocomplete="off" required></div></div>

@@ -197,3 +197,11 @@ def test_nota_de_acoes_alimenta_ativos_ate_o_extrato_cobrir(con):
     con.commit()
     assert inv.linhas_com_notas(con)[1] == []
     assert inv.resumo(con).meses[-1].ativos == -2794  # só o extrato: nada em dobro
+
+
+def test_lista_de_notas_filtra_por_mes(con):
+    dom.importar_nota(con, interpretar_texto(TEXTO), datetime(2026, 11, 24))
+    dom.importar_nota(con, interpretar_texto(TEXTO.replace("111.222", "999.888").replace("19/11/2026", "20/10/2026")),
+                      datetime(2026, 11, 24))
+    assert [n["numero"] for n in dom.notas_json(con, "2026-11-01", "2026-11-31")] == ["111.222"]
+    assert [n["numero"] for n in dom.notas_json(con, "2026-10-01", "2026-10-31")] == ["999.888"]
