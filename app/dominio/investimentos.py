@@ -12,6 +12,7 @@ from typing import Any
 from app.db import sem_acento
 from app.dominio.dinheiro import formatar_brl
 from app.importacao.clear import ExtratoClear, LinhaClear
+from app.repo import inv_notas as repo_notas
 from app.repo import investimentos as repo
 
 CATEGORIAS: dict[str, str] = {
@@ -169,8 +170,35 @@ def agregar(linhas: list[Any]) -> ResumoInvestimentos:
                                ultima_data=linhas[-1]["data"])
 
 
+def linhas_com_notas(con: sqlite3.Connection) -> tuple[list[dict[str, Any]], list[str]]:
+    """Linhas do extrato mais o day-trade das notas de negociação cujo pregão o extrato ainda não
+    liquidou (o extrato chega 1 dia útil depois). Quando o extrato cobre o dia, a nota deixa de
+    contar (nunca soma duas vezes). Devolve (linhas cronológicas, datas vindas de notas)."""
+    reais = [dict(r) for r in repo.todos(con)]
+    cobertos = {l["data"] for l in reais if l["categoria"] == "day_trade"}
+    extras: list[dict[str, Any]] = []
+    provisorios: list[str] = []
+    for n in repo_notas.listar(con, limite=1000):
+        if n["data"] in cobertos:
+            continue
+        provisorios.append(str(n["data"]))
+        saldo = next((int(l["saldo_centavos"]) for l in reversed(reais) if l["data"] <= n["data"]),
+                     0)  # o caixa real não muda: a nota ainda não liquidou
+        for cat, desc, v in (("day_trade", "Ajuste day-trade (nota de negociação)", n["ajuste_day_trade_centavos"]),
+                             ("custos", "IRRF day-trade (nota de negociação)", n["irrf_centavos"]),
+                             ("custos", "Custos operacionais (nota de negociação)", n["custos_centavos"])):
+            if int(v):
+                extras.append({"data": n["data"], "categoria": cat, "descricao": desc,
+                               "valor_centavos": int(v), "saldo_centavos": saldo, "ordem": 10**6})
+    return sorted(reais + extras, key=lambda l: (l["data"], l["ordem"])), sorted(provisorios)
+
+
 def resumo(con: sqlite3.Connection) -> ResumoInvestimentos:
-    return agregar(repo.todos(con))
+    linhas, _ = linhas_com_notas(con)
+    r = agregar(linhas)
+    real = agregar(repo.todos(con))  # caixa e "até" refletem só o extrato
+    r.saldo_caixa, r.ultima_data = real.saldo_caixa, real.ultima_data
+    return r
 
 
 def mes_padrao(r: ResumoInvestimentos, pedido: str | None) -> str | None:

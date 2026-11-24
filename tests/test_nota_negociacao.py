@@ -110,3 +110,27 @@ def test_usa_senha_do_cofre(con, monkeypatch):
     dom.buscar_e_importar(con, _Cliente([_msg(1)], {"a1": b"%PDF"}), date(2026, 11, 1),
                           date(2026, 12, 1), datetime(2026, 11, 24))
     assert vistas == [["segredo"]]
+
+
+def test_nota_alimenta_totais_so_se_extrato_nao_cobre_o_dia(con):
+    from app.dominio import investimentos as inv
+    from app.importacao.clear import ExtratoClear, LinhaClear
+    nota = interpretar_texto(TEXTO)  # pregão 2026-11-19, líquido 47,80
+    dom.importar_nota(con, nota, datetime(2026, 11, 24))
+    base = inv.resumo(con)
+    assert base.meses and base.meses[-1].day_trade_liquido == 4780
+    linhas, provis = inv.linhas_com_notas(con)
+    assert provis == ["2026-11-19"] and all(l["saldo_centavos"] == 0 for l in linhas)
+    assert inv.resultado_diario(linhas).total_centavos == 4780
+
+    ext = ExtratoClear("1", [
+        LinhaClear("2026-11-19", "2026-11-20", "AJUSTE DAY-TRADE PR. 19/11/2026 NC. 1", 5000, 5000),
+        LinhaClear("2026-11-19", "2026-11-20", "IRRF S/DAY-TRADE PR. 19/11/2026 NC. 1", -50, 4950),
+        LinhaClear("2026-11-19", "2026-11-20", "LIQUIDO DAS OPERAÇÕES BM&F PR. 19/11/2026", -170, 4780),
+    ], None)
+    inv.importar_extrato(con, ext, "e.xlsx", datetime(2026, 11, 24))
+    con.commit()
+    depois = inv.resumo(con)
+    assert inv.linhas_com_notas(con)[1] == []
+    assert depois.meses[-1].day_trade_liquido == 4780  # não soma duas vezes
+    assert depois.saldo_caixa == 4780 and depois.ultima_data == "2026-11-19"

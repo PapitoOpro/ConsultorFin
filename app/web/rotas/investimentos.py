@@ -43,10 +43,11 @@ def _pagina(request: Request, con: Any, *, erro: str | None = None,
     r = dom.resumo(con)
     mes = dom.mes_padrao(r, request.query_params.get("mes"))
     atual = next((m for m in r.meses if m.mes == mes), None)
-    diario = dom.resultado_diario(repo.todos(con))
+    linhas_dt, provisorios = dom.linhas_com_notas(con)
+    diario = dom.resultado_diario(linhas_dt)
     return _render(request, "index.html", {
         "secao": "resumo", "base_url": "/investimentos", "erro": erro, "resultado": resultado,
-        "posicao": posicao, "aviso": aviso, "resumo": r,
+        "posicao": posicao, "aviso": aviso, "provisorios": provisorios, "resumo": r,
         "notas": dom_notas.notas_json(con), "senha_notas": bool(cofre_senhas.candidatas(
             con, dom_notas.EMISSOR_COFRE, dom_notas.FINAL_COFRE)), "mes": mes, "atual": atual,
         "diario": diario, "dias_json": json.dumps(dom.dias_json(diario)),
@@ -62,7 +63,7 @@ def _erro_carregar(request: Request, nome: str, secao: str) -> HTMLResponse:
         "secao": secao, "base_url": "/investimentos", "erro": ERRO_CARREGAR,
         "resumo": dom.ResumoInvestimentos(), "mes": None, "atual": None, "categoria": None,
         "lancamentos": [], "limitado": False, "total_filtro": None, "grafico": "[]",
-        "resultado": None, "posicao": None, "aviso": None, "notas": [], "senha_notas": False,
+        "resultado": None, "posicao": None, "aviso": None, "provisorios": [], "notas": [], "senha_notas": False,
         "carteira": None, "diario": dom.resultado_diario([]),
         "dias_json": "[]", "total_irrf": 0, "total_taxas": 0, "total_custos": 0}, 500)
 

@@ -330,6 +330,7 @@ def investimentos(con: Any, hoje: date, mes: str | None = None) -> dict[str, Any
     return {"nota": NOTA_INVESTIMENTOS, "mes": escolhido, "mes_pedido_existe": mes in (None, escolhido),
             **dinheiro("saldo_caixa", r.saldo_caixa), **data("ate", r.ultima_data),
             "mes_atual": dom_inv.mes_json(atual), **carteira,
+            "dias_provisorios_notas": dom_inv.linhas_com_notas(con)[1],
             "meses": [dom_inv.mes_json(m) for m in r.meses]}
 
 

@@ -36,13 +36,15 @@
         <td class="valor {{ 'entrada' if n.liquido_centavos > 0 else 'saida' }}">{{ n.liquido_centavos|brl }}</td></tr>
     {% endfor %}</tbody>
   </table></div>
-  <p class="campo-ajuda">{{ icone("info", 14) }} As notas ficam à parte: não somam nos totais do extrato (o extrato já traz o day-trade na liquidação).</p>
+  <p class="campo-ajuda">{{ icone("info", 14) }} O extrato chega 1 dia útil depois: enquanto o dia não aparece nele, o day-trade vem da nota; quando o extrato cobre o dia, a nota deixa de contar (nunca soma duas vezes).</p>
   {% endif %}
 </section>
 
 {% if posicao %}
 {% call alerta("sucesso") %}Posição de {{ posicao.data|data_br }} importada: {{ posicao.ativos }} ativo{{ 's' if posicao.ativos != 1 }}, total {{ posicao.total_centavos|brl }}.{% endcall %}
 {% endif %}
+
+{% if provisorios %}{% call alerta("info") %}Day-trade provisório vindo das notas de negociação (ainda sem extrato): {% for d in provisorios %}{{ d|data_br }}{{ ', ' if not loop.last }}{% endfor %}. Os totais e o calendário já incluem esses dias; o saldo em caixa segue o extrato.{% endcall %}{% endif %}
 
 {% if carteira %}
 <section class="painel" aria-label="Carteira atual">
