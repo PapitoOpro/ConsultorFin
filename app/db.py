@@ -586,11 +586,18 @@ def _migracao_17(con: sqlite3.Connection) -> None:
     con.execute("CREATE INDEX idx_inv_notas_data ON inv_notas(data)")
 
 
+def _migracao_18(con: sqlite3.Connection) -> None:
+    """Notas de ações (Bovespa): tipo da nota, valor líquido das operações e data de liquidação."""
+    con.execute("ALTER TABLE inv_notas ADD COLUMN tipo TEXT NOT NULL DEFAULT 'bmf'")
+    con.execute("ALTER TABLE inv_notas ADD COLUMN operacoes_centavos INTEGER NOT NULL DEFAULT 0")
+    con.execute("ALTER TABLE inv_notas ADD COLUMN data_liquidacao TEXT")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
     _migracao_13, _migracao_14, _migracao_15,
-    _migracao_16, _migracao_17,
+    _migracao_16, _migracao_17, _migracao_18,
 ]
 
 

@@ -12,9 +12,11 @@ def existe(con: sqlite3.Connection, numero: str, data: str) -> bool:
 def inserir(con: sqlite3.Connection, nota: NotaLida, criado_em: str) -> int:
     cur = con.execute(
         "INSERT INTO inv_notas (numero, data, ajuste_day_trade_centavos, custos_centavos,"
-        " irrf_centavos, liquido_centavos, criado_em) VALUES (?,?,?,?,?,?,?)",
+        " irrf_centavos, liquido_centavos, criado_em, tipo, operacoes_centavos, data_liquidacao)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?)",
         (nota.numero, nota.data, nota.ajuste_day_trade_centavos, nota.custos_centavos,
-         nota.irrf_day_trade_centavos, nota.liquido_centavos, criado_em))
+         nota.irrf_day_trade_centavos, nota.liquido_centavos, criado_em, nota.tipo,
+         nota.operacoes_centavos, nota.data_liquidacao))
     nota_id = int(cur.lastrowid)
     con.executemany(
         "INSERT INTO inv_notas_negocios (nota_id, ordem, lado, mercadoria, vencimento, quantidade,"

@@ -175,22 +175,28 @@ def linhas_com_notas(con: sqlite3.Connection) -> tuple[list[dict[str, Any]], lis
     liquidou (o extrato chega 1 dia útil depois). Quando o extrato cobre o dia, a nota deixa de
     contar (nunca soma duas vezes). Devolve (linhas cronológicas, datas vindas de notas)."""
     reais = [dict(r) for r in repo.todos(con)]
-    cobertos = {l["data"] for l in reais if l["categoria"] == "day_trade"}
+    cobertos_bmf = {l["data"] for l in reais if l["categoria"] == "day_trade"}
+    cobertos_bov = {l["data"] for l in reais
+                    if l["categoria"] == "ativos" and "operacoes em bolsa" in sem_acento(l["descricao"])}
     extras: list[dict[str, Any]] = []
     provisorios: list[str] = []
     for n in repo_notas.listar(con, limite=1000):
-        if n["data"] in cobertos:
+        bovespa = n["tipo"] == "bovespa"
+        if n["data"] in (cobertos_bov if bovespa else cobertos_bmf):
             continue
         provisorios.append(str(n["data"]))
         saldo = next((int(l["saldo_centavos"]) for l in reversed(reais) if l["data"] <= n["data"]),
                      0)  # o caixa real não muda: a nota ainda não liquidou
-        for cat, desc, v in (("day_trade", "Ajuste day-trade (nota de negociação)", n["ajuste_day_trade_centavos"]),
+        for cat, desc, v in (("ativos", "Operações em bolsa (nota de negociação)",
+                              n["operacoes_centavos"] if bovespa else 0),
+                             ("day_trade", "Ajuste day-trade (nota de negociação)", n["ajuste_day_trade_centavos"]),
                              ("custos", "IRRF day-trade (nota de negociação)", n["irrf_centavos"]),
                              ("custos", "Custos operacionais (nota de negociação)", n["custos_centavos"])):
             if int(v):
                 extras.append({"data": n["data"], "categoria": cat, "descricao": desc,
                                "valor_centavos": int(v), "saldo_centavos": saldo, "ordem": 10**6})
-    return sorted(reais + extras, key=lambda l: (l["data"], l["ordem"])), sorted(provisorios)
+    return (sorted(reais + extras, key=lambda l: (l["data"], l["ordem"])),
+            sorted(dict.fromkeys(provisorios)))
 
 
 def resumo(con: sqlite3.Connection) -> ResumoInvestimentos:

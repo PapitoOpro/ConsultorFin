@@ -6,7 +6,7 @@ import pytest
 from app.db import conectar, migrar
 from app.dominio import cofre_senhas, notas_negociacao as dom
 from app.gmail.cliente import Anexo, Mensagem
-from app.importacao.nota_negociacao import NotaIlegivel, SenhaDaNota, interpretar_texto, ler_nota
+from app.importacao.nota_negociacao import NotaIlegivel, SenhaDaNota, interpretar_texto, ler_notas
 
 TEXTO = """NOTA DE NEGOCIAÇÃO
 Nr. nota Folha Data pregão
@@ -52,11 +52,11 @@ def test_layout_nao_suportado(texto):
 def test_pdf_com_senha_errada_ou_ausente():
     falso = b"%PDF-1.4\n/Encrypt\nlixo"
     with pytest.raises(SenhaDaNota):
-        ler_nota(falso, [])
+        ler_notas(falso, [])
     with pytest.raises(SenhaDaNota):
-        ler_nota(falso, ["errada"])
+        ler_notas(falso, ["errada"])
     with pytest.raises(NotaIlegivel):
-        ler_nota(b"nao e pdf", ["x"])
+        ler_notas(b"nao e pdf", ["x"])
 
 
 class _Cliente:
@@ -84,7 +84,7 @@ def con(tmp_path, monkeypatch):
 
 
 def test_buscar_importa_e_nao_duplica(con, monkeypatch):
-    monkeypatch.setattr(dom, "ler_nota", lambda conteudo, senhas: interpretar_texto(TEXTO))
+    monkeypatch.setattr(dom, "ler_notas", lambda conteudo, senhas: ([interpretar_texto(TEXTO)], 0))
     cli = _Cliente([_msg(1), _msg(2, de="x@outro.com"), _msg(3, assunto="Promoção")],
                    {"a1": b"%PDF"})
     agora = datetime(2026, 11, 24)
@@ -106,7 +106,7 @@ def test_usa_senha_do_cofre(con, monkeypatch):
     assert cofre_senhas.guardar(con, dom.EMISSOR_COFRE, dom.FINAL_COFRE, "segredo")
     con.commit()
     vistas = []
-    monkeypatch.setattr(dom, "ler_nota", lambda c, s: vistas.append(s) or interpretar_texto(TEXTO))
+    monkeypatch.setattr(dom, "ler_notas", lambda c, s: vistas.append(s) or ([interpretar_texto(TEXTO)], 0))
     dom.buscar_e_importar(con, _Cliente([_msg(1)], {"a1": b"%PDF"}), date(2026, 11, 1),
                           date(2026, 12, 1), datetime(2026, 11, 24))
     assert vistas == [["segredo"]]
@@ -134,3 +134,66 @@ def test_nota_alimenta_totais_so_se_extrato_nao_cobre_o_dia(con):
     assert inv.linhas_com_notas(con)[1] == []
     assert depois.meses[-1].day_trade_liquido == 4780  # não soma duas vezes
     assert depois.saldo_caixa == 4780 and depois.ultima_data == "2026-11-19"
+
+
+TEXTO_BOV = """NOTA DE NEGOCIAÇÃO
+Nr. nota Folha Data pregão
+222333444 1 23/11/2026
+CLEAR CTVM S/A
+Negociações
+Negócios realizados
+QNegociação C/VTipo mercado Prazo Especificação do título Obs. (*) Quantidade Preço / Ajuste Valor Operação / Ajuste D/C
+1-BOVESPA C VISTA FII FICTICIO XXXX11 CI @ 4 6,96 27,84 D
+Resumo dos Negócios Resumo Financeiro
+Valor líquido das operações 27,84 D
+I.R.R.F. s/ operações, base R$0,00 0,00
+Total Custos / Despesas 0,10
+Líquido para 25/11/2026 27,94 D
+"""
+
+
+def test_interpreta_nota_bovespa():
+    n = interpretar_texto(TEXTO_BOV)
+    assert (n.tipo, n.numero, n.data, n.data_liquidacao) == ("bovespa", "222333444", "2026-11-23", "2026-11-25")
+    assert n.negocios[0].mercadoria == "XXXX11" and n.negocios[0].valor_centavos == -2784
+    assert (n.operacoes_centavos, n.liquido_centavos, n.custos_centavos) == (-2784, -2794, -10)
+    assert n.avisos == []
+
+
+def test_pdf_com_duas_notas_uma_por_pagina(monkeypatch):
+    from app.importacao import nota_negociacao as m
+
+    class Pg:
+        def __init__(self, t):
+            self.t = t
+
+        def extract_text(self):
+            return self.t
+
+    class Pdf:
+        pages = [Pg(TEXTO_BOV), Pg(TEXTO), Pg("aviso legal sem nota")]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(m.pdfplumber, "open", lambda *a, **k: Pdf())
+    notas, falhas = ler_notas(b"%PDF-1.4\n/Encrypt\nx", ["s"])
+    assert sorted(n.tipo for n in notas) == ["bmf", "bovespa"] and falhas == 0
+
+
+def test_nota_de_acoes_alimenta_ativos_ate_o_extrato_cobrir(con):
+    from app.dominio import investimentos as inv
+    from app.importacao.clear import ExtratoClear, LinhaClear
+    dom.importar_nota(con, interpretar_texto(TEXTO_BOV), datetime(2026, 11, 24))
+    r = inv.resumo(con)
+    assert r.meses[-1].ativos == -2784 and r.meses[-1].aplicado_acum == 2784
+    assert inv.linhas_com_notas(con)[1] == ["2026-11-23"]
+    ext = ExtratoClear("1", [LinhaClear("2026-11-23", "2026-11-25",
+                                        "OPERAÇÕES EM BOLSA PR 23/11/2026 NOTA Nº 222333444", -2794, -2794)], None)
+    inv.importar_extrato(con, ext, "e.xlsx", datetime(2026, 11, 25))
+    con.commit()
+    assert inv.linhas_com_notas(con)[1] == []
+    assert inv.resumo(con).meses[-1].ativos == -2794  # só o extrato: nada em dobro

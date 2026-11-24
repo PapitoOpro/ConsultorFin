@@ -44,7 +44,7 @@
 {% call alerta("sucesso") %}Posição de {{ posicao.data|data_br }} importada: {{ posicao.ativos }} ativo{{ 's' if posicao.ativos != 1 }}, total {{ posicao.total_centavos|brl }}.{% endcall %}
 {% endif %}
 
-{% if provisorios %}{% call alerta("info") %}Day-trade provisório vindo das notas de negociação (ainda sem extrato): {% for d in provisorios %}{{ d|data_br }}{{ ', ' if not loop.last }}{% endfor %}. Os totais e o calendário já incluem esses dias; o saldo em caixa segue o extrato.{% endcall %}{% endif %}
+{% if provisorios %}{% call alerta("info") %}Dias vindos das notas de negociação (day-trade e compras de ações), ainda sem extrato: {% for d in provisorios %}{{ d|data_br }}{{ ', ' if not loop.last }}{% endfor %}. Os totais e o calendário já incluem esses dias; o saldo em caixa segue o extrato.{% endcall %}{% endif %}
 
 {% if carteira %}
 <section class="painel" aria-label="Carteira atual">

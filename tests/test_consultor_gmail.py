@@ -106,6 +106,24 @@ def test_gmail_notas_sem_senha_traduz_aviso(db, capsys, monkeypatch) -> None:
     assert "senha" in saida["aviso"]
 
 
+def test_gmail_notas_ilegivel_avisa_que_nao_adianta_repetir(db, capsys, monkeypatch) -> None:
+    class Notas(Falso):
+        def buscar(self, de, ate, limite=50, remetentes_termos=()):
+            return [Mensagem("m1", "Clear <noreply@clear.com.br>", "Nota de Negociação", "",
+                             (Anexo("a1", "x.pdf", 10),))]
+
+    from app.dominio import notas_negociacao as dom_notas
+    from app.importacao.nota_negociacao import NotaIlegivel
+
+    def ilegivel(conteudo, senhas):
+        raise NotaIlegivel("x")
+
+    monkeypatch.setattr(dom_notas, "ler_notas", ilegivel)
+    monkeypatch.setattr(operacoes, "_cliente_gmail", lambda: Notas())
+    codigo, _, saida = rodar(capsys, db, "gmail-notas", "--mes", "2026-11")
+    assert codigo == 0 and saida["ilegiveis"] == 1 and "Repetir" in saida["aviso_layout"]
+
+
 def test_notas_lista_vazia(db, capsys) -> None:
     codigo, _, saida = rodar(capsys, db, "notas", "--mes", "2026-11")
     assert codigo == 0 and saida["total"] == 0 and saida["notas"] == []

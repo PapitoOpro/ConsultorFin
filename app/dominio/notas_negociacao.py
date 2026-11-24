@@ -15,7 +15,7 @@ from app import config
 from app.dominio import cofre_senhas
 from app.db import sem_acento
 from app.gmail.cliente import Mensagem
-from app.importacao.nota_negociacao import NotaIlegivel, NotaLida, SenhaDaNota, ler_nota
+from app.importacao.nota_negociacao import NotaIlegivel, NotaLida, SenhaDaNota, ler_notas
 from app.repo import inv_notas as repo
 
 log = logging.getLogger(__name__)
@@ -71,17 +71,19 @@ def buscar_e_importar(con: sqlite3.Connection, cliente: ClienteBusca, de: date, 
                 continue
             encontradas += 1
             try:
-                nota = ler_nota(cliente.baixar_anexo(msg.id, anexo.id), senhas)
+                lidas, falhas = ler_notas(cliente.baixar_anexo(msg.id, anexo.id), senhas)
             except SenhaDaNota:
                 sem_senha += 1
                 continue
             except NotaIlegivel:
                 ilegiveis += 1
                 continue
-            if importar_nota(con, nota, agora):
-                novas += 1
-            else:
-                ja += 1
+            ilegiveis += falhas
+            for nota in lidas:  # um PDF pode trazer mais de uma nota (uma por página)
+                if importar_nota(con, nota, agora):
+                    novas += 1
+                else:
+                    ja += 1
     log.info("event=notas_busca encontradas=%d novas=%d sem_senha=%d", encontradas, novas, sem_senha)
     return ResumoNotas(encontradas, novas, ja, ilegiveis, sem_senha, truncada)
 
@@ -90,7 +92,8 @@ def notas_json(con: Any, de: str | None = None, ate: str | None = None) -> list[
     from app.consultor.consultas import dinheiro
     saida: list[dict[str, Any]] = []
     for r in repo.listar(con, de, ate):
-        saida.append({"numero": r["numero"], "data": r["data"], "negocios": int(r["negocios"]),
+        saida.append({"numero": r["numero"], "data": r["data"], "tipo": r["tipo"],
+                      "negocios": int(r["negocios"]),
                       **dinheiro("ajuste_day_trade", int(r["ajuste_day_trade_centavos"])),
                       **dinheiro("custos", int(r["custos_centavos"])),
                       **dinheiro("irrf", int(r["irrf_centavos"])),

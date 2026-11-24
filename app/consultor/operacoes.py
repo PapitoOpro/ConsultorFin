@@ -262,6 +262,10 @@ def gmail_notas(con: Any, hoje: date, mes: str | None, ate_mes: str | None) -> d
                            "novas": r.novas, "ja_importadas": r.ja_importadas,
                            "ilegiveis": r.ilegiveis, "sem_senha": r.sem_senha,
                            "limite_atingido": r.limite_atingido}
+    if r.ilegiveis:
+        out["aviso_layout"] = (f"{r.ilegiveis} nota(s) não foram lidas: o leitor cobre notas de futuros "
+                               "(BM&F) e de ações à vista (Bovespa); outro layout não é lido. Repetir o "
+                               "comando não resolve.")
     if r.sem_senha:
         out["aviso"] = ("Há notas que não abriram: cadastre ou corrija a senha das notas da Clear "
                         "na tela Investimentos.")
