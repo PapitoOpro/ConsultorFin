@@ -593,11 +593,17 @@ def _migracao_18(con: sqlite3.Connection) -> None:
     con.execute("ALTER TABLE inv_notas ADD COLUMN data_liquidacao TEXT")
 
 
+def _migracao_19(con: sqlite3.Connection) -> None:
+    """Notas de ações: o IRRF de até R$ 1,00 não é descontado; devolve o valor aos custos."""
+    con.execute("UPDATE inv_notas SET custos_centavos = custos_centavos + irrf_centavos,"
+                " irrf_centavos = 0 WHERE tipo = 'bovespa' AND irrf_centavos BETWEEN -100 AND -1")
+
+
 MIGRACOES: list[Callable[[sqlite3.Connection], None]] = [
     _migracao_1, _migracao_2, _migracao_3, _migracao_4, _migracao_5, _migracao_6,
     _migracao_7, _migracao_8, _migracao_9, _migracao_10, _migracao_11, _migracao_12,
     _migracao_13, _migracao_14, _migracao_15,
-    _migracao_16, _migracao_17, _migracao_18,
+    _migracao_16, _migracao_17, _migracao_18, _migracao_19,
 ]
 
 

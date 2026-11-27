@@ -30,6 +30,7 @@ _LIQ_PARA = re.compile(rf"liquido para ({_DATA})\s+({_DIN})\s+([DC])", re.IGNORE
 _VAL_OPER = re.compile(rf"valor liquido das operacoes\s+({_DIN})\s+([DC])", re.IGNORECASE)
 _IRRF_BOV = re.compile(rf"i\.r\.r\.f\. s/ operacoes, base r\$[\d.,]+\s+({_DIN})")
 _VALOR = re.compile(_DIN)
+_IRRF_BOV_DISPENSA = 100  # até R$ 1,00 o IRRF de ações é só informado, não descontado do líquido
 _SINAL = re.compile(r"\b([DC])\b")
 
 
@@ -137,7 +138,8 @@ def _interpretar_bovespa(linhas: list[str], sem: list[str], cab: re.Match[str]) 
     nota.liquido_centavos = _com_sinal(liq.group(2), liq.group(3).upper())
     nota.data_liquidacao = _iso(liq.group(1))
     irrf = _IRRF_BOV.search(texto)
-    nota.irrf_day_trade_centavos = -_cents(irrf.group(1)) if irrf else 0
+    retido = _cents(irrf.group(1)) if irrf else 0
+    nota.irrf_day_trade_centavos = -retido if retido > _IRRF_BOV_DISPENSA else 0
     nota.custos_centavos = nota.liquido_centavos - nota.operacoes_centavos - nota.irrf_day_trade_centavos
     if sum(n.valor_centavos for n in nota.negocios) != nota.operacoes_centavos:
         nota.avisos.append("A soma dos negócios não confere com o valor das operações da nota.")

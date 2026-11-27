@@ -75,6 +75,14 @@ def _achar_conta(linhas: list[tuple[Any, ...]]) -> str | None:
     return None
 
 
+def _valor_do_rotulo(linha: tuple[Any, ...], rotulos: list[str], rotulo: str) -> int | None:
+    """Primeiro número à direita do rótulo do resumo, se a linha o tiver."""
+    if rotulo not in rotulos:
+        return None
+    achado = [v for v in linha[rotulos.index(rotulo) + 1:] if isinstance(v, (int, float))]
+    return _centavos(achado[0]) if achado else None
+
+
 def parece_extrato_clear(conteudo: bytes) -> bool:
     try:
         return _achar_conta(_abrir(conteudo)) is not None
@@ -88,14 +96,16 @@ def ler_extrato_clear(conteudo: bytes) -> ExtratoClear:
     if conta is None:
         raise ClearIlegivel("Este arquivo não parece o extrato da conta Clear.")
     saldo_inf: int | None = None
+    futuros = 0  # "Projeções futuras": o que ainda não liquidou e está no total projetado
     cab: dict[str, int] = {}
     inicio = -1
     for i, linha in enumerate(linhas):
         rotulos = [_sem_acento(str(c)).strip() if c is not None else "" for c in linha]
-        if not cab and rotulos[:1] == [""] and "saldo total projetado" in rotulos:
-            k = rotulos.index("saldo total projetado")
-            achado = [v for v in linha[k + 1:] if isinstance(v, (int, float))]
-            saldo_inf = _centavos(achado[0]) if achado else None
+        if not cab and rotulos[:1] == [""]:
+            if (v := _valor_do_rotulo(linha, rotulos, "projecoes futuras")) is not None:
+                futuros = v
+            if (v := _valor_do_rotulo(linha, rotulos, "saldo total projetado")) is not None:
+                saldo_inf = v
         achados = {_COLUNAS[r]: j for j, r in enumerate(rotulos) if r in _COLUNAS}
         if len(achados) == len(_COLUNAS):
             cab, inicio = achados, i
@@ -114,4 +124,5 @@ def ler_extrato_clear(conteudo: bytes) -> ExtratoClear:
     if not lidas:
         raise ClearIlegivel("O extrato não tem movimentações.")
     lidas.reverse()  # o arquivo vem do mais recente para o mais antigo
-    return ExtratoClear(conta=conta, linhas=lidas, saldo_informado_centavos=saldo_inf)
+    realizado = None if saldo_inf is None else saldo_inf - futuros
+    return ExtratoClear(conta=conta, linhas=lidas, saldo_informado_centavos=realizado)

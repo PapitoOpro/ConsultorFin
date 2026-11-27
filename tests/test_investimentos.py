@@ -39,12 +39,14 @@ LINHAS = list(reversed(_ajustadas))
 
 
 def xlsx(linhas: list[tuple[date, date, str, float, float]] = LINHAS, conta: str = "13712591",
-         saldo_total: float | None = None) -> bytes:
+         saldo_total: float | None = None, projecoes: float = 0) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws["G2"] = "Extrato da conta"
     ws["B5"] = "NOME INVENTADO"
     ws["G5"] = f"Conta Clear: {conta}"
+    ws["B11"] = "Projeções futuras"
+    ws["G11"] = projecoes
     ws["B12"] = "Saldo total projetado"
     ws["G12"] = linhas[0][4] if saldo_total is None else saldo_total
     for j, t in enumerate(("Movimentação", "Liquidação", "Lançamento", None, "Valor (R$)", "Saldo (R$)")):
@@ -73,6 +75,12 @@ def test_leitor_extrai_conta_linhas_cronologicas_e_saldo_informado() -> None:
     assert e.linhas[0].data == "2026-10-30" and e.linhas[0].valor_centavos == 10000
     assert e.linhas[-1].saldo_centavos == e.saldo_informado_centavos == 13109
     assert e.linhas[3].descricao == "RENDIMENTOS DE CLIENTES FIIX11 S/ 4"  # espaços normalizados
+
+
+def test_saldo_informado_desconta_lancamentos_futuros() -> None:
+    # o total projetado já inclui o que ainda não liquidou
+    e = ler_extrato_clear(xlsx(saldo_total=-868.91, projecoes=-1000.0))
+    assert e.saldo_informado_centavos == e.linhas[-1].saldo_centavos == 13109
 
 
 def test_leitor_recusa_arquivos_que_nao_sao_extrato_clear() -> None:

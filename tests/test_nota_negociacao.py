@@ -160,6 +160,27 @@ def test_interpreta_nota_bovespa():
     assert n.avisos == []
 
 
+@pytest.mark.parametrize("irrf,liquido,esperado", [
+    ("0,21", "27,94", (-10, 0)),       # até R$ 1,00 a retenção é dispensada: só informativo
+    ("1,50", "29,44", (-10, -150)),    # acima disso é descontado do líquido
+])
+def test_irrf_de_acoes_so_e_descontado_acima_de_um_real(irrf, liquido, esperado):
+    texto = TEXTO_BOV.replace("base R$0,00 0,00", f"base R$4.200,00 {irrf}").replace(
+        "25/11/2026 27,94 D", f"25/11/2026 {liquido} D")
+    n = interpretar_texto(texto)
+    assert (n.custos_centavos, n.irrf_day_trade_centavos) == esperado
+
+
+def test_migracao_corrige_irrf_dispensado_ja_gravado(con):
+    from app.db import MIGRACOES
+    nota = interpretar_texto(TEXTO_BOV)
+    nota.custos_centavos, nota.irrf_day_trade_centavos = 11, -21  # como era gravado
+    dom.importar_nota(con, nota, datetime(2026, 11, 24))
+    MIGRACOES[18](con)
+    n = dom.notas_json(con)[0]
+    assert (n["custos_centavos"], n["irrf_centavos"]) == (-10, 0)
+
+
 def test_pdf_com_duas_notas_uma_por_pagina(monkeypatch):
     from app.importacao import nota_negociacao as m
 
