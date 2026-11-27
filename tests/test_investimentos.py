@@ -38,7 +38,7 @@ for mov, liq, desc, valor, _ in reversed(LINHAS):
 LINHAS = list(reversed(_ajustadas))
 
 
-def xlsx(linhas: list[tuple[date, date, str, float, float]] = LINHAS, conta: str = "13712591",
+def xlsx(linhas: list[tuple[date, date, str, float, float]] = LINHAS, conta: str = "99999999",
          saldo_total: float | None = None, projecoes: float = 0) -> bytes:
     wb = Workbook()
     ws = wb.active
@@ -71,7 +71,7 @@ def con() -> Iterator[Any]:
 
 def test_leitor_extrai_conta_linhas_cronologicas_e_saldo_informado() -> None:
     e = ler_extrato_clear(xlsx())
-    assert e.conta == "13712591" and len(e.linhas) == len(LINHAS)
+    assert e.conta == "99999999" and len(e.linhas) == len(LINHAS)
     assert e.linhas[0].data == "2026-10-30" and e.linhas[0].valor_centavos == 10000
     assert e.linhas[-1].saldo_centavos == e.saldo_informado_centavos == 13109
     assert e.linhas[3].descricao == "RENDIMENTOS DE CLIENTES FIIX11 S/ 4"  # espaços normalizados
@@ -228,10 +228,10 @@ from app.importacao.b3_posicao import (  # noqa: E402
 ABAS_B3 = {
     "Acoes": (["Produto", "Instituição", "Conta", "Código de Negociação", "Tipo", "Quantidade",
                "Preço de Fechamento", "Valor Atualizado"],
-              [("ACME3 - ACME INVENTADA", "X", "13712591", "ACME3", "ON", 3, 13.15, 39.45)]),
+              [("ACME3 - ACME INVENTADA", "X", "99999999", "ACME3", "ON", 3, 13.15, 39.45)]),
     "ETF": (["Produto", "Instituição", "Conta", "Código de Negociação", "Tipo", "Quantidade",
              "Preço de Fechamento", "Valor Atualizado"],
-            [("IDXX11 - INDICE INVENTADO", "X", "13712591", "IDXX11", "Ações", 3, 57.8, 173.4)]),
+            [("IDXX11 - INDICE INVENTADO", "X", "99999999", "IDXX11", "Ações", 3, 57.8, 173.4)]),
 }
 
 
@@ -252,7 +252,7 @@ def xlsx_b3(abas: dict[str, Any] = ABAS_B3, conta: str | None = None) -> bytes:
 
 def test_leitor_b3_le_todas_as_abas_e_data_do_nome() -> None:
     p = ler_posicao_b3(xlsx_b3(), "posicao-2026-11-19-16-25-15.xlsx")
-    assert p.data == "2026-11-19" and p.conta == "13712591"
+    assert p.data == "2026-11-19" and p.conta == "99999999"
     assert [(a.codigo, a.quantidade, a.valor_centavos) for a in p.ativos] == [
         ("ACME3", 3.0, 3945), ("IDXX11", 3.0, 17340)]
     assert p.ativos[0].classe == "Acoes" and p.ativos[1].preco_centavos == 5780
@@ -272,7 +272,7 @@ def test_importar_posicao_substitui_a_mesma_data_e_guarda_historico(con: Any) ->
     dom.importar_posicao(con, p, datetime(2026, 11, 19, 18))
     assert con.execute("SELECT COUNT(*) FROM inv_posicoes").fetchone()[0] == 2
     outra = dict(ABAS_B3)
-    outra["ETF"] = (ABAS_B3["ETF"][0], [("IDXX11 - X", "X", "13712591", "IDXX11", "A", 4, 60.0, 240.0)])
+    outra["ETF"] = (ABAS_B3["ETF"][0], [("IDXX11 - X", "X", "99999999", "IDXX11", "A", 4, 60.0, 240.0)])
     dom.importar_posicao(con, ler_posicao_b3(xlsx_b3(outra), "posicao-2026-11-20-1.xlsx"),
                          datetime(2026, 11, 20))
     c = dom.carteira_atual(con)
